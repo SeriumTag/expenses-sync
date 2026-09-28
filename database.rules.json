@@ -1,0 +1,53 @@
+{
+  "rules": {
+    "users": {
+      "$user": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".validate": "$user.length >= 3 && $user.length <= 20 && $user.matches(/^[a-z0-9_-]+$/)"
+      }
+    },
+    "codes": {
+      "$code": {
+        ".read": "auth != null",
+        ".write": "auth != null && (!data.exists() || !newData.exists())",
+        ".validate": "newData.isString()"
+      }
+    },
+    "ledgers": {
+      "$lid": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        "meta": {
+          "partner": {
+            ".validate": "newData.isString() && (!data.exists() || data.val() === newData.val())"
+          }
+        },
+        "members": {
+          "$member": {
+            ".validate": "newData.parent().parent().child('meta/owner').val() === $member || newData.parent().parent().child('meta/partner').val() === $member"
+          }
+        },
+        "tabs": {
+          "$tid": {
+            ".validate": "newData.hasChildren(['name', 'order'])"
+          }
+        },
+        "items": {
+          "$tid": {
+            "$iid": {
+              ".validate": "newData.hasChild('order')",
+              "amount": { ".validate": "newData.isNumber()" }
+            }
+          }
+        }
+      }
+    },
+    "presence": {
+      "$lid": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    }
+  }
+}
