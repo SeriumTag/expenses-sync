@@ -8,6 +8,13 @@ Real-time shared expense tracker. React + Vite front end, **Firebase Realtime Da
 - Live sync: changes appear on the other screen within ~100 ms as they're typed
 - Presence: see when your partner is online, which tab they're on, and which field they're editing (that field is locked for you until they leave it)
 - Works offline; edits sync when the connection returns
+- Netflix-style dark UI with a "Who's spending?" profile picker; stays signed in on a device for 6 months
+- Per-user theme colour (saved to the user, so it follows them across devices)
+- Installable: "Add to Home Screen" on iPhone with app icon, launch screens and an animated splash
+
+## App icon & launch screens
+
+Generated from code by `npm run assets` (see `scripts/generate-assets.mjs`) into `public/`. The output is committed, so you only need to rerun it if you change the design.
 
 ## Why Firebase Realtime Database
 
