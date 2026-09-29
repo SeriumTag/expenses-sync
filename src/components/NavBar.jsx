@@ -5,7 +5,7 @@ import { LogoMark, Wordmark } from './Logo';
 // Top bar: brand, account switcher, partner presence and the profile menu.
 export default function NavBar(props) {
   const { scrolled, ledgers, ledgerId, onSwitch, partner, partnerOnline, username, connected, binCount } = props;
-  const { onTheme, onShare, onNewAccount, onOpenBin, onDeleteAccount, onLogout } = props;
+  const { onTheme, onShare, onNewAccount, onManageAccounts, onOpenBin, onDeleteAccount, onLogout } = props;
   const [open, setOpen] = useState(false);
   const run = (fn) => () => {
     setOpen(false);
@@ -21,12 +21,17 @@ export default function NavBar(props) {
 
       {ledgers.length > 1 && (
         <label className="account-pill">
-          <select value={ledgerId} onChange={(e) => onSwitch(e.target.value)} aria-label="Expense account">
+          <select
+            value={ledgerId}
+            onChange={(e) => (e.target.value === '__manage' ? onManageAccounts() : onSwitch(e.target.value))}
+            aria-label="Expense account"
+          >
             {ledgers.map((l) => (
               <option key={l.id} value={l.id}>
                 {l.name}
               </option>
             ))}
+            <option value="__manage">Manage accounts…</option>
           </select>
           <span aria-hidden="true">▾</span>
         </label>
@@ -69,6 +74,9 @@ export default function NavBar(props) {
                 </button>
                 <button role="menuitem" onClick={run(onShare)}>
                   <span className="menu-ico">⇄</span> Share &amp; sync
+                </button>
+                <button role="menuitem" onClick={run(onManageAccounts)}>
+                  <span className="menu-ico">▤</span> Manage accounts
                 </button>
                 <button role="menuitem" onClick={run(onNewAccount)}>
                   <span className="menu-ico">＋</span> New expense account

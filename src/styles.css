@@ -774,3 +774,12 @@ input::placeholder { color: var(--dim); }
   .cat-entry-saved { margin-left: 0; }
   .ep-amt .amt-line .ep-amount input { width: 104px; }
 }
+
+/* ───────── Manage accounts ───────── */
+.acct-list { display: flex; flex-direction: column; gap: 8px; }
+.acct-row { display: flex; align-items: center; gap: 8px; padding: 12px; background: var(--surface-2); border-radius: 8px; border: 2px solid transparent; }
+.acct-row.current { border-color: var(--accent); }
+.acct-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.acct-info b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-gap.between { justify-content: space-between; }
+.acct-actions { margin-top: 16px; }

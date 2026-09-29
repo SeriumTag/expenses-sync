@@ -41,7 +41,7 @@ import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
 
-export default function Ledger({ ledgerId, username, theme, onThemeChange, ledgers, onSwitch, onCreate, onJoin, onLogout, binCount, onOpenBin }) {
+export default function Ledger({ ledgerId, username, theme, onThemeChange, ledgers, onSwitch, onCreate, onJoin, onLogout, binCount, onOpenBin, onManageAccounts }) {
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState(null);
   const [newTabId, setNewTabId] = useState(null);
@@ -212,6 +212,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
           onTheme={() => setDialog('theme')}
           onShare={() => setDialog('share')}
           onNewAccount={newAccount}
+          onManageAccounts={onManageAccounts}
           onOpenBin={onOpenBin}
           onDeleteAccount={binThisAccount}
           onLogout={onLogout}

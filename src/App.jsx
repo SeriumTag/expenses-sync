@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { onValue, ref, set } from 'firebase/database';
+import AccountsDialog from './components/AccountsDialog';
 import { BinList } from './components/BinDialog';
 import InstallPrompt from './components/InstallPrompt';
 import Ledger from './components/Ledger';
@@ -32,6 +33,7 @@ export default function App() {
   const [ledgerIds, setLedgerIds] = useState(null);
   const [metas, setMetas] = useState({}); // ledgerId → meta (null if the account no longer exists)
   const [binOpen, setBinOpen] = useState(false);
+  const [accountsOpen, setAccountsOpen] = useState(false);
   const [activeId, setActiveId] = useState(() => prefs.get('ledger'));
   const [pendingJoin, setPendingJoin] = useState(takeJoinParam);
   const [joinError, setJoinError] = useState('');
@@ -210,6 +212,7 @@ export default function App() {
         ledgers={activeIds.map((id) => ({ id, name: metas[id]?.name || 'Untitled' }))}
         binCount={binned.length}
         onOpenBin={() => setBinOpen(true)}
+        onManageAccounts={() => setAccountsOpen(true)}
         onSwitch={setActiveId}
         onCreate={handleCreate}
         onJoin={handleJoin}
@@ -246,6 +249,22 @@ export default function App() {
             </button>
           </div>
         </Modal>
+      )}
+
+      {accountsOpen && username && (
+        <AccountsDialog
+          accounts={activeIds.map((id) => ({ id, name: metas[id]?.name || 'Untitled', owner: metas[id]?.owner }))}
+          currentId={currentId}
+          username={username}
+          binCount={binned.length}
+          onOpen={setActiveId}
+          onCreate={() => {
+            const name = window.prompt('Name for the new expense account', 'Our Expenses');
+            if (name?.trim()) handleCreate(name.trim());
+          }}
+          onOpenBin={() => setBinOpen(true)}
+          onClose={() => setAccountsOpen(false)}
+        />
       )}
 
       {binOpen && username && (
