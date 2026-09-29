@@ -1,6 +1,5 @@
 import { get, push, ref, runTransaction, serverTimestamp, set, update } from 'firebase/database';
 import { db } from '../firebase';
-import { today } from './format';
 
 /*
  * Data layout (Firebase Realtime Database)
@@ -10,7 +9,7 @@ import { today } from './format';
  * ledgers/{ledgerId}/meta:    { name, owner, partner, code, currency, createdAt }
  * ledgers/{ledgerId}/members: { username: joinedAt }   (only owner + partner, enforced by rules)
  * ledgers/{ledgerId}/tabs/{tabId}: { name, order }
- * ledgers/{ledgerId}/items/{tabId}/{itemId}: { date, name, amount, order, updatedBy, updatedAt }
+ * ledgers/{ledgerId}/items/{tabId}/{itemId}: { name, amount (per month), category, note, order, updatedBy, updatedAt }
  * presence/{ledgerId}/{username}/{connectionId}: { tab, editing, since, at }
  *
  * Every edit writes only the single field that changed, so two people editing
@@ -68,6 +67,7 @@ export async function joinWithCode(username, rawCode) {
 
   const metaSnap = await get(ref(db, `ledgers/${ledgerId}/meta`));
   if (!metaSnap.exists()) throw new Error('That shared account no longer exists.');
+  if (metaSnap.child('deletedAt').exists()) throw new Error('That account is in the bin. Ask someone in it to restore it first.');
 
   if (metaSnap.child('owner').val() !== username) {
     // Each account has one partner slot. The transaction makes sure two people
@@ -115,15 +115,47 @@ export async function rotateCode(ledgerId, oldCode) {
   return code;
 }
 
+// ── Bin ──────────────────────────────────────────────────────────────
+// A deleted account is only marked (meta.deletedAt), so either member can
+// restore it. After BIN_DAYS it's removed for good the next time either of
+// them opens the app (there's no server to do it on a timer).
+export const BIN_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function binDaysLeft(deletedAt) {
+  // Capped at BIN_DAYS: the server clock can be a little ahead of this device's.
+  return Math.min(BIN_DAYS, Math.max(0, Math.ceil((deletedAt + BIN_DAYS * DAY_MS - Date.now()) / DAY_MS)));
+}
+export const binExpired = (deletedAt) => Date.now() >= deletedAt + BIN_DAYS * DAY_MS;
+
+export function moveLedgerToBin(ledgerId, username) {
+  return update(ref(db, `ledgers/${ledgerId}/meta`), { deletedAt: serverTimestamp(), deletedBy: username });
+}
+
+export function restoreLedger(ledgerId) {
+  return update(ref(db, `ledgers/${ledgerId}/meta`), { deletedAt: null, deletedBy: null });
+}
+
+export async function purgeLedger(ledgerId) {
+  const [membersSnap, codeSnap] = await Promise.all([
+    get(ref(db, `ledgers/${ledgerId}/members`)),
+    get(ref(db, `ledgers/${ledgerId}/meta/code`)),
+  ]);
+  const patch = { [`ledgers/${ledgerId}`]: null, [`presence/${ledgerId}`]: null };
+  if (codeSnap.val()) patch[`codes/${codeSnap.val()}`] = null;
+  Object.keys(membersSnap.val() || {}).forEach((m) => (patch[`users/${m}/ledgers/${ledgerId}`] = null));
+  return update(ref(db), patch);
+}
+
 export function updateMeta(ledgerId, patch) {
   return update(ref(db, `ledgers/${ledgerId}/meta`), patch);
 }
 
 // Tab and item creators return the new key immediately so the UI can focus it;
 // the write itself shows up locally at once and syncs in the background.
-export function addTab(ledgerId, name) {
+export function addTab(ledgerId, name, order = Date.now()) {
   const tabRef = push(ref(db, `ledgers/${ledgerId}/tabs`));
-  set(tabRef, { name, order: Date.now() }).catch(console.error);
+  set(tabRef, { name, order }).catch(console.error);
   return tabRef.key;
 }
 
@@ -138,17 +170,39 @@ export function deleteTab(ledgerId, tabId) {
   });
 }
 
+// `amount` is always stored per month; the Monthly/Yearly switch only changes
+// how it's shown and typed.
 export function addItem(ledgerId, tabId, username) {
   const itemRef = push(ref(db, `ledgers/${ledgerId}/items/${tabId}`));
   set(itemRef, {
-    date: today(),
     name: '',
     amount: 0,
+    category: '',
+    note: '',
     order: Date.now(),
     updatedBy: username,
     updatedAt: serverTimestamp(),
   }).catch(console.error);
   return itemRef.key;
+}
+
+// Adds many rows in one write (used by "Paste from sheet").
+export function addItems(ledgerId, tabId, username, rows) {
+  const base = Date.now();
+  const patch = {};
+  rows.forEach((row, i) => {
+    const key = push(ref(db, `ledgers/${ledgerId}/items/${tabId}`)).key;
+    patch[`ledgers/${ledgerId}/items/${tabId}/${key}`] = {
+      name: row.name,
+      amount: row.amount,
+      category: row.category || '',
+      note: row.note || '',
+      order: base + i,
+      updatedBy: username,
+      updatedAt: serverTimestamp(),
+    };
+  });
+  return update(ref(db), patch);
 }
 
 export function updateItemField(ledgerId, tabId, itemId, field, value, username) {

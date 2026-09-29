@@ -6,7 +6,7 @@ import LiveInput from './LiveInput';
 import Modal from './Modal';
 import Scanner from './Scanner';
 
-export default function ShareDialog({ ledgerId, meta, members, username, onJoin, onClose }) {
+export default function ShareDialog({ ledgerId, meta, members, username, onJoin, onDelete, onClose }) {
   const [code, setCode] = useState('');
   const [scanning, setScanning] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -148,6 +148,9 @@ export default function ShareDialog({ ledgerId, meta, members, username, onJoin,
             maxLength={4}
           />
         </label>
+        <button className="btn danger sm" onClick={onDelete}>
+          Delete this account…
+        </button>
       </section>
     </Modal>
   );

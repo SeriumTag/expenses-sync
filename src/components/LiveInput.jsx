@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { usePresenceCtx } from '../hooks/usePresence';
 
 // Keystrokes are sent at most this often, so the other person sees typing live
@@ -23,6 +23,7 @@ export default function LiveInput({
   display,
   className = '',
   autoFocusOnMount = false,
+  multiline = false,
   ...inputProps
 }) {
   const { me, lockFor, setEditing, colorFor } = usePresenceCtx();
@@ -108,23 +109,39 @@ export default function LiveInput({
   };
 
   const shown = focused ? draft : (display || format)(value);
+  const Field = multiline ? 'textarea' : 'input';
+
+  // Multi-line notes grow to fit their text, including lines that wrap.
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!multiline || !el) return;
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight + 2}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [multiline, shown]);
 
   return (
     <span
       className={`live ${className} ${lock ? 'is-locked' : ''} ${focused ? 'is-mine' : ''}`}
       style={lock ? { '--c': colorFor(lock.user) } : undefined}
     >
-      <input
+      <Field
         ref={inputRef}
         aria-label={inputProps.placeholder}
         {...inputProps}
+        {...(multiline ? { rows: 1 } : {})}
         value={shown}
         readOnly={Boolean(lock) && !focused}
         onFocus={onFocus}
         onBlur={release}
         onChange={onChange}
         onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur();
+          // In a multi-line note, Enter adds a new line; Escape still finishes.
+          if (e.key === 'Escape' || (e.key === 'Enter' && !multiline)) e.currentTarget.blur();
         }}
       />
       {lock && <span className="lock-tag">🔒 {lock.user} is editing</span>}

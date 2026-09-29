@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { onValue, ref, set } from 'firebase/database';
+import { BinList } from './components/BinDialog';
 import InstallPrompt from './components/InstallPrompt';
 import Ledger from './components/Ledger';
 import Login from './components/Login';
 import Modal from './components/Modal';
 import SetupNotice from './components/SetupNotice';
 import { db, ensureAuth, isConfigured } from './firebase';
-import { createLedger, joinWithCode, loginUser } from './lib/db';
+import { binExpired, createLedger, joinWithCode, loginUser, purgeLedger, unlinkLedger } from './lib/db';
 import { cachedTheme, clearSession, loadSession, prefs, rememberProfile, saveSession } from './lib/session';
 import { hideSplash } from './lib/splash';
 import { DEFAULT_THEME, applyTheme, isHex } from './lib/theme';
@@ -29,11 +30,13 @@ export default function App() {
   const [username, setUsername] = useState(loadSession);
   const [theme, setTheme] = useState(() => (username && cachedTheme(username)) || DEFAULT_THEME);
   const [ledgerIds, setLedgerIds] = useState(null);
-  const [names, setNames] = useState({});
+  const [metas, setMetas] = useState({}); // ledgerId → meta (null if the account no longer exists)
+  const [binOpen, setBinOpen] = useState(false);
   const [activeId, setActiveId] = useState(() => prefs.get('ledger'));
   const [pendingJoin, setPendingJoin] = useState(takeJoinParam);
   const [joinError, setJoinError] = useState('');
   const creatingDefault = useRef(false);
+  const purging = useRef(new Set());
 
   useLayoutEffect(() => applyTheme(theme), [theme]);
 
@@ -82,14 +85,40 @@ export default function App() {
   useEffect(() => {
     if (!idsKey) return;
     const offs = idsKey.split(',').map((id) =>
-      onValue(ref(db, `ledgers/${id}/meta/name`), (snap) =>
-        setNames((prev) => ({ ...prev, [id]: snap.val() || 'Untitled' })),
-      ),
+      onValue(ref(db, `ledgers/${id}/meta`), (snap) => setMetas((prev) => ({ ...prev, [id]: snap.val() }))),
     );
     return () => offs.forEach((off) => off());
   }, [idsKey]);
 
-  const currentId = ledgerIds?.includes(activeId) ? activeId : (ledgerIds?.[0] ?? null);
+  const metasReady = Boolean(ledgerIds) && ledgerIds.every((id) => id in metas);
+  const activeIds = metasReady ? ledgerIds.filter((id) => metas[id] && !metas[id].deletedAt) : [];
+  const binned = metasReady
+    ? ledgerIds.filter((id) => metas[id]?.deletedAt).map((id) => ({ id, meta: metas[id] }))
+    : [];
+  const currentId = activeIds.includes(activeId) ? activeId : (activeIds[0] ?? null);
+
+  // Tidy up: forget links to accounts that no longer exist, and permanently
+  // delete accounts that have been in the bin longer than 7 days.
+  useEffect(() => {
+    if (!metasReady || !username) return;
+    for (const id of ledgerIds) {
+      if (purging.current.has(id)) continue;
+      const meta = metas[id];
+      if (meta === null) {
+        purging.current.add(id);
+        unlinkLedger(username, id).catch(() => {});
+      } else if (meta.deletedAt && binExpired(meta.deletedAt)) {
+        purging.current.add(id);
+        purgeLedger(id).catch(() => purging.current.delete(id));
+      }
+    }
+  }, [metasReady, ledgerIds, metas, username]);
+
+  // Nothing to show but the bin: lift the splash so the "no accounts" screen is visible.
+  const onlyBin = metasReady && ledgerIds.length > 0 && activeIds.length === 0;
+  useEffect(() => {
+    if (onlyBin) hideSplash();
+  }, [onlyBin]);
   useEffect(() => {
     if (currentId) prefs.set('ledger', currentId);
   }, [currentId]);
@@ -107,7 +136,8 @@ export default function App() {
     prefs.set('ledger', null);
     setUsername(null);
     setLedgerIds(null);
-    setNames({});
+    setMetas({});
+    setBinOpen(false);
     setActiveId(null);
     setTheme(DEFAULT_THEME);
   };
@@ -145,6 +175,29 @@ export default function App() {
       </div>
     );
   else if (!username) screen = <Login onLogin={handleLogin} ready={authReady} pendingJoin={pendingJoin} />;
+  else if (onlyBin)
+    screen = (
+      <div className="center-screen">
+        <div className="card no-accounts">
+          <h2>No expense accounts</h2>
+          <p className="muted">Everything is in the bin. Restore an account, or start a new one.</p>
+          <button
+            className="btn primary block"
+            onClick={() => {
+              const name = window.prompt('Name for the new expense account', 'My Expenses');
+              if (name?.trim()) handleCreate(name.trim());
+            }}
+          >
+            ＋ New expense account
+          </button>
+          <h3 className="bin-title">Bin</h3>
+          <BinList items={binned} onRestored={setActiveId} />
+          <button className="btn ghost block" onClick={handleLogout}>
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
   else if (!currentId) screen = null; // splash still showing
   else
     screen = (
@@ -154,7 +207,9 @@ export default function App() {
         username={username}
         theme={theme}
         onThemeChange={handleThemeChange}
-        ledgers={ledgerIds.map((id) => ({ id, name: names[id] || '…' }))}
+        ledgers={activeIds.map((id) => ({ id, name: metas[id]?.name || 'Untitled' }))}
+        binCount={binned.length}
+        onOpenBin={() => setBinOpen(true)}
         onSwitch={setActiveId}
         onCreate={handleCreate}
         onJoin={handleJoin}
@@ -190,6 +245,18 @@ export default function App() {
               Join
             </button>
           </div>
+        </Modal>
+      )}
+
+      {binOpen && username && (
+        <Modal title="Bin" onClose={() => setBinOpen(false)}>
+          <BinList
+            items={binned}
+            onRestored={(id) => {
+              setActiveId(id);
+              setBinOpen(false);
+            }}
+          />
         </Modal>
       )}
 

@@ -3,10 +3,12 @@ import { onValue, ref } from 'firebase/database';
 import { db } from '../firebase';
 import { useConnected } from '../hooks/useConnected';
 import { PresenceContext, usePresence } from '../hooks/usePresence';
-import { addItem, addTab, deleteTab, renameTab, unlinkLedger } from '../lib/db';
-import { formatMoney, sumItems } from '../lib/format';
+import { BIN_DAYS, addItem, addTab, deleteTab, moveLedgerToBin, renameTab, unlinkLedger } from '../lib/db';
+import { PERIODS, formatMoney, sumItems } from '../lib/format';
+import { prefs } from '../lib/session';
 import { hideSplash } from '../lib/splash';
 import { hueFor, partnerColor } from '../lib/theme';
+import ImportDialog from './ImportDialog';
 import { isStandalone, showInstallPrompt } from './InstallPrompt';
 import ItemList from './ItemList';
 import LiveInput from './LiveInput';
@@ -24,12 +26,16 @@ export default function Ledger({
   onCreate,
   onJoin,
   onLogout,
+  binCount,
+  onOpenBin,
 }) {
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState(null);
   const [newTabId, setNewTabId] = useState(null);
   const [focusItemId, setFocusItemId] = useState(null);
-  const [dialog, setDialog] = useState(null); // 'share' | 'theme' | null
+  const [dialog, setDialog] = useState(null); // 'share' | 'theme' | 'import' | null
+  // Monthly/Yearly display is a personal preference, remembered on this device.
+  const [view, setView] = useState(() => (PERIODS[prefs.get('view')] ? prefs.get('view') : 'monthly'));
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [partnerTheme, setPartnerTheme] = useState(null);
@@ -94,7 +100,17 @@ export default function Ledger({
   }
 
   const currency = meta.currency ?? '$';
-  const grandTotal = tabs.reduce((sum, t) => sum + sumItems(data.items?.[t.id]), 0);
+  const { factor, short } = PERIODS[view];
+  const grandTotal = tabs.reduce((sum, t) => sum + sumItems(data.items?.[t.id]), 0) * factor;
+  const categories = [
+    ...new Set(
+      tabs.flatMap((t) => Object.values(data.items?.[t.id] || {}).map((i) => (i.category || '').trim())).filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+  const changeView = (v) => {
+    setView(v);
+    prefs.set('view', v);
+  };
   const itemCount = tabs.reduce((n, t) => n + Object.keys(data.items?.[t.id] || {}).length, 0);
   const partnerOnline = partner ? Boolean(presence.others[partner]) : false;
 
@@ -129,6 +145,22 @@ export default function Ledger({
     setMenuOpen(false);
     const name = window.prompt('Name for the new expense account', 'Shared expenses');
     if (name?.trim()) onCreate(name.trim());
+  }
+
+  function binThisAccount() {
+    setMenuOpen(false);
+    const others = members.filter((m) => m !== username);
+    const msg = [
+      `Delete “${meta.name || 'Untitled'}”?`,
+      others.length ? `${others.join(', ')} will lose access too.` : '',
+      `It goes to the bin for ${BIN_DAYS} days, where ${others.length ? 'either of you' : 'you'} can restore it. After that it’s deleted for good.`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    if (window.confirm(msg)) {
+      setDialog(null);
+      moveLedgerToBin(ledgerId, username);
+    }
   }
 
   const openDialog = (name) => {
@@ -210,6 +242,18 @@ export default function Ledger({
                         <span className="menu-ico">⬇</span> Add to Home Screen
                       </button>
                     )}
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onOpenBin();
+                      }}
+                    >
+                      <span className="menu-ico">🗑</span> Bin{binCount ? ` (${binCount})` : ''}
+                    </button>
+                    <button role="menuitem" className="menu-danger" onClick={binThisAccount}>
+                      <span className="menu-ico">✕</span> Delete this account
+                    </button>
                     <hr />
                     <button role="menuitem" onClick={onLogout}>
                       Sign out of Expense Sync
@@ -233,9 +277,16 @@ export default function Ledger({
               <span>{partner ? 'Shared account' : 'Personal account'}</span>
             </div>
             <h1 className="hero-title">{meta.name || 'Untitled'}</h1>
-            <div className="hero-total">{formatMoney(grandTotal, currency)}</div>
+            <div className="hero-total">
+              {formatMoney(grandTotal, currency)}
+              <button className="per" onClick={() => changeView(view === 'monthly' ? 'yearly' : 'monthly')} title="Switch monthly / yearly">
+                {short} ⇅
+              </button>
+            </div>
             <p className="hero-meta">
-              <span className="match">{itemCount} expenses</span>
+              <span className="match">
+                {itemCount} item{itemCount === 1 ? '' : 's'}
+              </span>
               <span className="sep" />
               <span>
                 {tabs.length} tab{tabs.length === 1 ? '' : 's'}
@@ -287,7 +338,10 @@ export default function Ledger({
                     </span>
                   ))}
                   <span className="card-name">{t.name || 'Untitled'}</span>
-                  <span className="card-total">{formatMoney(sumItems(data.items?.[t.id]), currency)}</span>
+                  <span className="card-total">
+                    {formatMoney(sumItems(data.items?.[t.id]) * factor, currency)}
+                    <span className="card-per">{short}</span>
+                  </span>
                 </button>
               );
             })}
@@ -331,7 +385,11 @@ export default function Ledger({
               currency={currency}
               username={username}
               focusId={focusItemId}
+              categories={categories}
+              view={view}
+              onViewChange={changeView}
               onAdd={addExpense}
+              onImport={() => setDialog('import')}
             />
           </section>
         )}
@@ -343,6 +401,20 @@ export default function Ledger({
             members={members}
             username={username}
             onJoin={onJoin}
+            onDelete={binThisAccount}
+            onClose={() => setDialog(null)}
+          />
+        )}
+        {dialog === 'import' && currentTab && (
+          <ImportDialog
+            ledgerId={ledgerId}
+            tabId={tabId}
+            tabName={currentTab.name}
+            tabs={tabs}
+            onImported={(id) => id && setActiveTab(id)}
+            username={username}
+            currency={currency}
+            view={view}
             onClose={() => setDialog(null)}
           />
         )}

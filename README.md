@@ -11,6 +11,9 @@ Real-time shared expense tracker. React + Vite front end, **Firebase Realtime Da
 - Netflix-style dark UI with a "Who's spending?" profile picker; stays signed in on a device for 6 months
 - Per-user theme colour (saved to the user, so it follows them across devices)
 - Installable: "Add to Home Screen" on iPhone with app icon, launch screens and an animated splash
+- Budget rows: item, category, multi-line note and amount, with a Monthly/Yearly switch (amounts are stored per month) and a by-category breakdown
+- "Paste from sheet": copy cells from Excel/Google Sheets; each titled section becomes a tab, multi-line cells become notes, TOTAL rows are skipped
+- Delete an account: it goes to a bin for 7 days (either member can restore it) and is deleted for good the next time either member opens the app after that
 
 ## App icon & launch screens
 
