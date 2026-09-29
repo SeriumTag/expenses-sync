@@ -1,59 +1,50 @@
-import { useMemo, useRef } from 'react';
-import { usePresenceCtx } from '../hooks/usePresence';
-import { deleteItem, updateItemField } from '../lib/db';
-import { PERIODS, byCategory, formatMoney, parseAmount, round2, sumItems } from '../lib/format';
-import LiveInput from './LiveInput';
+import { useMemo, useRef, useState } from 'react';
+import { FREQS, byCategory, inView, sorted, sumTab } from '../lib/budget';
+import { mergeItems, updateItemField } from '../lib/db';
+import { formatMoney } from '../lib/format';
+import ItemRow from './ItemRow';
 
-const FIELDS = ['name', 'category', 'note', 'amount'];
-
-export default function ItemList({
-  ledgerId,
-  tabId,
-  items,
-  categories,
-  currency,
-  username,
-  focusId,
-  view,
-  onViewChange,
-  onAdd,
-  onImport,
-}) {
-  const { lockFor, colorFor } = usePresenceCtx();
+export default function ItemList(props) {
+  const { base, pk, tabId, items, prevPeriod, prevLabel, categories, currency, username, focusId, view } = props;
+  const { onViewChange, onAdd, onImport, onOpenItem } = props;
+  const [selecting, setSelecting] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
   const itemsRef = useRef(items);
   itemsRef.current = items;
-  const { factor, short } = PERIODS[view];
 
-  const rows = useMemo(
-    () =>
-      Object.entries(items || {})
-        .map(([id, item]) => ({ id, ...item }))
-        .sort((a, b) => (a.order || 0) - (b.order || 0)),
-    [items],
-  );
+  const rows = useMemo(() => sorted(items), [items]);
   const groups = useMemo(() => byCategory(items), [items]);
 
   // Skip writes to a row the other person just deleted, so it isn't half-recreated.
-  const save = (itemId, field) => (value) => {
+  const saver = (itemId) => (field) => (value) => {
     if (!itemsRef.current?.[itemId]) return;
-    return updateItemField(ledgerId, tabId, itemId, field, value, username);
+    return updateItemField(base, tabId, itemId, field, value, username);
   };
 
-  // You type in whatever period is showing; it's stored per month.
-  const amountProps = {
-    format: (v) => (v ? String(round2(v * factor)) : ''),
-    parse: (text) => {
-      const n = parseAmount(text);
-      return n === undefined ? undefined : n / factor;
-    },
-    display: (v) => formatMoney((Number(v) || 0) * factor, currency),
-  };
+  const togglePick = (id) =>
+    setPicked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  async function merge() {
+    const chosen = rows.filter((r) => picked.has(r.id));
+    const cats = [...new Set(chosen.map((r) => (r.category || '').trim()).filter(Boolean))];
+    const suggestion = cats.length === 1 ? cats[0] : chosen.map((r) => r.name).join(' + ');
+    const name = window.prompt('Name for the merged item', suggestion);
+    if (!name?.trim()) return;
+    const id = await mergeItems(base, tabId, chosen, name.trim(), username);
+    setSelecting(false);
+    setPicked(new Set());
+    onOpenItem(tabId, id);
+  }
 
   if (rows.length === 0) {
     return (
       <div className="ep-empty">
         <div className="ep-empty-icon">🧾</div>
-        <p>No items in this tab yet.</p>
+        <p>No items in this head category yet.</p>
         <div className="row-gap center">
           <button className="btn primary" onClick={onAdd}>
             ＋ Add the first one
@@ -69,7 +60,7 @@ export default function ItemList({
   const maxGroup = Math.max(...groups.map((g) => g.total), 0);
 
   return (
-    <div className="ep-list">
+    <div className={`ep-list ${selecting ? 'selecting' : ''}`}>
       <datalist id={`categories-${tabId}`}>
         {categories.map((c) => (
           <option key={c} value={c} />
@@ -77,96 +68,68 @@ export default function ItemList({
       </datalist>
 
       <div className="ep-head">
-        <span />
-        <span>Item · Category · Note</span>
+        <button
+          className={`btn sm ${selecting ? 'primary' : 'ghost'}`}
+          onClick={() => {
+            setSelecting((s) => !s);
+            setPicked(new Set());
+          }}
+        >
+          {selecting ? 'Cancel' : 'Select to merge'}
+        </button>
         <div className="seg" role="group" aria-label="Show amounts">
-          {Object.entries(PERIODS).map(([key, p]) => (
-            <button key={key} className={view === key ? 'on' : ''} aria-pressed={view === key} onClick={() => onViewChange(key)}>
+          {Object.entries(FREQS).map(([k, p]) => (
+            <button key={k} className={view === k ? 'on' : ''} aria-pressed={view === k} onClick={() => onViewChange(k)}>
               {p.label}
             </button>
           ))}
         </div>
-        <span />
       </div>
 
-      {rows.map((item, i) => {
-        const editor = FIELDS.map((f) => lockFor(`item:${item.id}:${f}`)).find(Boolean);
-        return (
-          <div
-            key={item.id}
-            className={`ep ${editor ? 'remote' : ''}`}
-            style={editor ? { '--c': colorFor(editor.user) } : undefined}
-          >
-            <span className="ep-num">{i + 1}</span>
-            <div className="ep-main">
-              <LiveInput
-                className="ep-name"
-                fieldKey={`item:${item.id}:name`}
-                value={item.name || ''}
-                onSave={save(item.id, 'name')}
-                placeholder="What is it?"
-                autoFocusOnMount={focusId === item.id}
-              />
-              <div className="ep-sub">
-                <LiveInput
-                  className="ep-cat"
-                  fieldKey={`item:${item.id}:category`}
-                  value={item.category || ''}
-                  onSave={save(item.id, 'category')}
-                  placeholder="Category"
-                  list={`categories-${tabId}`}
-                  maxLength={40}
-                />
-                <LiveInput
-                  className="ep-note"
-                  fieldKey={`item:${item.id}:note`}
-                  value={item.note || ''}
-                  onSave={save(item.id, 'note')}
-                  placeholder="Add a note"
-                  maxLength={2000}
-                  multiline
-                />
-              </div>
-            </div>
-            <LiveInput
-              key={view}
-              className="ep-amount"
-              inputMode="decimal"
-              fieldKey={`item:${item.id}:amount`}
-              value={item.amount}
-              {...amountProps}
-              onSave={save(item.id, 'amount')}
-              placeholder="0.00"
-              aria-label={`${PERIODS[view].label} amount`}
-            />
-            <button
-              className="icon-btn ep-del"
-              title={editor ? `${editor.user} is editing this` : 'Delete'}
-              aria-label="Delete item"
-              disabled={Boolean(editor)}
-              onClick={() => deleteItem(ledgerId, tabId, item.id)}
-            >
-              ✕
-            </button>
-          </div>
-        );
-      })}
+      {rows.map((item, i) => (
+        <ItemRow
+          key={item.id}
+          item={item}
+          index={i}
+          pk={pk}
+          tabId={tabId}
+          prevPeriod={prevPeriod}
+          prevLabel={prevLabel}
+          currency={currency}
+          view={view}
+          save={saver(item.id)}
+          focus={focusId === item.id}
+          selecting={selecting}
+          picked={picked.has(item.id)}
+          onPick={() => togglePick(item.id)}
+          onOpen={() => onOpenItem(tabId, item.id)}
+        />
+      ))}
 
-      <div className="ep-foot">
-        <div className="row-gap">
-          <button className="btn glass" onClick={onAdd}>
-            ＋ Add item
-          </button>
-          <button className="btn ghost sm" onClick={onImport}>
-            Paste from sheet
+      {selecting ? (
+        <div className="select-bar">
+          <span>{picked.size ? `${picked.size} selected` : 'Tap items to merge'}</span>
+          <button className="btn primary" disabled={picked.size < 2} onClick={merge}>
+            Merge{picked.size >= 2 ? ` ${picked.size}` : ''} items
           </button>
         </div>
-        <span className="ep-total">
-          {PERIODS[view].label} total <b>{formatMoney(sumItems(items) * factor, currency)}</b>
-        </span>
-      </div>
+      ) : (
+        <div className="ep-foot">
+          <div className="row-gap">
+            <button className="btn glass" onClick={onAdd}>
+              ＋ Add item
+            </button>
+            <button className="btn ghost sm" onClick={onImport}>
+              Paste from sheet
+            </button>
+          </div>
+          <span className="ep-total">
+            {FREQS[view].label} total <b>{formatMoney(inView(sumTab(items), view), currency)}</b>
+          </span>
+        </div>
+      )}
 
-      {groups.length > 1 && (
+      {groups.length > 1 && !selecting && (
         <section className="cat-breakdown" aria-label="Totals by category">
           <h3>By category</h3>
           {groups.map((g) => (
@@ -178,8 +141,8 @@ export default function ItemList({
                 <span style={{ width: `${maxGroup ? (g.total / maxGroup) * 100 : 0}%` }} />
               </span>
               <span className="cat-amt">
-                {formatMoney(g.total * factor, currency)}
-                <span className="muted small">{short}</span>
+                {formatMoney(inView(g.total, view), currency)}
+                <span className="muted small">{FREQS[view].short}</span>
               </span>
             </div>
           ))}

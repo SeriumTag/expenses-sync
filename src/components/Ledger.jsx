@@ -1,52 +1,65 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { onValue, ref } from 'firebase/database';
 import { db } from '../firebase';
 import { useConnected } from '../hooks/useConnected';
 import { PresenceContext, usePresence } from '../hooks/usePresence';
-import { BIN_DAYS, addItem, addTab, deleteTab, moveLedgerToBin, renameTab, unlinkLedger } from '../lib/db';
-import { PERIODS, formatMoney, sumItems } from '../lib/format';
+import {
+  FREQS,
+  categoriesIn,
+  currentMonthKey,
+  inView,
+  periodLabel,
+  previousPeriod,
+  shortPeriodLabel,
+  sorted,
+  sumTab,
+} from '../lib/budget';
+import {
+  BIN_DAYS,
+  addItem,
+  addTab,
+  deleteTab,
+  migrateToPeriod,
+  moveLedgerToBin,
+  periodPath,
+  renameTab,
+  unlinkLedger,
+} from '../lib/db';
+import { formatMoney } from '../lib/format';
 import { prefs } from '../lib/session';
 import { hideSplash } from '../lib/splash';
 import { hueFor, partnerColor } from '../lib/theme';
+import { CategoriesSheet, CategoryPage } from './CategoryPage';
 import ImportDialog from './ImportDialog';
-import { isStandalone, showInstallPrompt } from './InstallPrompt';
 import ItemList from './ItemList';
+import ItemSheet from './ItemSheet';
 import LiveInput from './LiveInput';
-import { LogoMark, Wordmark } from './Logo';
+import { LogoMark } from './Logo';
+import NavBar from './NavBar';
+import PeriodSheet from './PeriodSheet';
+import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
 
-export default function Ledger({
-  ledgerId,
-  username,
-  theme,
-  onThemeChange,
-  ledgers,
-  onSwitch,
-  onCreate,
-  onJoin,
-  onLogout,
-  binCount,
-  onOpenBin,
-}) {
+export default function Ledger({ ledgerId, username, theme, onThemeChange, ledgers, onSwitch, onCreate, onJoin, onLogout, binCount, onOpenBin }) {
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState(null);
   const [newTabId, setNewTabId] = useState(null);
   const [focusItemId, setFocusItemId] = useState(null);
-  const [dialog, setDialog] = useState(null); // 'share' | 'theme' | 'import' | null
+  const [dialog, setDialog] = useState(null); // 'share' | 'theme' | 'import' | 'period' | 'categories'
+  const [sheet, setSheet] = useState(null); // { type: 'item', tabId, itemId } | { type: 'person', id }
+  const [catView, setCatView] = useState(null); // category key being viewed
+  const [periodPref, setPeriodPref] = useState(() => prefs.get(`period:${ledgerId}`));
   // Monthly/Yearly display is a personal preference, remembered on this device.
-  const [view, setView] = useState(() => (PERIODS[prefs.get('view')] ? prefs.get('view') : 'monthly'));
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [view, setView] = useState(() => (FREQS[prefs.get('view')] ? prefs.get('view') : 'monthly'));
   const [scrolled, setScrolled] = useState(false);
   const [partnerTheme, setPartnerTheme] = useState(null);
+  const migrating = useRef(false);
   const presence = usePresence(ledgerId, username);
   const connected = useConnected();
 
   // One listener for the whole account; Firebase only sends what changed.
   useEffect(() => onValue(ref(db, `ledgers/${ledgerId}`), (snap) => setData(snap.val() || {})), [ledgerId]);
-  useEffect(() => {
-    if (data) hideSplash();
-  }, [data]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -55,36 +68,49 @@ export default function Ledger({
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  const partner = Object.keys(data?.members || {}).find((m) => m !== username) || null;
+  // Accounts from before months existed: move their data into this month.
+  useEffect(() => {
+    if (!data || migrating.current) return;
+    if ((data.tabs || data.items) && !data.periods) {
+      migrating.current = true;
+      migrateToPeriod(ledgerId, data, currentMonthKey()).finally(() => (migrating.current = false));
+    }
+  }, [data, ledgerId]);
 
+  const partner = Object.keys(data?.members || {}).find((m) => m !== username) || null;
   useEffect(() => {
     if (!partner) return setPartnerTheme(null);
     return onValue(ref(db, `users/${partner}/theme`), (snap) => setPartnerTheme(snap.val()));
   }, [partner]);
-
   const pColor = partnerColor(theme, partnerTheme);
   useEffect(() => {
     document.documentElement.style.setProperty('--partner', pColor);
   }, [pColor]);
 
-  const tabs = useMemo(
-    () =>
-      Object.entries(data?.tabs || {})
-        .map(([id, tab]) => ({ id, ...tab }))
-        .sort((a, b) => (a.order || 0) - (b.order || 0)),
-    [data?.tabs],
-  );
+  // Which period is showing: the saved choice, else this month, else the latest.
+  const periods = data?.periods || {};
+  const periodKeys = Object.keys(periods);
+  const pk = periods[periodPref] ? periodPref : periods[currentMonthKey()] ? currentMonthKey() : periodKeys.sort().at(-1) || null;
+  const period = pk ? periods[pk] : null;
+  const base = pk ? periodPath(ledgerId, pk) : null;
+  const prevKey = pk ? previousPeriod(pk, periodKeys) : null;
+  const prevPeriod = prevKey ? periods[prevKey] : null;
+
+  const tabs = useMemo(() => sorted(period?.tabs), [period?.tabs]);
   const currentTab = tabs.find((t) => t.id === activeTab) || tabs[0] || null;
   const tabId = currentTab?.id ?? null;
 
   const { setTab } = presence;
-  useEffect(() => setTab(tabId), [tabId, setTab]);
+  useEffect(() => setTab(pk && tabId ? `${pk}:${tabId}` : null), [pk, tabId, setTab]);
 
-  if (!data) return null; // the splash is still covering the screen
+  useEffect(() => {
+    if (data && pk) hideSplash();
+  }, [data, pk]);
+
+  if (!data || !pk) return null; // the splash is still covering the screen
 
   const meta = data.meta || {};
   const members = Object.keys(data.members || {});
-
   if (!data.members?.[username]) {
     return (
       <div className="center-screen">
@@ -100,22 +126,26 @@ export default function Ledger({
   }
 
   const currency = meta.currency ?? '$';
-  const { factor, short } = PERIODS[view];
-  const grandTotal = tabs.reduce((sum, t) => sum + sumItems(data.items?.[t.id]), 0) * factor;
-  const categories = [
-    ...new Set(
-      tabs.flatMap((t) => Object.values(data.items?.[t.id] || {}).map((i) => (i.category || '').trim())).filter(Boolean),
-    ),
-  ].sort((a, b) => a.localeCompare(b));
+  const categoryList = categoriesIn(period);
+  const categoryNames = categoryList.map((c) => c.label);
+  const grandTotal = tabs.reduce((sum, t) => sum + sumTab(period.items?.[t.id]), 0);
+  const itemCount = tabs.reduce((n, t) => n + Object.keys(period.items?.[t.id] || {}).length, 0);
+  const partnerOnline = partner ? Boolean(presence.others[partner]) : false;
+  const prevLabel = prevKey ? shortPeriodLabel(prevKey) : '';
+
   const changeView = (v) => {
     setView(v);
     prefs.set('view', v);
   };
-  const itemCount = tabs.reduce((n, t) => n + Object.keys(data.items?.[t.id] || {}).length, 0);
-  const partnerOnline = partner ? Boolean(presence.others[partner]) : false;
+  const selectPeriod = (k) => {
+    setPeriodPref(k);
+    prefs.set(`period:${ledgerId}`, k);
+    setCatView(null);
+  };
+  const openItem = (tid, iid) => setSheet({ type: 'item', tabId: tid, itemId: iid });
 
   function handleAddTab() {
-    const id = addTab(ledgerId, 'New tab');
+    const id = addTab(base, 'New head category');
     setActiveTab(id);
     setNewTabId(id);
   }
@@ -123,32 +153,31 @@ export default function Ledger({
   function addExpense() {
     let tid = tabId;
     if (!tid) {
-      tid = addTab(ledgerId, 'General');
+      tid = addTab(base, 'General');
       setActiveTab(tid);
     }
-    setFocusItemId(addItem(ledgerId, tid, username));
+    setCatView(null);
+    setFocusItemId(addItem(base, tid, username));
   }
 
   function handleDeleteTab() {
-    const count = Object.keys(data.items?.[tabId] || {}).length;
-    const viewer = Object.entries(presence.others).find(([, o]) => o.tab === tabId)?.[0];
+    const count = Object.keys(period.items?.[tabId] || {}).length;
+    const viewer = Object.entries(presence.others).find(([, o]) => o.tab === `${pk}:${tabId}`)?.[0];
     const warning = [
-      `Delete tab "${currentTab.name || 'Untitled'}"${count ? ` and its ${count} expense(s)` : ''}?`,
-      viewer ? `${viewer} is viewing this tab right now.` : '',
+      `Delete “${currentTab.name || 'Untitled'}” from ${periodLabel(pk)}${count ? ` with its ${count} item(s)` : ''}?`,
+      viewer ? `${viewer} is viewing it right now.` : '',
     ]
       .filter(Boolean)
       .join('\n');
-    if (window.confirm(warning)) deleteTab(ledgerId, tabId);
+    if (window.confirm(warning)) deleteTab(base, tabId);
   }
 
   function newAccount() {
-    setMenuOpen(false);
     const name = window.prompt('Name for the new expense account', 'Shared expenses');
     if (name?.trim()) onCreate(name.trim());
   }
 
   function binThisAccount() {
-    setMenuOpen(false);
     const others = members.filter((m) => m !== username);
     const msg = [
       `Delete “${meta.name || 'Untitled'}”?`,
@@ -163,237 +192,253 @@ export default function Ledger({
     }
   }
 
-  const openDialog = (name) => {
-    setMenuOpen(false);
-    setDialog(name);
-  };
+  const sheetItem = sheet?.type === 'item' ? period.items?.[sheet.tabId]?.[sheet.itemId] : null;
+  const sheetPerson = sheet?.type === 'person' ? period.people?.[sheet.id] : null;
+  const catLabel = catView ? categoryList.find((c) => c.key === catView)?.label || data.categories?.[catView]?.label || catView : null;
 
   return (
     <PresenceContext.Provider value={presence}>
       <div className="app">
-        <header className={`nav ${scrolled ? 'solid' : ''}`}>
-          <div className="nav-brand">
-            <LogoMark size={20} />
-            <Wordmark className="hide-sm" />
-          </div>
-
-          {ledgers.length > 1 && (
-            <label className="account-pill">
-              <select value={ledgerId} onChange={(e) => onSwitch(e.target.value)} aria-label="Expense account">
-                {ledgers.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </select>
-              <span aria-hidden="true">▾</span>
-            </label>
-          )}
-
-          <div className="nav-right">
-            {partner && (
-              <span
-                className={`avatar sq ${partnerOnline ? 'online' : ''}`}
-                style={{ '--c': 'var(--partner)' }}
-                title={`${partner}: ${partnerOnline ? 'online' : 'offline'}`}
-              >
-                {partner[0].toUpperCase()}
-                <span className="dot" />
-              </span>
-            )}
-            <div className="menu-wrap">
-              <button className="me-btn" onClick={() => setMenuOpen((o) => !o)} aria-label="Profile menu" aria-expanded={menuOpen}>
-                <span className={`avatar sq ${connected ? 'online' : ''}`} style={{ '--c': 'var(--accent)' }}>
-                  {username[0].toUpperCase()}
-                  <span className="dot" />
-                </span>
-                <span className={`caret ${menuOpen ? 'up' : ''}`}>▾</span>
-              </button>
-              {menuOpen && (
-                <>
-                  <div className="menu-scrim" onClick={() => setMenuOpen(false)} />
-                  <div className="menu" role="menu">
-                    <div className="menu-head">
-                      <span className="avatar sq lg" style={{ '--c': 'var(--accent)' }}>
-                        {username[0].toUpperCase()}
-                      </span>
-                      <div>
-                        <b>{username}</b>
-                        <span className="muted small">Signed in on this device</span>
-                      </div>
-                    </div>
-                    <button role="menuitem" onClick={() => openDialog('theme')}>
-                      <span className="menu-swatch" /> Theme colour
-                    </button>
-                    <button role="menuitem" onClick={() => openDialog('share')}>
-                      <span className="menu-ico">⇄</span> Share &amp; sync
-                    </button>
-                    <button role="menuitem" onClick={newAccount}>
-                      <span className="menu-ico">＋</span> New expense account
-                    </button>
-                    {!isStandalone() && (
-                      <button
-                        role="menuitem"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          showInstallPrompt();
-                        }}
-                      >
-                        <span className="menu-ico">⬇</span> Add to Home Screen
-                      </button>
-                    )}
-                    <button
-                      role="menuitem"
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onOpenBin();
-                      }}
-                    >
-                      <span className="menu-ico">🗑</span> Bin{binCount ? ` (${binCount})` : ''}
-                    </button>
-                    <button role="menuitem" className="menu-danger" onClick={binThisAccount}>
-                      <span className="menu-ico">✕</span> Delete this account
-                    </button>
-                    <hr />
-                    <button role="menuitem" onClick={onLogout}>
-                      Sign out of Expense Sync
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </header>
+        <NavBar
+          scrolled={scrolled}
+          ledgers={ledgers}
+          ledgerId={ledgerId}
+          onSwitch={onSwitch}
+          partner={partner}
+          partnerOnline={partnerOnline}
+          username={username}
+          connected={connected}
+          binCount={binCount}
+          onTheme={() => setDialog('theme')}
+          onShare={() => setDialog('share')}
+          onNewAccount={newAccount}
+          onOpenBin={onOpenBin}
+          onDeleteAccount={binThisAccount}
+          onLogout={onLogout}
+        />
 
         {!connected && <div className="banner">You’re offline. Changes are saved and will sync when you reconnect.</div>}
 
-        <section className="hero">
-          <div className="hero-bg" aria-hidden="true">
-            <LogoMark className="hero-mark" size={360} />
-          </div>
-          <div className="hero-content">
-            <div className="kicker">
-              <LogoMark size={14} />
-              <span>{partner ? 'Shared account' : 'Personal account'}</span>
-            </div>
-            <h1 className="hero-title">{meta.name || 'Untitled'}</h1>
-            <div className="hero-total">
-              {formatMoney(grandTotal, currency)}
-              <button className="per" onClick={() => changeView(view === 'monthly' ? 'yearly' : 'monthly')} title="Switch monthly / yearly">
-                {short} ⇅
-              </button>
-            </div>
-            <p className="hero-meta">
-              <span className="match">
-                {itemCount} item{itemCount === 1 ? '' : 's'}
-              </span>
-              <span className="sep" />
-              <span>
-                {tabs.length} tab{tabs.length === 1 ? '' : 's'}
-              </span>
-              <span className="sep" />
-              {partner ? (
-                <span className="nowrap">
-                  with <b>{partner}</b>{' '}
-                  <span className={`status-pill ${partnerOnline ? 'live' : ''}`}>{partnerOnline ? 'Live' : 'Offline'}</span>
-                </span>
-              ) : (
-                <span>Just you</span>
-              )}
-            </p>
-            <div className="hero-actions">
-              <button className="btn play" onClick={addExpense}>
-                <span className="play-ico">＋</span> Add expense
-              </button>
-              <button className="btn glass" onClick={() => setDialog('share')}>
-                {members.length > 1 ? '⇄ Synced' : 'Share'}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        <section className="row">
-          <h2 className="row-title">Your tabs</h2>
-          <div className="cards" role="tablist">
-            {tabs.map((t) => {
-              const viewers = Object.entries(presence.others)
-                .filter(([, o]) => o.tab === t.id)
-                .map(([u]) => u);
-              const count = Object.keys(data.items?.[t.id] || {}).length;
-              return (
-                <button
-                  key={t.id}
-                  role="tab"
-                  aria-selected={t.id === tabId}
-                  className={`card-tab ${t.id === tabId ? 'active' : ''}`}
-                  style={{ '--h': hueFor(t.id) }}
-                  onClick={() => setActiveTab(t.id)}
-                >
-                  <span className="card-count">
-                    {count} item{count === 1 ? '' : 's'}
-                  </span>
-                  {viewers.map((u) => (
-                    <span key={u} className="card-viewer" title={`${u} is on this tab`}>
-                      {u[0].toUpperCase()}
-                    </span>
-                  ))}
-                  <span className="card-name">{t.name || 'Untitled'}</span>
-                  <span className="card-total">
-                    {formatMoney(sumItems(data.items?.[t.id]) * factor, currency)}
-                    <span className="card-per">{short}</span>
-                  </span>
+        {catView ? (
+          <CategoryPage
+            ledgerId={ledgerId}
+            pk={pk}
+            period={period}
+            periods={periods}
+            catKeyValue={catView}
+            label={catLabel}
+            catData={data.categories?.[catView]}
+            tracks={data.tracks}
+            currency={currency}
+            view={view}
+            onViewChange={changeView}
+            onBack={() => setCatView(null)}
+            onOpenItem={openItem}
+          />
+        ) : (
+          <>
+            <section className="hero">
+              <div className="hero-bg" aria-hidden="true">
+                <LogoMark className="hero-mark" size={360} />
+              </div>
+              <div className="hero-content">
+                <button className="period-chip" onClick={() => setDialog('period')}>
+                  <LogoMark size={12} />
+                  {periodLabel(pk)} <span aria-hidden="true">▾</span>
                 </button>
-              );
-            })}
-            <button className="card-tab new" onClick={handleAddTab}>
-              <span className="plus">＋</span>
-              <span>New tab</span>
-            </button>
-          </div>
-        </section>
+                <h1 className="hero-title">{meta.name || 'Untitled'}</h1>
+                <div className="hero-total">
+                  {formatMoney(inView(grandTotal, view), currency)}
+                  <button className="per" onClick={() => changeView(view === 'monthly' ? 'yearly' : 'monthly')} title="Switch monthly / yearly">
+                    {FREQS[view].short} ⇅
+                  </button>
+                </div>
+                <p className="hero-meta">
+                  <span className="match">
+                    {itemCount} item{itemCount === 1 ? '' : 's'}
+                  </span>
+                  <span className="sep" />
+                  <span>
+                    {tabs.length} head categor{tabs.length === 1 ? 'y' : 'ies'}
+                  </span>
+                  <span className="sep" />
+                  {partner ? (
+                    <span className="nowrap">
+                      with <b>{partner}</b>{' '}
+                      <span className={`status-pill ${partnerOnline ? 'live' : ''}`}>{partnerOnline ? 'Live' : 'Offline'}</span>
+                    </span>
+                  ) : (
+                    <span>Just you</span>
+                  )}
+                </p>
+                <div className="hero-actions">
+                  <button className="btn play" onClick={addExpense}>
+                    <span className="play-ico">＋</span> Add expense
+                  </button>
+                  <button className="btn glass" onClick={() => setDialog('share')}>
+                    {members.length > 1 ? '⇄ Synced' : 'Share'}
+                  </button>
+                  {categoryList.length > 0 && (
+                    <button className="btn glass icon-only" onClick={() => setDialog('categories')} title="Categories" aria-label="Categories">
+                      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                        <path
+                          d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span className="count-dot">{categoryList.length}</span>
+                    </button>
+                  )}
+                </div>
+                <SalaryStrip base={base} period={period} currency={currency} view={view} onOpen={(id) => setSheet({ type: 'person', id })} />
+              </div>
+            </section>
 
-        {currentTab && (
-          <section className="detail">
-            <div className="detail-head">
-              <LiveInput
-                key={tabId}
-                className="detail-title"
-                fieldKey={`tab:${tabId}:name`}
-                value={currentTab.name}
-                onSave={(v) => data.tabs?.[tabId] && renameTab(ledgerId, tabId, v)}
-                placeholder="Tab name"
-                autoFocusOnMount={newTabId === tabId}
-              />
-              <button className="icon-btn danger" onClick={handleDeleteTab} title="Delete tab" aria-label="Delete tab">
-                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                  <path
-                    d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+            <section className="row">
+              <h2 className="row-title">Head categories</h2>
+              <div className="cards" role="tablist">
+                {tabs.map((t) => {
+                  const viewers = Object.entries(presence.others)
+                    .filter(([, o]) => o.tab === `${pk}:${t.id}`)
+                    .map(([u]) => u);
+                  const count = Object.keys(period.items?.[t.id] || {}).length;
+                  return (
+                    <button
+                      key={t.id}
+                      role="tab"
+                      aria-selected={t.id === tabId}
+                      className={`card-tab ${t.id === tabId ? 'active' : ''}`}
+                      style={{ '--h': hueFor(t.id) }}
+                      onClick={() => setActiveTab(t.id)}
+                    >
+                      <span className="card-count">
+                        {count} item{count === 1 ? '' : 's'}
+                      </span>
+                      {viewers.map((u) => (
+                        <span key={u} className="card-viewer" title={`${u} is here`}>
+                          {u[0].toUpperCase()}
+                        </span>
+                      ))}
+                      <span className="card-name">{t.name || 'Untitled'}</span>
+                      <span className="card-total">
+                        {formatMoney(inView(sumTab(period.items?.[t.id]), view), currency)}
+                        <span className="card-per">{FREQS[view].short}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+                <button className="card-tab new" onClick={handleAddTab}>
+                  <span className="plus">＋</span>
+                  <span>New head category</span>
+                </button>
+              </div>
+            </section>
+
+            {currentTab && (
+              <section className="detail">
+                <div className="detail-head">
+                  <LiveInput
+                    key={`${pk}:${tabId}`}
+                    className="detail-title"
+                    fieldKey={`${pk}:tab:${tabId}:name`}
+                    value={currentTab.name}
+                    onSave={(v) => period.tabs?.[tabId] && renameTab(base, tabId, v)}
+                    placeholder="Head category name"
+                    autoFocusOnMount={newTabId === tabId}
                   />
-                </svg>
-              </button>
-            </div>
-            <ItemList
-              key={tabId}
-              ledgerId={ledgerId}
-              tabId={tabId}
-              items={data.items?.[tabId]}
-              currency={currency}
-              username={username}
-              focusId={focusItemId}
-              categories={categories}
-              view={view}
-              onViewChange={changeView}
-              onAdd={addExpense}
-              onImport={() => setDialog('import')}
-            />
-          </section>
+                  <button className="icon-btn danger" onClick={handleDeleteTab} title="Delete head category" aria-label="Delete head category">
+                    <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                      <path
+                        d="M4 7h16M10 11v6M14 11v6M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-12M9 7V4h6v3"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
+                {prevKey && (
+                  <p className="compare-note muted small">
+                    Changes are highlighted compared with <b>{periodLabel(prevKey)}</b>.
+                  </p>
+                )}
+                <ItemList
+                  key={`${pk}:${tabId}`}
+                  base={base}
+                  pk={pk}
+                  tabId={tabId}
+                  items={period.items?.[tabId]}
+                  prevPeriod={prevPeriod}
+                  prevLabel={prevLabel}
+                  categories={categoryNames}
+                  currency={currency}
+                  username={username}
+                  focusId={focusItemId}
+                  view={view}
+                  onViewChange={changeView}
+                  onAdd={addExpense}
+                  onImport={() => setDialog('import')}
+                  onOpenItem={openItem}
+                />
+              </section>
+            )}
+          </>
         )}
 
+        {sheetItem && (
+          <ItemSheet
+            ledgerId={ledgerId}
+            base={base}
+            pk={pk}
+            tabId={sheet.tabId}
+            tabName={period.tabs?.[sheet.tabId]?.name}
+            itemId={sheet.itemId}
+            item={sheetItem}
+            periods={periods}
+            prevPeriod={prevPeriod}
+            prevLabel={prevLabel}
+            tracks={data.tracks}
+            categories={categoryNames}
+            currency={currency}
+            username={username}
+            view={view}
+            onClose={() => setSheet(null)}
+          />
+        )}
+        {sheetPerson && (
+          <PersonSheet
+            base={base}
+            pk={pk}
+            personId={sheet.id}
+            person={sheetPerson}
+            period={period}
+            tabs={tabs}
+            currency={currency}
+            view={view}
+            onClose={() => setSheet(null)}
+          />
+        )}
+        {dialog === 'period' && (
+          <PeriodSheet ledgerId={ledgerId} periods={periods} current={pk} currency={currency} onSelect={selectPeriod} onClose={() => setDialog(null)} />
+        )}
+        {dialog === 'categories' && (
+          <CategoriesSheet
+            categories={categoryList}
+            currency={currency}
+            view={view}
+            onOpen={(k) => {
+              setDialog(null);
+              setCatView(k);
+              window.scrollTo(0, 0);
+            }}
+            onClose={() => setDialog(null)}
+          />
+        )}
         {dialog === 'share' && (
           <ShareDialog
             ledgerId={ledgerId}
@@ -407,7 +452,7 @@ export default function Ledger({
         )}
         {dialog === 'import' && currentTab && (
           <ImportDialog
-            ledgerId={ledgerId}
+            base={base}
             tabId={tabId}
             tabName={currentTab.name}
             tabs={tabs}

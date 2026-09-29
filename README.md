@@ -11,7 +11,12 @@ Real-time shared expense tracker. React + Vite front end, **Firebase Realtime Da
 - Netflix-style dark UI with a "Who's spending?" profile picker; stays signed in on a device for 6 months
 - Per-user theme colour (saved to the user, so it follows them across devices)
 - Installable: "Add to Home Screen" on iPhone with app icon, launch screens and an animated splash
-- Budget rows: item, category, multi-line note and amount, with a Monthly/Yearly switch (amounts are stored per month) and a by-category breakdown
+- Budget rows: item, free-text category, multi-line note and amount; each amount is paid Monthly or Yearly, and totals switch between monthly and yearly views
+- Months & years: every budget lives in a period ("2026-09" or "2026"); copy a whole budget to other months/years; items changed since the previous period are highlighted
+- Merge items into one (e.g. "Hamizan insurance") with a pull-up breakdown; each merged item can show its own monthly/yearly view
+- Savings tracking per item: Jan–Dec log, filled from each month's budget and adjustable
+- Categories page: every item in a category across head categories, with custom subcategories, custom fields and a choice of what counts toward the total
+- Salary summary: each person's salary and what's left after the head categories they choose
 - "Paste from sheet": copy cells from Excel/Google Sheets; each titled section becomes a tab, multi-line cells become notes, TOTAL rows are skipped
 - Delete an account: it goes to a bin for 7 days (either member can restore it) and is deleted for good the next time either member opens the app after that
 

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { addItems, addTab } from '../lib/db';
-import { PERIODS, formatMoney, parseSheet } from '../lib/format';
+import { FREQS as PERIODS } from '../lib/budget';
+import { formatMoney, parseSheet } from '../lib/format';
 import Modal from './Modal';
 
 /**
@@ -8,7 +9,7 @@ import Modal from './Modal';
  * sheet ("Hamizan", "Kelly", …) goes into a tab of that name, created if needed;
  * untitled rows go into the tab you're on.
  */
-export default function ImportDialog({ ledgerId, tabId, tabName, tabs, username, currency, view, onImported, onClose }) {
+export default function ImportDialog({ base, tabId, tabName, tabs, username, currency, view, onImported, onClose }) {
   const [text, setText] = useState('');
   const [period, setPeriod] = useState(view);
   const [skipped, setSkipped] = useState(() => new Set());
@@ -37,14 +38,13 @@ export default function ImportDialog({ ledgerId, tabId, tabName, tabs, username,
     setBusy(true);
     setError('');
     try {
-      const factor = PERIODS[period].factor;
       let firstTab = null;
-      const base = Date.now();
+      const start = Date.now();
       await Promise.all(
         chosen.map((s, i) => {
-          const target = !s.title ? tabId : existingTab(s.title)?.id || addTab(ledgerId, s.title, base + i);
+          const target = !s.title ? tabId : existingTab(s.title)?.id || addTab(base, s.title, start + i);
           firstTab ??= target;
-          return addItems(ledgerId, target, username, s.rows.map((r) => ({ ...r, amount: r.amount / factor })));
+          return addItems(base, target, username, s.rows, period);
         }),
       );
       onImported?.(firstTab);

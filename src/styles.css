@@ -352,7 +352,7 @@ input::placeholder { color: var(--dim); }
 .ep-list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
 .ep {
   display: grid;
-  grid-template-columns: 40px 1fr minmax(96px, 150px) 36px;
+  grid-template-columns: 40px 1fr minmax(150px, 210px) 36px;
   gap: 10px; align-items: center;
   padding: 12px 6px;
   border-bottom: 1px solid var(--line);
@@ -389,11 +389,11 @@ input::placeholder { color: var(--dim); }
 .ep-name input:focus, .ep-note input:focus, .ep-amount input:focus { background: var(--surface-2); }
 
 .ep-head {
-  display: grid; grid-template-columns: 40px 1fr minmax(96px, 150px) 36px; gap: 10px; align-items: center;
+  display: flex; justify-content: space-between; gap: 10px; align-items: center;
   padding: 10px 6px; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim);
   border-bottom: 1px solid var(--line);
 }
-.ep-head .seg { justify-self: end; }
+.ep-head .btn { text-transform: none; letter-spacing: 0; }
 .seg { display: inline-flex; background: var(--surface-2); border-radius: 999px; padding: 3px; gap: 2px; }
 .seg button {
   font: inherit; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; text-transform: none;
@@ -540,8 +540,8 @@ input::placeholder { color: var(--dim); }
   .ep { grid-template-columns: 26px 1fr auto 30px; gap: 6px; padding: 10px 2px; }
   .ep-num { font-size: 17px; }
   .ep-amount input { width: 108px; font-size: 16px; }
-  .ep-head { grid-template-columns: 1fr auto; gap: 6px; }
-  .ep-head > span { display: none; }
+  .ep-head { gap: 6px; }
+
   /* Name gets the full width; amount sits beside the category below it. */
   .ep {
     grid-template-columns: 22px 1fr auto 30px;
@@ -553,8 +553,8 @@ input::placeholder { color: var(--dim); }
   .ep-num { grid-area: num; padding-top: 6px; }
   .ep-name { grid-area: name; }
   .ep-sub { grid-area: sub; flex-wrap: wrap; }
-  .ep-amount { grid-area: amount; }
-  .ep-del { grid-area: del; }
+  .ep-amt { grid-area: amount; }
+  .ep-more { grid-area: del; }
   .ep-cat { flex-basis: 120px; }
   .ep-note { flex-basis: 100%; }
   .cat-row { grid-template-columns: 1fr auto; }
@@ -592,4 +592,185 @@ input::placeholder { color: var(--dim); }
   .bin-row { flex-wrap: wrap; }
   .bin-info { flex-basis: 100%; }
   .bin-row .btn { flex: 1; }
+}
+
+/* ───────── Amounts, frequency & change highlights ───────── */
+.ep-amt { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; min-width: 0; }
+.amt-line { display: flex; align-items: center; gap: 4px; justify-content: flex-end; }
+.amt-line .ep-amount { flex: 1 1 auto; min-width: 0; }
+.freq {
+  font: inherit; font-size: 11px; font-weight: 800; letter-spacing: 0.04em;
+  border: 1px solid var(--surface-3); background: transparent; color: var(--muted);
+  border-radius: 999px; padding: 3px 7px; cursor: pointer; flex-shrink: 0;
+}
+.freq.yr { border-color: #b08900; color: #ffcf4d; background: rgba(255, 207, 77, 0.1); }
+.freq:disabled { opacity: 0.5; cursor: default; }
+.conv { font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.chg { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; white-space: nowrap; }
+.chg.up { color: #ffb347; background: rgba(255, 179, 71, 0.14); }
+.chg.down { color: var(--ok); background: rgba(70, 211, 105, 0.14); }
+.chg.new { color: #7cc4ff; background: rgba(124, 196, 255, 0.14); letter-spacing: 0.06em; }
+.ep.changed { box-shadow: inset 3px 0 0 #ffb347; }
+.ep.changed .ep-amount input { color: #ffcf8a; }
+.group-amt {
+  font: inherit; font-weight: 800; font-size: 17px; color: var(--text); background: none; border: none;
+  cursor: pointer; padding: 8px 4px; font-variant-numeric: tabular-nums; text-align: right;
+}
+.group-amt:hover { color: var(--accent); }
+.per-small { font-size: 12px; font-weight: 600; color: var(--dim); margin-left: 2px; }
+.parts-chip, .track-chip { font: inherit; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 9px; border: none; white-space: nowrap; }
+.parts-chip { background: var(--surface-3); color: #fff; cursor: pointer; }
+.parts-chip:hover { background: var(--accent); color: var(--on-accent); }
+.track-chip { background: rgba(70, 211, 105, 0.16); color: var(--ok); }
+.ep-more { font-size: 22px; color: var(--muted); }
+.compare-note { margin: -4px 0 8px; }
+
+/* Selecting & merging */
+.ep-list.selecting .ep { cursor: pointer; }
+.ep-list.selecting .live input,
+.ep-list.selecting .live textarea { pointer-events: none; }
+.ep.picked { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.pick { width: 20px; height: 20px; accent-color: var(--accent); cursor: pointer; padding: 0; }
+.select-bar {
+  position: sticky; bottom: calc(var(--safe-bottom) + 10px); z-index: 5;
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+  background: rgba(30, 30, 30, 0.96); backdrop-filter: blur(12px); border: 1px solid var(--line);
+}
+
+/* ───────── Item sheet ───────── */
+.sheet { display: flex; flex-direction: column; gap: 14px; }
+.sheet-title input { font-size: 22px; font-weight: 800; background: transparent; padding: 6px 8px; margin-left: -8px; }
+.sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sheet-note textarea {
+  display: block; width: 100%; resize: none; overflow: hidden; font: inherit; font-size: 14px; line-height: 1.45;
+  color: var(--text); background: var(--surface-2); border: 1px solid transparent; border-radius: 6px; padding: 10px 12px; outline: none;
+}
+.sheet-note textarea:focus { border-color: var(--accent); }
+.sheet-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 14px; background: var(--surface-2); border-radius: 10px; font-variant-numeric: tabular-nums; }
+.sheet-summary b { font-size: 17px; }
+.sheet-section { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+.sheet-section h3 { margin: 0; }
+.sheet-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.sheet-row.between { justify-content: space-between; }
+.switch-row { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; }
+.switch-row input { width: 18px; height: 18px; accent-color: var(--accent); flex-shrink: 0; padding: 0; }
+.parts { display: flex; flex-direction: column; }
+.part { display: grid; grid-template-columns: 1fr minmax(140px, 190px) 32px; gap: 8px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.part-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.part-name input { background: transparent; font-weight: 700; padding: 6px 8px; }
+.part-amt { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.sheet-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 14px; }
+
+/* Savings tracker */
+.tracker { display: flex; flex-direction: column; gap: 10px; }
+.tracker-total { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 14px; border-radius: 10px; background: rgba(70, 211, 105, 0.1); }
+.tracker-total b { font-size: 24px; color: var(--ok); font-variant-numeric: tabular-nums; }
+.tracker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.tracker-month { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); font-weight: 600; }
+.tracker-month input { padding: 7px 8px; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.tracker-month.logged input { border-color: color-mix(in srgb, var(--ok) 50%, transparent); }
+
+/* ───────── Period picker ───────── */
+.period-chip {
+  display: inline-flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  font: inherit; font-size: 13px; font-weight: 800; letter-spacing: 0.2em; text-transform: uppercase;
+  color: #fff; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px; padding: 7px 14px; cursor: pointer;
+}
+.period-chip:hover { background: rgba(255, 255, 255, 0.18); }
+.year-step { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 12px; }
+.year-step b { font-size: 22px; min-width: 70px; text-align: center; }
+.period-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.period-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 4px;
+  font: inherit; font-weight: 700; font-size: 14px; color: var(--muted);
+  background: var(--surface-2); border: 2px solid transparent; border-radius: 10px; cursor: pointer;
+}
+.period-tile.year { grid-column: 1 / -1; }
+.period-tile small { font-size: 11px; font-weight: 600; color: var(--dim); font-variant-numeric: tabular-nums; }
+.period-tile.exists { color: #fff; background: var(--surface-3); }
+.period-tile.exists small { color: var(--muted); }
+.period-tile.current { border-color: var(--accent); }
+.period-tile.target,
+.period-tile.pending { border-color: #7cc4ff; background: rgba(124, 196, 255, 0.12); color: #fff; }
+.period-new { margin-top: 14px; padding: 14px; border-radius: 10px; background: var(--surface-2); }
+.period-new p { margin: 0 0 10px; }
+.period-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+/* ───────── Salary summary ───────── */
+.salary-strip { display: flex; gap: 10px; overflow-x: auto; margin-top: 22px; padding-bottom: 4px; scrollbar-width: none; }
+.salary-strip::-webkit-scrollbar { display: none; }
+.salary-card {
+  flex: 0 0 auto; min-width: 180px; display: flex; flex-direction: column; gap: 4px; text-align: left;
+  font: inherit; color: var(--text); padding: 12px 14px; border-radius: 10px; cursor: pointer;
+  background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.12); backdrop-filter: blur(8px);
+}
+.salary-card:hover { border-color: rgba(255, 255, 255, 0.35); }
+.salary-name { font-weight: 800; font-size: 15px; }
+.salary-line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-variant-numeric: tabular-nums; }
+.salary-card.add { min-width: 120px; align-items: center; justify-content: center; color: var(--muted); border-style: dashed; background: transparent; }
+.salary-card.add .plus { font-size: 22px; line-height: 1; }
+.pos { color: var(--ok); }
+.neg { color: var(--danger); }
+
+/* ───────── Categories ───────── */
+.btn.icon-only { position: relative; padding: 12px 16px; }
+.count-dot {
+  position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 800; display: grid; place-items: center;
+}
+.cat-list { display: flex; flex-direction: column; gap: 6px; }
+.cat-list-row {
+  display: grid; grid-template-columns: 1fr auto auto 16px; gap: 12px; align-items: center; text-align: left;
+  font: inherit; color: var(--text); background: var(--surface-2); border: none; border-radius: 10px; padding: 14px; cursor: pointer;
+}
+.cat-list-row:hover { background: var(--surface-3); }
+.cat-list-name { font-weight: 800; font-size: 16px; }
+.cat-list-row b { font-variant-numeric: tabular-nums; }
+.chev { color: var(--dim); font-size: 20px; }
+.cat-page { padding: 12px var(--gutter) 0; animation: fade-in 0.25s both; }
+.cat-page .back { margin: 0 0 10px -10px; }
+.cat-title { font-size: clamp(40px, 9vw, 72px); }
+.cat-total { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+.cat-total .hero-total { margin-bottom: 4px; }
+.cat-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.field-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--surface-2); border-radius: 999px; padding: 2px 4px 2px 10px; }
+.field-chip input { background: transparent; padding: 4px; font-size: 13px; font-weight: 700; width: 120px; }
+.field-chip small { color: var(--dim); font-size: 11px; }
+.field-chip .icon-btn { width: 26px; height: 26px; font-size: 12px; }
+.new-field { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; padding: 12px; background: var(--surface); border-radius: 10px; }
+.new-field input { flex: 1 1 200px; width: auto; }
+.new-field select { width: auto; }
+.sub-group { margin-bottom: 20px; }
+.sub-head { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 2px solid var(--accent); margin-bottom: 8px; }
+.sub-name { flex: 1; font-weight: 800; font-size: 18px; }
+.sub-name input { font-weight: 800; font-size: 18px; background: transparent; padding: 4px 6px; margin-left: -6px; }
+.sub-total { font-weight: 800; font-variant-numeric: tabular-nums; }
+.cat-entry { background: var(--surface); border-radius: 10px; padding: 12px 14px; margin-bottom: 8px; transition: opacity 0.2s; }
+.cat-entry.excluded { opacity: 0.45; }
+.cat-entry-top { display: flex; align-items: center; gap: 10px; }
+.cat-entry-name {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font: inherit; color: var(--text); background: none; border: none; padding: 0; text-align: left; cursor: pointer;
+}
+.cat-entry-name:hover b { color: var(--accent); }
+.tab-badge { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; background: var(--surface-3); color: var(--muted); border-radius: 4px; padding: 2px 7px; }
+.cat-entry-amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cat-entry-note { white-space: pre-line; margin: 8px 0 0 30px; font-size: 13px; color: var(--muted); }
+.cat-entry-saved { margin: 6px 0 0 30px; font-size: 13px; color: var(--ok); }
+.cat-entry-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px 12px; margin: 10px 0 0 30px; }
+.cat-entry-fields:empty { display: none; }
+.cat-entry-fields .field { margin: 0; }
+
+@media (max-width: 640px) {
+  .sheet-grid { grid-template-columns: 1fr; }
+  .part { grid-template-columns: 1fr 30px; }
+  .part-amt { grid-column: 1; align-items: flex-start; }
+  .part-amt .amt-line { justify-content: flex-start; }
+  .part > .icon-btn { grid-column: 2; grid-row: 1; }
+  .cat-entry-fields,
+  .cat-entry-note,
+  .cat-entry-saved { margin-left: 0; }
+  .ep-amt .amt-line .ep-amount input { width: 104px; }
 }

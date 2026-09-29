@@ -1,5 +1,6 @@
 import { get, push, ref, runTransaction, serverTimestamp, set, update } from 'firebase/database';
 import { db } from '../firebase';
+import { currentMonthKey } from './budget';
 
 /*
  * Data layout (Firebase Realtime Database)
@@ -48,10 +49,11 @@ export async function createLedger(owner, name) {
   const ledgerId = push(ref(db, 'ledgers')).key;
   const code = await reserveCode(ledgerId);
   const tabId = push(ref(db, `ledgers/${ledgerId}/tabs`)).key;
+  const month = currentMonthKey();
   await update(ref(db), {
     [`ledgers/${ledgerId}/meta`]: { name, owner, code, currency: '$', createdAt: serverTimestamp() },
     [`ledgers/${ledgerId}/members/${owner}`]: Date.now(),
-    [`ledgers/${ledgerId}/tabs/${tabId}`]: { name: 'General', order: Date.now() },
+    [`ledgers/${ledgerId}/periods/${month}`]: { createdAt: Date.now(), tabs: { [tabId]: { name: 'General', order: Date.now() } } },
     [`users/${owner}/ledgers/${ledgerId}`]: true,
   });
   return ledgerId;
@@ -151,68 +153,162 @@ export function updateMeta(ledgerId, patch) {
   return update(ref(db, `ledgers/${ledgerId}/meta`), patch);
 }
 
+// ── Budget data (inside a period) ────────────────────────────────────
+// `base` is a period's path: ledgers/{ledgerId}/periods/{"2026-09" | "2026"}.
 // Tab and item creators return the new key immediately so the UI can focus it;
-// the write itself shows up locally at once and syncs in the background.
-export function addTab(ledgerId, name, order = Date.now()) {
-  const tabRef = push(ref(db, `ledgers/${ledgerId}/tabs`));
+// the write shows up locally at once and syncs in the background.
+export const periodPath = (ledgerId, periodKey) => `ledgers/${ledgerId}/periods/${periodKey}`;
+
+export const patchPath = (path, value) => update(ref(db, path), value);
+export const setPath = (path, value) => set(ref(db, path), value);
+export const newKey = (path) => push(ref(db, path)).key;
+
+export function addTab(base, name, order = Date.now()) {
+  const tabRef = push(ref(db, `${base}/tabs`));
   set(tabRef, { name, order }).catch(console.error);
   return tabRef.key;
 }
 
-export function renameTab(ledgerId, tabId, name) {
-  return update(ref(db, `ledgers/${ledgerId}/tabs/${tabId}`), { name });
+export function renameTab(base, tabId, name) {
+  return update(ref(db, `${base}/tabs/${tabId}`), { name });
 }
 
-export function deleteTab(ledgerId, tabId) {
-  return update(ref(db), {
-    [`ledgers/${ledgerId}/tabs/${tabId}`]: null,
-    [`ledgers/${ledgerId}/items/${tabId}`]: null,
-  });
+export function deleteTab(base, tabId) {
+  return update(ref(db, base), { [`tabs/${tabId}`]: null, [`items/${tabId}`]: null });
 }
 
-// `amount` is always stored per month; the Monthly/Yearly switch only changes
-// how it's shown and typed.
-export function addItem(ledgerId, tabId, username) {
-  const itemRef = push(ref(db, `ledgers/${ledgerId}/items/${tabId}`));
-  set(itemRef, {
-    name: '',
-    amount: 0,
-    category: '',
-    note: '',
-    order: Date.now(),
-    updatedBy: username,
-    updatedAt: serverTimestamp(),
-  }).catch(console.error);
+const blankItem = (username) => ({
+  name: '',
+  amount: 0,
+  freq: 'monthly',
+  category: '',
+  note: '',
+  order: Date.now(),
+  updatedBy: username,
+  updatedAt: serverTimestamp(),
+});
+
+export function addItem(base, tabId, username) {
+  const itemRef = push(ref(db, `${base}/items/${tabId}`));
+  set(itemRef, blankItem(username)).catch(console.error);
   return itemRef.key;
 }
 
 // Adds many rows in one write (used by "Paste from sheet").
-export function addItems(ledgerId, tabId, username, rows) {
-  const base = Date.now();
+export function addItems(base, tabId, username, rows, freq = 'monthly') {
+  const start = Date.now();
   const patch = {};
   rows.forEach((row, i) => {
-    const key = push(ref(db, `ledgers/${ledgerId}/items/${tabId}`)).key;
-    patch[`ledgers/${ledgerId}/items/${tabId}/${key}`] = {
+    const key = push(ref(db, `${base}/items/${tabId}`)).key;
+    patch[`items/${tabId}/${key}`] = {
+      ...blankItem(username),
       name: row.name,
       amount: row.amount,
+      freq,
       category: row.category || '',
       note: row.note || '',
-      order: base + i,
-      updatedBy: username,
-      updatedAt: serverTimestamp(),
+      order: start + i,
     };
   });
-  return update(ref(db), patch);
+  return update(ref(db, base), patch);
 }
 
-export function updateItemField(ledgerId, tabId, itemId, field, value, username) {
-  return update(ref(db, `ledgers/${ledgerId}/items/${tabId}/${itemId}`), {
+export function updateItemField(base, tabId, itemId, field, value, username) {
+  return update(ref(db, `${base}/items/${tabId}/${itemId}`), {
     [field]: value,
     updatedBy: username,
     updatedAt: serverTimestamp(),
   });
 }
 
-export function deleteItem(ledgerId, tabId, itemId) {
-  return set(ref(db, `ledgers/${ledgerId}/items/${tabId}/${itemId}`), null);
+export function deleteItem(base, tabId, itemId) {
+  return set(ref(db, `${base}/items/${tabId}/${itemId}`), null);
+}
+
+// Merge several items into one item whose parts are the originals.
+export function mergeItems(base, tabId, rows, name, username) {
+  const key = push(ref(db, `${base}/items/${tabId}`)).key;
+  const cats = [...new Set(rows.map((r) => (r.category || '').trim()).filter(Boolean))];
+  const parts = {};
+  rows.forEach((r, i) => {
+    parts[r.id] = {
+      name: r.name || '',
+      amount: r.parts ? 0 : Number(r.amount) || 0,
+      freq: r.freq || 'monthly',
+      note: r.note || '',
+      order: i,
+    };
+    // Merging a merged item: bring its parts along.
+    if (r.parts) {
+      delete parts[r.id];
+      Object.entries(r.parts).forEach(([pid, p], j) => (parts[pid] = { ...p, order: i + j / 100 }));
+    }
+  });
+  const patch = {
+    [`items/${tabId}/${key}`]: {
+      ...blankItem(username),
+      name,
+      category: cats.length === 1 ? cats[0] : '',
+      order: Math.min(...rows.map((r) => r.order || Date.now())),
+      parts,
+    },
+  };
+  rows.forEach((r) => (patch[`items/${tabId}/${r.id}`] = null));
+  return update(ref(db, base), patch).then(() => key);
+}
+
+// Undo a merge: each part becomes an item again.
+export function splitItem(base, tabId, itemId, item, username) {
+  const patch = { [`items/${tabId}/${itemId}`]: null };
+  Object.entries(item.parts || {}).forEach(([pid, p], i) => {
+    patch[`items/${tabId}/${pid}`] = {
+      ...blankItem(username),
+      name: p.name || '',
+      amount: Number(p.amount) || 0,
+      freq: p.freq || 'monthly',
+      note: p.note || '',
+      category: item.category || '',
+      order: (item.order || Date.now()) + i,
+    };
+  });
+  return update(ref(db, base), patch);
+}
+
+// Copy a whole period (head categories, items, salaries) to other periods.
+// Keys are kept so items can be compared and tracked across periods.
+export function copyPeriod(ledgerId, period, targetKeys) {
+  const { tabs = null, items = null, people = null } = period || {};
+  const patch = {};
+  for (const k of targetKeys) patch[`ledgers/${ledgerId}/periods/${k}`] = { tabs, items, people, createdAt: Date.now() };
+  return update(ref(db), patch);
+}
+
+export function startEmptyPeriod(ledgerId, periodKey) {
+  const tabKey = push(ref(db, `ledgers/${ledgerId}/periods/${periodKey}/tabs`)).key;
+  return set(ref(db, `ledgers/${ledgerId}/periods/${periodKey}`), {
+    createdAt: Date.now(),
+    tabs: { [tabKey]: { name: 'General', order: Date.now() } },
+  });
+}
+
+export function deletePeriod(ledgerId, periodKey) {
+  return set(ref(db, `ledgers/${ledgerId}/periods/${periodKey}`), null);
+}
+
+// Accounts made before months existed kept tabs/items at the top level.
+// Move them into a period; old amounts were monthly.
+export function migrateToPeriod(ledgerId, data, periodKey) {
+  const items = {};
+  for (const [tabId, tabItems] of Object.entries(data.items || {})) {
+    items[tabId] = {};
+    for (const [id, it] of Object.entries(tabItems || {})) {
+      const { date, ...rest } = it;
+      items[tabId][id] = { freq: 'monthly', ...rest };
+    }
+  }
+  return update(ref(db, `ledgers/${ledgerId}`), {
+    [`periods/${periodKey}`]: { tabs: data.tabs || null, items, createdAt: Date.now() },
+    tabs: null,
+    items: null,
+  });
 }
