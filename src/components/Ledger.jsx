@@ -330,18 +330,17 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                       <span className="count-dot">{categoryList.length}</span>
                     </button>
                   )}
-                  {sorted(favs).map((f) => (
-                    <button
-                      key={f.id}
-                      className="btn glass icon-only fav-shortcut"
-                      onClick={() => openCategory(f.id)}
-                      title={f.label}
-                      aria-label={`Open ${f.label}`}
-                    >
-                      <span className="fav-icon">{f.icon}</span>
-                    </button>
-                  ))}
                 </div>
+                {favs && Object.keys(favs).length > 0 && (
+                  <div className="fav-row" aria-label="Favourite categories">
+                    {sorted(favs).map((f) => (
+                      <button key={f.id} className="fav-pill" onClick={() => openCategory(f.id)} aria-label={`Open ${f.label}`}>
+                        <span className="fav-icon">{f.icon}</span>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <SalaryStrip base={base} period={period} currency={currency} view={view} ctx={budgetCtx} onOpen={(id) => setSheet({ type: 'person', id })} />
               </div>
             </section>

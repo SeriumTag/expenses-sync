@@ -37,8 +37,9 @@ export default function ItemList(props) {
     setMenuOpen(false);
   };
 
-  // Category tags on rows can be hidden for a cleaner list (remembered on this device).
-  const [showCats, setShowCats] = useState(() => prefs.get('showCats') !== false);
+  // Category tags on rows can be hidden for a cleaner list (remembered on this
+  // device). Phones start with them hidden so name and amount fit on one line.
+  const [showCats, setShowCats] = useState(() => prefs.get('showCats') ?? window.innerWidth > 640);
   const toggleCats = () => {
     setShowCats((v) => {
       prefs.set('showCats', !v);
