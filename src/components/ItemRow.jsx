@@ -1,4 +1,4 @@
-import { FREQS, compareItem, inView, monthlyOf, partMonthly, sorted } from '../lib/budget';
+import { FREQS, amountInView, compareItem, inView, monthlyOf, partMonthly, sorted } from '../lib/budget';
 import { formatMoney, parseAmount } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
 import { ChangeBadge, FreqPill } from './ChangeBadge';
@@ -8,7 +8,7 @@ const FIELDS = ['name', 'category', 'note', 'amount'];
 
 export default function ItemRow(props) {
   const { item, index, pk, tabId, prevPeriod, prevLabel, currency, view, save, focus } = props;
-  const { selecting, picked, onPick, onOpen, expanded, onToggle } = props;
+  const { selecting, picked, onPick, onOpen, expanded, onToggle, ctx } = props;
   const { lockFor, colorFor } = usePresenceCtx();
   const key = (f) => `${pk}:item:${item.id}:${f}`;
   const editor = FIELDS.map((f) => lockFor(key(f))).find(Boolean);
@@ -77,7 +77,7 @@ export default function ItemRow(props) {
       <div className="ep-amt">
         {isGroup ? (
           <button className="group-amt" onClick={onOpen} disabled={selecting}>
-            {formatMoney(inView(monthlyOf(item), groupView), currency)}
+            {formatMoney(amountInView(item, item.id, groupView, ctx), currency)}
             <span className="per-small">{FREQS[groupView].short}</span>
           </button>
         ) : (
@@ -100,8 +100,16 @@ export default function ItemRow(props) {
         )}
         {!isGroup && freq !== view && (
           <span className="conv">
-            ≈ {formatMoney(inView(monthlyOf(item), view), currency)}
-            {FREQS[view].short}
+            {item.track && view === 'yearly' ? (
+              <>
+                {formatMoney(amountInView(item, item.id, view, ctx), currency)} saved in {ctx?.year}
+              </>
+            ) : (
+              <>
+                ≈ {formatMoney(inView(monthlyOf(item), view), currency)}
+                {FREQS[view].short}
+              </>
+            )}
           </span>
         )}
         <ChangeBadge change={change} prevLabel={prevLabel} currency={currency} view={view} />

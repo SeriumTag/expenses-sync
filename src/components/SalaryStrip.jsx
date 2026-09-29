@@ -1,4 +1,4 @@
-import { FREQS, afterExpenses, inView, sorted } from '../lib/budget';
+import { FREQS, afterExpenses, sorted } from '../lib/budget';
 import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import LiveInput from './LiveInput';
@@ -6,7 +6,7 @@ import Modal from './Modal';
 
 // Summary cards at the top: each person's salary and what's left after the
 // head categories they chose.
-export function SalaryStrip({ base, period, currency, view, onOpen }) {
+export function SalaryStrip({ base, period, currency, view, ctx, onOpen }) {
   const people = sorted(period?.people);
 
   function add() {
@@ -17,17 +17,17 @@ export function SalaryStrip({ base, period, currency, view, onOpen }) {
   return (
     <div className="salary-strip">
       {people.map((p) => {
-        const { salary, left } = afterExpenses(p, period);
+        const { salary, left } = afterExpenses(p, period, view, ctx);
         return (
           <button key={p.id} className="salary-card" onClick={() => onOpen(p.id)}>
             <span className="salary-name">{p.name || 'Unnamed'}</span>
             <span className="salary-line">
               <span className="muted small">Salary</span>
-              <b>{formatMoney(inView(salary, view), currency)}</b>
+              <b>{formatMoney(salary, currency)}</b>
             </span>
             <span className="salary-line">
               <span className="muted small">After expenses</span>
-              <b className={left < 0 ? 'neg' : 'pos'}>{formatMoney(inView(left, view), currency)}</b>
+              <b className={left < 0 ? 'neg' : 'pos'}>{formatMoney(left, currency)}</b>
             </span>
           </button>
         );
@@ -40,9 +40,9 @@ export function SalaryStrip({ base, period, currency, view, onOpen }) {
   );
 }
 
-export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, onClose }) {
+export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, ctx, onClose }) {
   const path = `${base}/people/${personId}`;
-  const { salary, spent, left } = afterExpenses(person, period);
+  const { salary, spent, left } = afterExpenses(person, period, view, ctx);
   const chosen = person.tabs || {};
 
   async function remove() {
@@ -98,15 +98,15 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
         <div className="sheet-summary">
           <span>
             <span className="muted small">Salary </span>
-            <b>{formatMoney(inView(salary, view), currency)}</b>
+            <b>{formatMoney(salary, currency)}</b>
           </span>
           <span>
             <span className="muted small">− Expenses </span>
-            <b>{formatMoney(inView(spent, view), currency)}</b>
+            <b>{formatMoney(spent, currency)}</b>
           </span>
           <span>
             <span className="muted small">= Left </span>
-            <b className={left < 0 ? 'neg' : 'pos'}>{formatMoney(inView(left, view), currency)}</b>
+            <b className={left < 0 ? 'neg' : 'pos'}>{formatMoney(left, currency)}</b>
             <span className="muted small">{FREQS[view].short}</span>
           </span>
         </div>

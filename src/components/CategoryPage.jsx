@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FREQS, inView, itemsInCategory, monthlyOf, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
+import { FREQS, amountInView, itemsInCategory, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
 import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney } from '../lib/format';
 import LiveInput from './LiveInput';
@@ -22,7 +22,7 @@ export function CategoriesSheet({ categories, currency, view, onOpen, onClose })
                 {c.count} item{c.count === 1 ? '' : 's'}
               </span>
               <b>
-                {formatMoney(inView(c.monthly, view), currency)}
+                {formatMoney(c.total, currency)}
                 <span className="muted small">{FREQS[view].short}</span>
               </b>
               <span className="chev">›</span>
@@ -37,7 +37,7 @@ export function CategoriesSheet({ categories, currency, view, onOpen, onClose })
 // Everything in one category across all head categories, with the user's own
 // subcategories, extra fields and choice of what counts toward the total.
 export function CategoryPage(props) {
-  const { ledgerId, pk, period, periods, catKeyValue, label, catData, tracks, currency, view, onViewChange, onBack, onOpenItem } = props;
+  const { ledgerId, pk, period, periods, catKeyValue, label, catData, tracks, currency, view, onViewChange, onBack, onOpenItem, ctx } = props;
   const path = `ledgers/${ledgerId}/categories/${catKeyValue}`;
   const entries = itemsInCategory(period, catKeyValue);
   const subs = sorted(catData?.subs);
@@ -46,7 +46,8 @@ export function CategoryPage(props) {
   const [newField, setNewField] = useState(null); // { name, type }
 
   const counted = entries.filter((e) => !meta[e.id]?.exclude);
-  const total = counted.reduce((s, e) => s + monthlyOf(e.item), 0);
+  const amount = (e) => amountInView(e.item, e.id, view, ctx);
+  const total = counted.reduce((s, e) => s + amount(e), 0);
 
   const addSub = () => {
     const name = window.prompt('Subcategory name (e.g. Hubby, Wife, Kids)');
@@ -85,7 +86,7 @@ export function CategoryPage(props) {
       <div className="cat-total">
         <div>
           <div className="hero-total">
-            {formatMoney(inView(total, view), currency)}
+            {formatMoney(total, currency)}
             <span className="per-small">{FREQS[view].short}</span>
           </div>
           <span className="muted small">
@@ -154,7 +155,7 @@ export function CategoryPage(props) {
       {entries.length === 0 && <p className="muted">No items use this category in this period.</p>}
 
       {groups.map((g) => {
-        const subTotal = g.rows.filter((e) => !meta[e.id]?.exclude).reduce((s, e) => s + monthlyOf(e.item), 0);
+        const subTotal = g.rows.filter((e) => !meta[e.id]?.exclude).reduce((s, e) => s + amount(e), 0);
         return (
           <div key={g.sub?.id || 'none'} className="sub-group">
             <div className="sub-head">
@@ -169,7 +170,7 @@ export function CategoryPage(props) {
               ) : (
                 <span className="sub-name muted">{subs.length ? 'No subcategory' : 'Items'}</span>
               )}
-              <span className="sub-total">{formatMoney(inView(subTotal, view), currency)}</span>
+              <span className="sub-total">{formatMoney(subTotal, currency)}</span>
               {g.sub && (
                 <button className="icon-btn" aria-label={`Remove ${g.sub.name}`} onClick={() => removeSub(g.sub)}>
                   ✕
@@ -197,7 +198,7 @@ export function CategoryPage(props) {
                       {e.item.parts && <span className="muted small">{Object.keys(e.item.parts).length} items</span>}
                     </button>
                     <b className="cat-entry-amt">
-                      {formatMoney(inView(monthlyOf(e.item), view), currency)}
+                      {formatMoney(amount(e), currency)}
                       <span className="per-small">{FREQS[view].short}</span>
                     </b>
                   </div>

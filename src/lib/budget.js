@@ -70,21 +70,21 @@ export const normCat = (name) => (name || '').trim().toLowerCase();
 // Firebase keys can't contain . # $ [ ] /
 export const catKey = (name) => normCat(name).replace(/[.#$[\]/]/g, '_') || '_';
 
-// All categories used in a period: [{ key, label, count, monthly }]
-export function categoriesIn(period) {
+// All categories used in a period: [{ key, label, count, total }] (total in `view`)
+export function categoriesIn(period, view = 'monthly', ctx) {
   const map = new Map();
   for (const items of Object.values(period?.items || {})) {
-    for (const item of Object.values(items || {})) {
+    for (const [id, item] of Object.entries(items || {})) {
       const label = (item.category || '').trim();
       if (!label) continue;
       const key = catKey(label);
-      const c = map.get(key) || { key, label, count: 0, monthly: 0 };
+      const c = map.get(key) || { key, label, count: 0, total: 0 };
       c.count += 1;
-      c.monthly += monthlyOf(item);
+      c.total += amountInView(item, id, view, ctx);
       map.set(key, c);
     }
   }
-  return [...map.values()].sort((a, b) => b.monthly - a.monthly);
+  return [...map.values()].sort((a, b) => b.total - a.total);
 }
 
 // Items in a period with a given category: [{ tabId, tabName, id, item }]
@@ -98,14 +98,14 @@ export function itemsInCategory(period, key) {
   return out;
 }
 
-// Per-tab breakdown by category, biggest first.
-export function byCategory(items) {
+// Per-tab breakdown by category, biggest first (totals in `view`).
+export function byCategory(items, view = 'monthly', ctx) {
   const groups = new Map();
-  for (const item of Object.values(items || {})) {
+  for (const [id, item] of Object.entries(items || {})) {
     const label = (item.category || '').trim() || 'Uncategorised';
     const key = label.toLowerCase();
     const g = groups.get(key) || { label, total: 0, count: 0 };
-    g.total += monthlyOf(item);
+    g.total += amountInView(item, id, view, ctx);
     g.count += 1;
     groups.set(key, g);
   }
@@ -143,8 +143,21 @@ export function savingsMonths(year, itemId, log, periods) {
 }
 export const savingsTotal = (months) => months.reduce((s, m) => s + (Number(m.value) || 0), 0);
 
+// ── Amounts in the chosen view ──────────────────────────────────────
+// ctx = { year, tracks, periods }. In the yearly view a savings-tracked item
+// counts what was actually put in month by month that year, not monthly × 12.
+export function yearlyOf(item, id, ctx) {
+  if (item?.track && ctx) return savingsTotal(savingsMonths(ctx.year, id, ctx.tracks?.[id]?.log, ctx.periods));
+  return monthlyOf(item) * 12;
+}
+export const amountInView = (item, id, view, ctx) => (view === 'yearly' ? yearlyOf(item, id, ctx) : monthlyOf(item));
+export const tabInView = (items, view, ctx) =>
+  Object.entries(items || {}).reduce((s, [id, item]) => s + amountInView(item, id, view, ctx), 0);
+
 // ── Salary ──────────────────────────────────────────────────────────
-export function afterExpenses(person, period) {
-  const spent = Object.keys(person?.tabs || {}).reduce((s, tabId) => s + sumTab(period?.items?.[tabId]), 0);
-  return { salary: Number(person?.salary) || 0, spent, left: (Number(person?.salary) || 0) - spent };
+// Salary, spending and what's left, all in `view` (salary is stored monthly).
+export function afterExpenses(person, period, view = 'monthly', ctx) {
+  const salary = inView(Number(person?.salary) || 0, view);
+  const spent = Object.keys(person?.tabs || {}).reduce((s, tabId) => s + tabInView(period?.items?.[tabId], view, ctx), 0);
+  return { salary, spent, left: salary - spent };
 }

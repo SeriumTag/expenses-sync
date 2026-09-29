@@ -6,6 +6,8 @@ import { PresenceContext, usePresence } from '../hooks/usePresence';
 import {
   FREQS,
   categoriesIn,
+  tabInView,
+  yearOf,
   currentMonthKey,
   inView,
   periodLabel,
@@ -135,9 +137,10 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   if (!pk) return <div className="center-screen muted">Setting up {meta.name || 'this account'}…</div>;
 
   const currency = meta.currency ?? '$';
-  const categoryList = categoriesIn(period);
+  const budgetCtx = { year: yearOf(pk), tracks: data.tracks, periods };
+  const categoryList = categoriesIn(period, view, budgetCtx);
   const categoryNames = categoryList.map((c) => c.label);
-  const grandTotal = tabs.reduce((sum, t) => sum + sumTab(period.items?.[t.id]), 0);
+  const grandTotal = tabs.reduce((sum, t) => sum + tabInView(period.items?.[t.id], view, budgetCtx), 0);
   const itemCount = tabs.reduce((n, t) => n + Object.keys(period.items?.[t.id] || {}).length, 0);
   const totalSetAside = tabs.reduce((sum, t) => sum + setAsideTab(period.items?.[t.id]), 0);
   const partnerOnline = partner ? Boolean(presence.others[partner]) : false;
@@ -244,6 +247,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             currency={currency}
             view={view}
             onViewChange={changeView}
+            ctx={budgetCtx}
             onBack={() => setCatView(null)}
             onOpenItem={openItem}
           />
@@ -260,7 +264,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                 </button>
                 <h1 className="hero-title">{meta.name || 'Untitled'}</h1>
                 <div className="hero-total">
-                  {formatMoney(inView(grandTotal, view), currency)}
+                  {formatMoney(grandTotal, currency)}
                   <button className="per" onClick={() => changeView(view === 'monthly' ? 'yearly' : 'monthly')} title="Switch monthly / yearly">
                     {FREQS[view].short} ⇅
                   </button>
@@ -310,7 +314,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                     </button>
                   )}
                 </div>
-                <SalaryStrip base={base} period={period} currency={currency} view={view} onOpen={(id) => setSheet({ type: 'person', id })} />
+                <SalaryStrip base={base} period={period} currency={currency} view={view} ctx={budgetCtx} onOpen={(id) => setSheet({ type: 'person', id })} />
               </div>
             </section>
 
@@ -341,7 +345,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                       ))}
                       <span className="card-name">{t.name || 'Untitled'}</span>
                       <span className="card-total">
-                        {formatMoney(inView(sumTab(period.items?.[t.id]), view), currency)}
+                        {formatMoney(tabInView(period.items?.[t.id], view, budgetCtx), currency)}
                         <span className="card-per">{FREQS[view].short}</span>
                       </span>
                     </button>
@@ -401,6 +405,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                   onAdd={addExpense}
                   onImport={() => setDialog('import')}
                   onOpenItem={openItem}
+                  ctx={budgetCtx}
                 />
               </section>
             )}
@@ -440,6 +445,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             tabs={tabs}
             currency={currency}
             view={view}
+            ctx={budgetCtx}
             onClose={() => setSheet(null)}
           />
         )}

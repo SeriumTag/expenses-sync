@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { FREQS, byCategory, inView, setAsideTab, sorted, sumTab } from '../lib/budget';
+import { FREQS, byCategory, setAsideTab, sorted, tabInView } from '../lib/budget';
 import { prefs } from '../lib/session';
 import { duplicateItems, mergeItems, ordersAfter, updateItemField } from '../lib/db';
 import { formatMoney } from '../lib/format';
@@ -7,14 +7,14 @@ import ItemRow from './ItemRow';
 
 export default function ItemList(props) {
   const { base, pk, tabId, items, prevPeriod, prevLabel, categories, currency, username, focusId, view } = props;
-  const { onViewChange, onAdd, onImport, onOpenItem } = props;
+  const { onViewChange, onAdd, onImport, onOpenItem, ctx } = props;
   const [selecting, setSelecting] = useState(false);
   const [picked, setPicked] = useState(() => new Set());
   const itemsRef = useRef(items);
   itemsRef.current = items;
 
   const rows = useMemo(() => sorted(items), [items]);
-  const groups = useMemo(() => byCategory(items), [items]);
+  const groups = useMemo(() => byCategory(items, view, ctx), [items, view, ctx]);
 
   // Skip writes to a row the other person just deleted, so it isn't half-recreated.
   const saver = (itemId) => (field) => (value) => {
@@ -156,6 +156,7 @@ export default function ItemList(props) {
           onOpen={() => onOpenItem(tabId, item.id)}
           expanded={expanded.has(item.id)}
           onToggle={() => toggleExpand(item.id)}
+          ctx={ctx}
         />
       ))}
 
@@ -182,7 +183,7 @@ export default function ItemList(props) {
             </button>
           </div>
           <span className="ep-total">
-            {FREQS[view].label} total <b>{formatMoney(inView(sumTab(items), view), currency)}</b>
+            {FREQS[view].label} total <b>{formatMoney(tabInView(items, view, ctx), currency)}</b>
           </span>
         </div>
       )}
@@ -213,7 +214,7 @@ export default function ItemList(props) {
                 <span style={{ width: `${maxGroup ? (g.total / maxGroup) * 100 : 0}%` }} />
               </span>
               <span className="cat-amt">
-                {formatMoney(inView(g.total, view), currency)}
+                {formatMoney(g.total, currency)}
                 <span className="muted small">{FREQS[view].short}</span>
               </span>
             </div>
