@@ -7,6 +7,7 @@ import PotIcon from './PotIcon';
 import Modal from './Modal';
 
 const FIELD_TYPES = { text: 'Text', date: 'Date', number: 'Number' };
+const TYPE_ICONS = { text: 'T', date: '📅', number: '#' };
 
 // List of every category used in this period.
 export function CategoriesSheet({ categories, favs, currency, view, onOpen, onFav, onClose }) {
@@ -103,6 +104,15 @@ export function CategoryPage(props) {
     Object.entries(meta).forEach(([id, m]) => m.sub === s.id && (patch[`entries/${id}/sub`] = null));
     patchPath(path, patch);
   };
+  const moveField = (id, dir) => {
+    const patch = {};
+    moved(
+      fields.map((f) => f.id),
+      id,
+      dir,
+    ).forEach((fid, i) => (patch[`fields/${fid}/order`] = (i + 1) * 1000));
+    patchPath(path, patch);
+  };
   const removeField = (f) => {
     if (!window.confirm(`Remove the “${f.name}” field and what’s been typed in it?`)) return;
     const patch = { [`fields/${f.id}`]: null };
@@ -151,26 +161,42 @@ export function CategoryPage(props) {
         <button className="btn glass sm" onClick={() => setNewField({ name: '', type: 'text' })}>
           ＋ Field
         </button>
-        {entries.length > 1 && (
+        {(entries.length > 1 || fields.length > 1) && (
           <button className={`btn sm ${reordering ? 'primary' : 'glass'}`} onClick={() => setReordering((r) => !r)}>
             {reordering ? 'Done' : '⇅ Reorder'}
           </button>
         )}
-        {fields.map((f) => (
-          <span key={f.id} className="field-chip">
+      </div>
+      {fields.length > 0 && (
+        <div className="field-chips" aria-label="Fields">
+        {fields.map((f, i) => (
+          <span key={f.id} className={`field-chip ${reordering ? 'moving' : ''}`}>
+            {reordering && (
+              <button className="icon-btn" onClick={() => moveField(f.id, -1)} disabled={i === 0} aria-label={`Move ${f.name} left`}>
+                ◀
+              </button>
+            )}
             <LiveInput
               fieldKey={`cat:${catKeyValue}:field:${f.id}`}
               value={f.name}
               onSave={(v) => patchPath(`${path}/fields/${f.id}`, { name: v })}
               aria-label="Field name"
+              disabled={reordering}
             />
-            <small>{FIELD_TYPES[f.type] || 'Text'}</small>
-            <button className="icon-btn" aria-label={`Remove ${f.name}`} onClick={() => removeField(f)}>
-              ✕
-            </button>
+            <small title={`${FIELD_TYPES[f.type] || 'Text'} field`}>{TYPE_ICONS[f.type] || 'T'}</small>
+            {reordering ? (
+              <button className="icon-btn" onClick={() => moveField(f.id, 1)} disabled={i === fields.length - 1} aria-label={`Move ${f.name} right`}>
+                ▶
+              </button>
+            ) : (
+              <button className="icon-btn" aria-label={`Remove ${f.name}`} onClick={() => removeField(f)}>
+                ✕
+              </button>
+            )}
           </span>
         ))}
-      </div>
+        </div>
+      )}
       {newField && (
         <form
           className="new-field"
@@ -271,10 +297,10 @@ export function CategoryPage(props) {
                       Saved in {yearOf(pk)}: <b>{formatMoney(tracked, currency)}</b>
                     </p>
                   )}
-                  <div className="cat-entry-fields">
+                  <div className="cat-entry-fields" style={{ '--cols': fields.length + (subs.length > 0 ? 1 : 0) }}>
                     {subs.length > 0 && (
-                      <label className="field">
-                        <span>Subcategory</span>
+                      <label className="cf">
+                        <span className="cf-label">Subcategory</span>
                         <select value={m.sub || ''} onChange={(ev) => patchPath(`${path}/entries/${e.id}`, { sub: ev.target.value || null })}>
                           <option value="">None</option>
                           {subs.map((s) => (
@@ -286,8 +312,10 @@ export function CategoryPage(props) {
                       </label>
                     )}
                     {fields.map((f) => (
-                      <label key={f.id} className="field">
-                        <span>{f.name}</span>
+                      <label key={f.id} className={`cf cf-${f.type || 'text'}`}>
+                        <span className="cf-label" title={f.name}>
+                          {f.name}
+                        </span>
                         <LiveInput
                           type={f.type === 'date' ? 'date' : 'text'}
                           inputMode={f.type === 'number' ? 'decimal' : undefined}
