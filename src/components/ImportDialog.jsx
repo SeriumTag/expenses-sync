@@ -9,9 +9,20 @@ import Modal from './Modal';
  * sheet ("Hamizan", "Kelly", …) goes into a tab of that name, created if needed;
  * untitled rows go into the tab you're on.
  */
+// "Monthly" / "Yearly" / "Annual" in the amount column's header row.
+function headerPeriod(text) {
+  for (const line of text.split(/\r?\n/).slice(0, 40)) {
+    const col = (line.split('\t')[1] || '').trim();
+    if (/^(yearly|annual(ly)?|per year|per annum)$/i.test(col)) return 'yearly';
+    if (/^(monthly|per month)$/i.test(col)) return 'monthly';
+  }
+  return null;
+}
+
 export default function ImportDialog({ base, tabId, tabName, tabs, username, currency, view, onImported, onClose }) {
   const [text, setText] = useState('');
-  const [period, setPeriod] = useState(view);
+  // Most sheets list monthly amounts; the header row, if any, decides.
+  const [period, setPeriod] = useState('monthly');
   const [skipped, setSkipped] = useState(() => new Set());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -67,6 +78,9 @@ export default function ImportDialog({ base, tabId, tabName, tabs, username, cur
         onChange={(e) => {
           setText(e.target.value);
           setSkipped(new Set());
+          // Follow the sheet's own header ("Hamizan | Monthly | Category").
+          const said = headerPeriod(e.target.value);
+          if (said) setPeriod(said);
         }}
         placeholder={'Hamizan\tMonthly\tCategory\nGiga\t25.00\tPhone\nCar Repayment\t1932.00\tCar'}
         rows={6}

@@ -8,29 +8,49 @@ import Modal from './Modal';
 const FIELD_TYPES = { text: 'Text', date: 'Date', number: 'Number' };
 
 // List of every category used in this period.
-export function CategoriesSheet({ categories, currency, view, onOpen, onClose }) {
+export function CategoriesSheet({ categories, favs, currency, view, onOpen, onFav, onClose }) {
   return (
     <Modal title="Categories" onClose={onClose}>
       {categories.length === 0 ? (
         <p className="muted">No categories yet. Type one in an item’s Category box, e.g. “Insurance”.</p>
       ) : (
-        <div className="cat-list">
-          {categories.map((c) => (
-            <button key={c.key} className="cat-list-row" onClick={() => onOpen(c.key)}>
-              <span className="cat-list-name">{c.label}</span>
-              <span className="muted small">
-                {c.count} item{c.count === 1 ? '' : 's'}
-              </span>
-              <b>
-                {formatMoney(c.total, currency)}
-                <span className="muted small">{FREQS[view].short}</span>
-              </b>
-              <span className="chev">›</span>
-            </button>
-          ))}
-        </div>
+        <>
+          <p className="muted small">Tap ☆ to add a category to your favourites.</p>
+          <div className="cat-list">
+            {categories.map((c) => (
+              <div key={c.key} className="cat-list-item">
+                <FavButton fav={favs?.[c.key]} label={c.label} onClick={() => onFav(c.key, c.label)} />
+                <button className="cat-list-row" onClick={() => onOpen(c.key)}>
+                  <span className="cat-list-name">{c.label}</span>
+                  <span className="muted small">
+                    {c.count} item{c.count === 1 ? '' : 's'}
+                  </span>
+                  <b>
+                    {formatMoney(c.total, currency)}
+                    <span className="muted small">{FREQS[view].short}</span>
+                  </b>
+                  <span className="chev">›</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
       )}
     </Modal>
+  );
+}
+
+// ☆ when not a favourite; its chosen icon when it is. Either way, tap to change.
+export function FavButton({ fav, label, onClick }) {
+  return (
+    <button
+      className={`fav-btn ${fav ? 'on' : ''}`}
+      onClick={onClick}
+      title={fav ? `Change icon or remove ${label} from favourites` : `Add ${label} to favourites`}
+      aria-label={fav ? `${label} is a favourite, change icon` : `Add ${label} to favourites`}
+    >
+      {fav ? fav.icon : '☆'}
+    </button>
   );
 }
 
@@ -38,6 +58,7 @@ export function CategoriesSheet({ categories, currency, view, onOpen, onClose })
 // subcategories, extra fields and choice of what counts toward the total.
 export function CategoryPage(props) {
   const { ledgerId, pk, period, periods, catKeyValue, label, catData, tracks, currency, view, onViewChange, onBack, onOpenItem, ctx } = props;
+  const { fav, onFav } = props;
   const path = `ledgers/${ledgerId}/categories/${catKeyValue}`;
   const entries = itemsInCategory(period, catKeyValue);
   const subs = sorted(catData?.subs);
@@ -82,7 +103,10 @@ export function CategoryPage(props) {
         ‹ Back
       </button>
       <div className="kicker">Category</div>
-      <h1 className="hero-title cat-title">{label}</h1>
+      <div className="cat-title-row">
+        <h1 className="hero-title cat-title">{label}</h1>
+        <FavButton fav={fav} label={label} onClick={onFav} />
+      </div>
       <div className="cat-total">
         <div>
           <div className="hero-total">

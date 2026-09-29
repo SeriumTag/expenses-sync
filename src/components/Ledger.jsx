@@ -30,6 +30,7 @@ import {
   renameTab,
   unlinkLedger,
 } from '../lib/db';
+import { removeFav, saveFav, setFavIcon, suggestIcon } from '../lib/favs';
 import { formatMoney } from '../lib/format';
 import { prefs } from '../lib/session';
 import { hideSplash } from '../lib/splash';
@@ -37,6 +38,7 @@ import { hueFor, partnerColor } from '../lib/theme';
 import { CategoriesSheet, CategoryPage } from './CategoryPage';
 import ImportDialog from './ImportDialog';
 import ItemList from './ItemList';
+import IconPicker from './IconPicker';
 import ItemSheet from './ItemSheet';
 import LiveInput from './LiveInput';
 import { LogoMark } from './Logo';
@@ -59,6 +61,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const [view, setView] = useState(() => (FREQS[prefs.get('view')] ? prefs.get('view') : 'monthly'));
   const [scrolled, setScrolled] = useState(false);
   const [partnerTheme, setPartnerTheme] = useState(null);
+  const [favs, setFavs] = useState(null); // this user's favourite categories: key → { label, icon, order }
+  const [iconPick, setIconPick] = useState(null); // { key, label } while choosing a favourite's icon
   const migrating = useRef(false);
   const presence = usePresence(ledgerId, username);
   const connected = useConnected();
@@ -90,6 +94,12 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     if (!partner) return setPartnerTheme(null);
     return onValue(ref(db, `users/${partner}/theme`), (snap) => setPartnerTheme(snap.val()));
   }, [partner]);
+  // Favourites are personal, so they live under the user, per account.
+  useEffect(
+    () => onValue(ref(db, `users/${username}/favs/${ledgerId}`), (snap) => setFavs(snap.val())),
+    [username, ledgerId],
+  );
+
   const pColor = partnerColor(theme, partnerTheme);
   useEffect(() => {
     document.documentElement.style.setProperty('--partner', pColor);
@@ -208,7 +218,12 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
 
   const sheetItem = sheet?.type === 'item' ? period.items?.[sheet.tabId]?.[sheet.itemId] : null;
   const sheetPerson = sheet?.type === 'person' ? period.people?.[sheet.id] : null;
-  const catLabel = catView ? categoryList.find((c) => c.key === catView)?.label || data.categories?.[catView]?.label || catView : null;
+  const openCategory = (key) => {
+    setDialog(null);
+    setCatView(key);
+    window.scrollTo(0, 0);
+  };
+  const catLabel = catView ? favs?.[catView]?.label || categoryList.find((c) => c.key === catView)?.label || data.categories?.[catView]?.label || catView : null;
 
   return (
     <PresenceContext.Provider value={presence}>
@@ -249,6 +264,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             onViewChange={changeView}
             ctx={budgetCtx}
             onBack={() => setCatView(null)}
+            fav={favs?.[catView]}
+            onFav={() => setIconPick({ key: catView, label: catLabel })}
             onOpenItem={openItem}
           />
         ) : (
@@ -313,6 +330,17 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                       <span className="count-dot">{categoryList.length}</span>
                     </button>
                   )}
+                  {sorted(favs).map((f) => (
+                    <button
+                      key={f.id}
+                      className="btn glass icon-only fav-shortcut"
+                      onClick={() => openCategory(f.id)}
+                      title={f.label}
+                      aria-label={`Open ${f.label}`}
+                    >
+                      <span className="fav-icon">{f.icon}</span>
+                    </button>
+                  ))}
                 </div>
                 <SalaryStrip base={base} period={period} currency={currency} view={view} ctx={budgetCtx} onOpen={(id) => setSheet({ type: 'person', id })} />
               </div>
@@ -455,14 +483,26 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         {dialog === 'categories' && (
           <CategoriesSheet
             categories={categoryList}
+            favs={favs}
             currency={currency}
             view={view}
-            onOpen={(k) => {
-              setDialog(null);
-              setCatView(k);
-              window.scrollTo(0, 0);
-            }}
+            onOpen={openCategory}
+            onFav={(key, label) => setIconPick({ key, label })}
             onClose={() => setDialog(null)}
+          />
+        )}
+        {iconPick && (
+          <IconPicker
+            label={iconPick.label}
+            isFav={Boolean(favs?.[iconPick.key])}
+            current={favs?.[iconPick.key]?.icon || suggestIcon(iconPick.label)}
+            onPick={(icon) =>
+              favs?.[iconPick.key]
+                ? setFavIcon(username, ledgerId, iconPick.key, icon)
+                : saveFav(username, ledgerId, iconPick.key, iconPick.label, icon)
+            }
+            onRemove={() => removeFav(username, ledgerId, iconPick.key)}
+            onClose={() => setIconPick(null)}
           />
         )}
         {dialog === 'share' && (
