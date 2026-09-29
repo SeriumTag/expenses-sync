@@ -2,6 +2,37 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // If the app can't start (for example an old copy of this page, kept by
+      // the phone after an update, asks for files that no longer exist), reload
+      // once with fresh files. If that still fails, offer a button instead of
+      // leaving the splash up forever.
+      (function () {
+        var KEY = 'es-fresh-reload';
+        function reloadFresh() {
+          try { sessionStorage.setItem(KEY, String(Date.now())); } catch (e) {}
+          location.replace(location.pathname + '?fresh=' + Date.now() + location.hash);
+        }
+        function stuck() {
+          if (window.__esStarted) return;
+          var last = 0;
+          try { last = Number(sessionStorage.getItem(KEY)) || 0; } catch (e) {}
+          if (Date.now() - last > 60000) return reloadFresh();
+          var splash = document.getElementById('splash');
+          if (!splash || splash.querySelector('.stuck')) return;
+          var box = document.createElement('div');
+          box.className = 'stuck';
+          box.innerHTML = 'Having trouble loading.<br><button type="button">Tap to reload</button>';
+          box.querySelector('button').onclick = reloadFresh;
+          splash.appendChild(box);
+        }
+        // A failed app file (script error before the app starts) triggers it right away.
+        window.addEventListener('error', function (e) {
+          if (e.target && e.target.tagName === 'SCRIPT' && !window.__esStarted) stuck();
+        }, true);
+        setTimeout(stuck, 8000);
+      })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
     <title>Expense Sync</title>
     <meta name="description" content="Track expenses together, live." />
@@ -81,6 +112,14 @@
       }
       @keyframes splash-word { from { opacity: 0; transform: translateY(10px); } }
       @keyframes splash-dot { 50% { transform: translateY(-7px); } }
+      #splash .stuck {
+        position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
+        text-align: center; font: 700 15px/1.5 'Nunito', system-ui, sans-serif; color: #8d786d;
+      }
+      #splash .stuck button {
+        margin-top: 10px; font: 800 15px 'Nunito', system-ui, sans-serif; color: #4b3a33;
+        background: #f29cb2; border: none; border-radius: 999px; padding: 10px 22px;
+      }
       @media (prefers-reduced-motion: reduce) {
         #splash *, #splash .dots i { animation: none !important; transition: none !important; }
       }

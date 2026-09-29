@@ -10,6 +10,7 @@ import {
   yearOf,
   currentMonthKey,
   inView,
+  isYearKey,
   periodLabel,
   previousPeriod,
   shortPeriodLabel,
@@ -20,6 +21,7 @@ import {
 import {
   BIN_DAYS,
   addItem,
+  copyPeriod,
   topOrder,
   addTab,
   deleteTab,
@@ -48,15 +50,19 @@ import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
 
+const EMPTY_PERIOD = {};
+
 export default function Ledger({ ledgerId, username, theme, onThemeChange, ledgers, onSwitch, onCreate, onJoin, onLogout, binCount, onOpenBin, onManageAccounts }) {
   const [data, setData] = useState(null);
   const [activeTab, setActiveTab] = useState(null);
   const [newTabId, setNewTabId] = useState(null);
+  const [creatingPeriod, setCreatingPeriod] = useState(false);
   const [focusItemId, setFocusItemId] = useState(null);
   const [dialog, setDialog] = useState(null); // 'share' | 'theme' | 'import' | 'period' | 'categories'
   const [sheet, setSheet] = useState(null); // { type: 'item', tabId, itemId } | { type: 'person', id }
   const [catView, setCatView] = useState(null); // category key being viewed
-  const [periodPref, setPeriodPref] = useState(() => prefs.get(`period:${ledgerId}`));
+  const [nowKey, setNowKey] = useState(currentMonthKey);
+  const [periodSel, setPeriodSel] = useState(null); // a month/year picked in the picker (null = today's month)
   // Monthly/Yearly display is a personal preference, remembered on this device.
   const [view, setView] = useState(() => (FREQS[prefs.get('view')] ? prefs.get('view') : 'monthly'));
   const [scrolled, setScrolled] = useState(false);
@@ -105,12 +111,25 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     document.documentElement.style.setProperty('--partner', pColor);
   }, [pColor]);
 
-  // Which period is showing: the saved choice, else this month, else the latest.
+  // The app opens on today's month, even before anything is added to it.
+  // Picking another month from the picker shows that one until the app is
+  // reopened. If the month changes while the app is open, follow it.
+  useEffect(() => {
+    const check = () => setNowKey(currentMonthKey());
+    const timer = setInterval(check, 60 * 1000);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, []);
+
   const periods = data?.periods || {};
   const periodKeys = Object.keys(periods);
-  const pk = periods[periodPref] ? periodPref : periods[currentMonthKey()] ? currentMonthKey() : periodKeys.sort().at(-1) || null;
-  const period = pk ? periods[pk] : null;
-  const base = pk ? periodPath(ledgerId, pk) : null;
+  const pk = periodSel && periods[periodSel] ? periodSel : nowKey;
+  const periodExists = Boolean(periods[pk]);
+  const period = periods[pk] || EMPTY_PERIOD;
+  const base = periodPath(ledgerId, pk);
   const prevKey = pk ? previousPeriod(pk, periodKeys) : null;
   const prevPeriod = prevKey ? periods[prevKey] : null;
 
@@ -144,8 +163,6 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     );
   }
 
-  if (!pk) return <div className="center-screen muted">Setting up {meta.name || 'this account'}…</div>;
-
   const currency = meta.currency ?? '$';
   const budgetCtx = { year: yearOf(pk), tracks: data.tracks, periods };
   const categoryList = categoriesIn(period, view, budgetCtx);
@@ -161,11 +178,21 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     prefs.set('view', v);
   };
   const selectPeriod = (k) => {
-    setPeriodPref(k);
-    prefs.set(`period:${ledgerId}`, k);
+    setPeriodSel(k === nowKey ? null : k);
     setCatView(null);
   };
   const openItem = (tid, iid) => setSheet({ type: 'item', tabId: tid, itemId: iid });
+
+  // Set up the month being shown: a copy of an earlier one, or empty.
+  async function createPeriod(fromKey) {
+    setCreatingPeriod(true);
+    try {
+      if (fromKey) await copyPeriod(ledgerId, periods[fromKey], [pk]);
+      else await startEmptyPeriod(ledgerId, pk);
+    } finally {
+      setCreatingPeriod(false);
+    }
+  }
 
   function handleAddTab() {
     const id = addTab(base, 'New head category');
@@ -341,10 +368,36 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                     ))}
                   </div>
                 )}
-                <SalaryStrip base={base} period={period} currency={currency} view={view} ctx={budgetCtx} onOpen={(id) => setSheet({ type: 'person', id })} />
+                {periodExists && (
+                  <SalaryStrip base={base} period={period} currency={currency} view={view} ctx={budgetCtx} onOpen={(id) => setSheet({ type: 'person', id })} />
+                )}
               </div>
             </section>
 
+            {!periodExists && (
+              <section className="new-month">
+                <div className="new-month-icon" aria-hidden="true">
+                  🗓️
+                </div>
+                <h2>{periodLabel(pk)} is a fresh start</h2>
+                <p className="muted">Nothing has been added for this {isYearKey(pk) ? 'year' : 'month'} yet.</p>
+                <div className="row-gap center">
+                  {prevKey && (
+                    <button className="btn primary" disabled={creatingPeriod} onClick={() => createPeriod(prevKey)}>
+                      Copy from {periodLabel(prevKey)}
+                    </button>
+                  )}
+                  <button className={`btn ${prevKey ? 'glass' : 'primary'}`} disabled={creatingPeriod} onClick={() => createPeriod(null)}>
+                    Start empty
+                  </button>
+                </div>
+                {prevKey && (
+                  <p className="muted small">Copying brings over the head categories, items and salaries. Changes will be highlighted.</p>
+                )}
+              </section>
+            )}
+
+            {periodExists && (
             <section className="row">
               <h2 className="row-title">Head categories</h2>
               <div className="cards" role="tablist">
@@ -384,8 +437,9 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                 </button>
               </div>
             </section>
+            )}
 
-            {currentTab && (
+            {periodExists && currentTab && (
               <section className="detail">
                 <div className="detail-head">
                   <LiveInput

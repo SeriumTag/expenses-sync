@@ -969,3 +969,14 @@ input::placeholder, textarea::placeholder { color: var(--dim); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* A month (or year) with nothing in it yet */
+.new-month {
+  margin: 6px var(--gutter) 0; max-width: 980px; text-align: center;
+  background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow);
+  padding: 26px 18px 22px; animation: fade-up 0.3s both;
+}
+.new-month h2 { font-size: 22px; margin: 6px 0 4px; }
+.new-month p { margin: 0 0 14px; }
+.new-month .small { margin: 12px 0 0; }
+.new-month-icon { font-size: 38px; line-height: 1; }
