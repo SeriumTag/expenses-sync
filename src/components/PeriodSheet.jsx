@@ -54,7 +54,7 @@ export default function PeriodSheet({ ledgerId, periods, current, currency, onSe
   async function removeCurrent() {
     if (keys.length <= 1) return;
     if (!window.confirm(`Delete the whole budget for ${periodLabel(current)}? Other months stay as they are.`)) return;
-    const next = keys.filter((k) => k !== current).sort().at(-1);
+    const next = keys.filter((k) => k !== current).sort().pop();
     onSelect(next);
     onClose();
     await deletePeriod(ledgerId, current);

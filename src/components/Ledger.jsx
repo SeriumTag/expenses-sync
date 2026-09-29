@@ -40,6 +40,7 @@ import { hueFor, partnerColor } from '../lib/theme';
 import { CategoriesSheet, CategoryPage } from './CategoryPage';
 import ImportDialog from './ImportDialog';
 import ItemList from './ItemList';
+import Loading from './Loading';
 import IconPicker from './IconPicker';
 import ItemSheet from './ItemSheet';
 import LiveInput from './LiveInput';
@@ -145,7 +146,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     if (data && (pk || noAccess)) hideSplash();
   }, [data, pk, noAccess]);
 
-  if (!data) return null; // the splash is still covering the screen
+  if (!data) return <Loading label="Opening your account…" detail="Still loading this account." onSignOut={onLogout} />;
 
   const meta = data.meta || {};
   const members = Object.keys(data.members || {});

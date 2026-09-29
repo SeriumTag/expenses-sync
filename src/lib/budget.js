@@ -28,7 +28,7 @@ export function previousPeriod(k, existing) {
     existing
       .filter((x) => isYearKey(x) === isYearKey(k) && x < k)
       .sort()
-      .at(-1) ?? null
+      .pop() ?? null
   );
 }
 

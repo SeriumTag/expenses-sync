@@ -4,6 +4,7 @@ import AccountsDialog from './components/AccountsDialog';
 import { BinList } from './components/BinDialog';
 import InstallPrompt from './components/InstallPrompt';
 import Ledger from './components/Ledger';
+import Loading from './components/Loading';
 import Login from './components/Login';
 import Modal from './components/Modal';
 import SetupNotice from './components/SetupNotice';
@@ -200,7 +201,20 @@ export default function App() {
         </div>
       </div>
     );
-  else if (!currentId) screen = null; // splash still showing
+  else if (!currentId)
+    screen = (
+      <Loading
+        label="Loading your expenses…"
+        detail={
+          !authReady
+            ? 'Still connecting to the server.'
+            : !ledgerIds
+              ? 'Still loading your accounts.'
+              : 'Still loading account details.'
+        }
+        onSignOut={handleLogout}
+      />
+    );
   else
     screen = (
       <Ledger

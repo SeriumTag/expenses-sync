@@ -1,5 +1,12 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import {
+  browserLocalPersistence,
+  indexedDBLocalPersistence,
+  inMemoryPersistence,
+  initializeAuth,
+  onAuthStateChanged,
+  signInAnonymously,
+} from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
 
 const config = {
@@ -14,12 +21,20 @@ export const isConfigured = Boolean(config.apiKey && config.databaseURL);
 
 const app = isConfigured ? initializeApp(config) : null;
 export const db = app ? getDatabase(app) : null;
-export const auth = app ? getAuth(app) : null;
+
+// initializeAuth (not getAuth) on purpose: getAuth also loads Google's
+// pop-up/redirect sign-in machinery, which can hang in iPhone home-screen
+// apps and leave the app waiting forever. We only use anonymous sign-in.
+export const auth = app
+  ? initializeAuth(app, { persistence: [indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence] })
+  : null;
+
+const AUTH_TIMEOUT_MS = 15000;
 
 // Username login has no password, but every device still gets an anonymous
 // Firebase session so the database rules can reject unauthenticated traffic.
 export function ensureAuth() {
-  return new Promise((resolve, reject) => {
+  const signIn = new Promise((resolve, reject) => {
     const unsubscribe = onAuthStateChanged(
       auth,
       (user) => {
@@ -30,4 +45,8 @@ export function ensureAuth() {
       reject,
     );
   });
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Connecting to the server took too long. Check your internet connection.')), AUTH_TIMEOUT_MS),
+  );
+  return Promise.race([signIn, timeout]);
 }
