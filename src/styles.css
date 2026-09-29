@@ -783,3 +783,5 @@ input::placeholder { color: var(--dim); }
 .acct-info b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-gap.between { justify-content: space-between; }
 .acct-actions { margin-top: 16px; }
+
+.error-detail { white-space: pre-wrap; color: var(--danger); font-size: 12px; margin: 0 0 14px; }

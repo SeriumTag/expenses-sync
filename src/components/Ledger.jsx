@@ -20,6 +20,7 @@ import {
   addTab,
   deleteTab,
   migrateToPeriod,
+  startEmptyPeriod,
   moveLedgerToBin,
   periodPath,
   renameTab,
@@ -69,13 +70,16 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   }, []);
 
   // Accounts from before months existed: move their data into this month.
+  // Every account needs at least one period. Older accounts either kept their
+  // data at the top level (move it into this month) or are empty (start this month).
   useEffect(() => {
-    if (!data || migrating.current) return;
-    if ((data.tabs || data.items) && !data.periods) {
-      migrating.current = true;
-      migrateToPeriod(ledgerId, data, currentMonthKey()).finally(() => (migrating.current = false));
-    }
-  }, [data, ledgerId]);
+    if (!data || data.periods || migrating.current) return;
+    if (!data.meta || !data.members?.[username]) return; // deleted, or no longer a member
+    migrating.current = true;
+    const job =
+      data.tabs || data.items ? migrateToPeriod(ledgerId, data, currentMonthKey()) : startEmptyPeriod(ledgerId, currentMonthKey());
+    job.catch(console.error).finally(() => (migrating.current = false));
+  }, [data, ledgerId, username]);
 
   const partner = Object.keys(data?.members || {}).find((m) => m !== username) || null;
   useEffect(() => {
@@ -103,15 +107,16 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const { setTab } = presence;
   useEffect(() => setTab(pk && tabId ? `${pk}:${tabId}` : null), [pk, tabId, setTab]);
 
+  const noAccess = Boolean(data) && !data.members?.[username];
   useEffect(() => {
-    if (data && pk) hideSplash();
-  }, [data, pk]);
+    if (data && (pk || noAccess)) hideSplash();
+  }, [data, pk, noAccess]);
 
-  if (!data || !pk) return null; // the splash is still covering the screen
+  if (!data) return null; // the splash is still covering the screen
 
   const meta = data.meta || {};
   const members = Object.keys(data.members || {});
-  if (!data.members?.[username]) {
+  if (noAccess) {
     return (
       <div className="center-screen">
         <div className="card">
@@ -124,6 +129,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
       </div>
     );
   }
+
+  if (!pk) return <div className="center-screen muted">Setting up {meta.name || 'this account'}…</div>;
 
   const currency = meta.currency ?? '$';
   const categoryList = categoriesIn(period);
