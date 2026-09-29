@@ -1,4 +1,4 @@
-import { FREQS, compareItem, findItem, inView, monthlyOf, yearOf } from '../lib/budget';
+import { FREQS, compareItem, findItem, inView, monthlyOf, setAsideOf, yearOf } from '../lib/budget';
 import { deleteItem, duplicateItems, ordersAfter, splitItem, updateItemField } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import { ChangeBadge, FreqPill } from './ChangeBadge';
@@ -92,6 +92,11 @@ export default function ItemSheet(props) {
             <b>{formatMoney(monthlyOf(item) * 12, currency)}</b>
             <span className="muted small">/yr</span>
           </span>
+          {setAsideOf(item) > 0 && (
+            <span className="set-aside-chip" title="Yearly bills in this item, spread over 12 months">
+              Set aside {formatMoney(setAsideOf(item), currency)}/mo
+            </span>
+          )}
           {before && (
             <span className="muted small">
               {prevLabel}: {formatMoney(inView(monthlyOf(before.item), view), currency)}

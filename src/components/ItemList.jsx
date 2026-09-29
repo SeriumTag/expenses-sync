@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { FREQS, byCategory, inView, sorted, sumTab } from '../lib/budget';
+import { FREQS, byCategory, inView, setAsideTab, sorted, sumTab } from '../lib/budget';
+import { prefs } from '../lib/session';
 import { duplicateItems, mergeItems, ordersAfter, updateItemField } from '../lib/db';
 import { formatMoney } from '../lib/format';
 import ItemRow from './ItemRow';
@@ -27,6 +28,15 @@ export default function ItemList(props) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+
+  // Category tags on rows can be hidden for a cleaner list (remembered on this device).
+  const [showCats, setShowCats] = useState(() => prefs.get('showCats') !== false);
+  const toggleCats = () =>
+    setShowCats((v) => {
+      prefs.set('showCats', !v);
+      return !v;
+    });
+  const setAside = useMemo(() => setAsideTab(items), [items]);
 
   // Merged items can be opened up in the list to show their parts.
   const [expanded, setExpanded] = useState(() => new Set());
@@ -76,7 +86,7 @@ export default function ItemList(props) {
   const maxGroup = Math.max(...groups.map((g) => g.total), 0);
 
   return (
-    <div className={`ep-list ${selecting ? 'selecting' : ''}`}>
+    <div className={`ep-list ${selecting ? 'selecting' : ''} ${showCats ? '' : 'hide-cats'}`}>
       <datalist id={`categories-${tabId}`}>
         {categories.map((c) => (
           <option key={c} value={c} />
@@ -98,6 +108,24 @@ export default function ItemList(props) {
             }}
           >
             {selecting ? 'Cancel' : 'Select'}
+          </button>
+          <button
+            className={`btn sm tag-toggle ${showCats ? '' : 'off'}`}
+            onClick={toggleCats}
+            aria-pressed={showCats}
+            title={showCats ? 'Hide category tags' : 'Show category tags'}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
+              <path
+                d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z M7.5 7.5h.01"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="tag-label">{showCats ? 'Tags' : 'Tags off'}</span>
           </button>
         </div>
         <div className="seg" role="group" aria-label="Show amounts">
@@ -155,6 +183,20 @@ export default function ItemList(props) {
           </div>
           <span className="ep-total">
             {FREQS[view].label} total <b>{formatMoney(inView(sumTab(items), view), currency)}</b>
+          </span>
+        </div>
+      )}
+
+      {setAside > 0 && !selecting && (
+        <div className="set-aside" title="The yearly bills in this list, spread over 12 months">
+          <span>
+            <b>Set aside for yearly bills</b>
+            <span className="muted small"> · so they’re covered when due</span>
+          </span>
+          <span className="set-aside-amt">
+            {formatMoney(setAside, currency)}
+            <span className="per-small">/mo</span>
+            <span className="muted small"> ({formatMoney(setAside * 12, currency)}/yr)</span>
           </span>
         </div>
       )}

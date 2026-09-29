@@ -12,6 +12,7 @@ import {
   previousPeriod,
   shortPeriodLabel,
   sorted,
+  setAsideTab,
   sumTab,
 } from '../lib/budget';
 import {
@@ -138,6 +139,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const categoryNames = categoryList.map((c) => c.label);
   const grandTotal = tabs.reduce((sum, t) => sum + sumTab(period.items?.[t.id]), 0);
   const itemCount = tabs.reduce((n, t) => n + Object.keys(period.items?.[t.id] || {}).length, 0);
+  const totalSetAside = tabs.reduce((sum, t) => sum + setAsideTab(period.items?.[t.id]), 0);
   const partnerOnline = partner ? Boolean(presence.others[partner]) : false;
   const prevLabel = prevKey ? shortPeriodLabel(prevKey) : '';
 
@@ -281,6 +283,11 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                     <span>Just you</span>
                   )}
                 </p>
+                {totalSetAside > 0 && (
+                  <p className="hero-setaside" title="All yearly bills, spread over 12 months">
+                    Set aside for yearly bills <b>{formatMoney(totalSetAside, currency)}/mo</b>
+                  </p>
+                )}
                 <div className="hero-actions">
                   <button className="btn play" onClick={addExpense}>
                     <span className="play-ico">＋</span> Add expense

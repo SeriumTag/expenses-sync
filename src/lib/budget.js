@@ -45,6 +45,14 @@ export function monthlyOf(item) {
 }
 export const sumTab = (items) => Object.values(items || {}).reduce((s, i) => s + monthlyOf(i), 0);
 
+// How much of an item is billed yearly, as a monthly amount: what to put
+// aside each month so the yearly bills are covered when they come.
+export function setAsideOf(item) {
+  if (item?.parts) return Object.values(item.parts).reduce((s, p) => s + (p.freq === 'yearly' ? partMonthly(p) : 0), 0);
+  return item?.freq === 'yearly' ? partMonthly(item) : 0;
+}
+export const setAsideTab = (items) => Object.values(items || {}).reduce((s, i) => s + setAsideOf(i), 0);
+
 export const FREQS = {
   monthly: { label: 'Monthly', short: '/mo', tiny: 'Mo' },
   yearly: { label: 'Yearly', short: '/yr', tiny: 'Yr' },

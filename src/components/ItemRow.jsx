@@ -1,4 +1,4 @@
-import { FREQS, compareItem, inView, monthlyOf, sorted } from '../lib/budget';
+import { FREQS, compareItem, inView, monthlyOf, partMonthly, sorted } from '../lib/budget';
 import { formatMoney, parseAmount } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
 import { ChangeBadge, FreqPill } from './ChangeBadge';
@@ -114,6 +114,12 @@ export default function ItemRow(props) {
               <span className="ep-part-amt">
                 {formatMoney(p.amount, currency)}
                 <span className={`freq-tag ${p.freq === 'yearly' ? 'yr' : ''}`}>{p.freq === 'yearly' ? 'Yr' : 'Mo'}</span>
+                {(p.freq === 'yearly' ? 'yearly' : 'monthly') !== view && (
+                  <span className="ep-part-conv">
+                    = {formatMoney(inView(partMonthly(p), view), currency)}
+                    {FREQS[view].short}
+                  </span>
+                )}
               </span>
             </li>
           ))}
