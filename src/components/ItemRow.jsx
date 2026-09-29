@@ -1,4 +1,4 @@
-import { FREQS, compareItem, inView, monthlyOf } from '../lib/budget';
+import { FREQS, compareItem, inView, monthlyOf, sorted } from '../lib/budget';
 import { formatMoney, parseAmount } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
 import { ChangeBadge, FreqPill } from './ChangeBadge';
@@ -6,7 +6,9 @@ import LiveInput from './LiveInput';
 
 const FIELDS = ['name', 'category', 'note', 'amount'];
 
-export default function ItemRow({ item, index, pk, tabId, prevPeriod, prevLabel, currency, view, save, focus, selecting, picked, onPick, onOpen }) {
+export default function ItemRow(props) {
+  const { item, index, pk, tabId, prevPeriod, prevLabel, currency, view, save, focus } = props;
+  const { selecting, picked, onPick, onOpen, expanded, onToggle } = props;
   const { lockFor, colorFor } = usePresenceCtx();
   const key = (f) => `${pk}:item:${item.id}:${f}`;
   const editor = FIELDS.map((f) => lockFor(key(f))).find(Boolean);
@@ -46,8 +48,17 @@ export default function ItemRow({ item, index, pk, tabId, prevPeriod, prevLabel,
             disabled={selecting}
           />
           {isGroup && (
-            <button className="parts-chip" onClick={onOpen} disabled={selecting}>
-              {Object.keys(item.parts).length} items ›
+            <button
+              className={`parts-chip ${expanded ? 'open' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+              }}
+              disabled={selecting}
+              aria-expanded={expanded}
+              title={expanded ? 'Hide the parts' : 'Show the parts'}
+            >
+              <span className="chev-sm">▸</span> {Object.keys(item.parts).length} items
             </button>
           )}
           {item.track && <span className="track-chip">Savings</span>}
@@ -95,6 +106,19 @@ export default function ItemRow({ item, index, pk, tabId, prevPeriod, prevLabel,
         )}
         <ChangeBadge change={change} prevLabel={prevLabel} currency={currency} view={view} />
       </div>
+      {isGroup && expanded && (
+        <ul className="ep-parts">
+          {sorted(item.parts).map((p) => (
+            <li key={p.id}>
+              <span className="ep-part-name">{p.name || 'Untitled'}</span>
+              <span className="ep-part-amt">
+                {formatMoney(p.amount, currency)}
+                <span className={`freq-tag ${p.freq === 'yearly' ? 'yr' : ''}`}>{p.freq === 'yearly' ? 'Yr' : 'Mo'}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
       <button
         className="icon-btn ep-more"
         title="Details"

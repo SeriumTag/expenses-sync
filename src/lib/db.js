@@ -188,11 +188,48 @@ const blankItem = (username) => ({
   updatedAt: serverTimestamp(),
 });
 
-export function addItem(base, tabId, username) {
+export function addItem(base, tabId, username, order = Date.now()) {
   const itemRef = push(ref(db, `${base}/items/${tabId}`));
-  set(itemRef, blankItem(username)).catch(console.error);
+  set(itemRef, { ...blankItem(username), order }).catch(console.error);
   return itemRef.key;
 }
+
+// Copy items (merged ones keep their parts); each copy sits right after its
+// original. `orders` maps original id → the copy's order. Returns the new ids.
+export function duplicateItems(base, tabId, rows, orders, username) {
+  const patch = {};
+  const ids = rows.map((row) => {
+    const key = push(ref(db, `${base}/items/${tabId}`)).key;
+    const { id, updatedAt, updatedBy, ...rest } = row;
+    patch[`items/${tabId}/${key}`] = {
+      ...rest,
+      name: `${row.name || 'Item'} (copy)`,
+      order: orders[id],
+      track: null,
+      updatedBy: username,
+      updatedAt: serverTimestamp(),
+    };
+    return key;
+  });
+  return update(ref(db, base), patch).then(() => ids);
+}
+
+// Order values for items inserted directly after `id` in a tab.
+export function ordersAfter(items, ids) {
+  const list = Object.entries(items || {})
+    .map(([id, it]) => ({ id, order: it.order || 0 }))
+    .sort((a, b) => a.order - b.order);
+  const out = {};
+  for (const id of ids) {
+    const i = list.findIndex((x) => x.id === id);
+    const here = list[i]?.order ?? Date.now();
+    const next = list[i + 1]?.order;
+    out[id] = next === undefined ? here + 1 : here + (next - here) / 2;
+  }
+  return out;
+}
+
+export const topOrder = (items) => Math.min(Date.now(), ...Object.values(items || {}).map((i) => i.order || 0)) - 1;
 
 // Adds many rows in one write (used by "Paste from sheet").
 export function addItems(base, tabId, username, rows, freq = 'monthly') {

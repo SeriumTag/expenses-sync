@@ -1,5 +1,5 @@
 import { FREQS, compareItem, findItem, inView, monthlyOf, yearOf } from '../lib/budget';
-import { deleteItem, splitItem, updateItemField } from '../lib/db';
+import { deleteItem, duplicateItems, ordersAfter, splitItem, updateItemField } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import { ChangeBadge, FreqPill } from './ChangeBadge';
 import LiveInput from './LiveInput';
@@ -10,7 +10,7 @@ import SavingsTracker from './SavingsTracker';
 // Pull-up card for one item: details, merged breakdown, savings tracking.
 export default function ItemSheet(props) {
   const { ledgerId, base, pk, tabId, tabName, itemId, item, periods, prevPeriod, prevLabel } = props;
-  const { tracks, categories, currency, username, view, onClose } = props;
+  const { tracks, categories, currency, username, view, siblings, onOpenItem, onClose } = props;
   const path = `${base}/items/${tabId}/${itemId}`;
   const key = (f) => `${pk}:item:${itemId}:${f}`;
   const save = (field) => (value) => updateItemField(base, tabId, itemId, field, value, username);
@@ -22,6 +22,11 @@ export default function ItemSheet(props) {
     if (!window.confirm(`Delete “${item.name || 'this item'}”?`)) return;
     onClose();
     await deleteItem(base, tabId, itemId);
+  }
+
+  async function duplicate() {
+    const [id] = await duplicateItems(base, tabId, [{ id: itemId, ...item }], ordersAfter(siblings, [itemId]), username);
+    onOpenItem(id);
   }
 
   async function split() {
@@ -119,6 +124,9 @@ export default function ItemSheet(props) {
         </section>
 
         <div className="sheet-actions">
+          <button className="btn glass sm" onClick={duplicate}>
+            Duplicate
+          </button>
           {isGroup && (
             <button className="btn glass sm" onClick={split}>
               Split into separate items

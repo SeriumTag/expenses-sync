@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { FREQS, byCategory, inView, sorted, sumTab } from '../lib/budget';
-import { mergeItems, updateItemField } from '../lib/db';
+import { duplicateItems, mergeItems, ordersAfter, updateItemField } from '../lib/db';
 import { formatMoney } from '../lib/format';
 import ItemRow from './ItemRow';
 
@@ -27,6 +27,22 @@ export default function ItemList(props) {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+
+  // Merged items can be opened up in the list to show their parts.
+  const [expanded, setExpanded] = useState(() => new Set());
+  const toggleExpand = (id) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  async function copySelected() {
+    const chosen = rows.filter((r) => picked.has(r.id));
+    await duplicateItems(base, tabId, chosen, ordersAfter(items, chosen.map((r) => r.id)), username);
+    setSelecting(false);
+    setPicked(new Set());
+  }
 
   async function merge() {
     const chosen = rows.filter((r) => picked.has(r.id));
@@ -68,15 +84,22 @@ export default function ItemList(props) {
       </datalist>
 
       <div className="ep-head">
-        <button
-          className={`btn sm ${selecting ? 'primary' : 'ghost'}`}
-          onClick={() => {
-            setSelecting((s) => !s);
-            setPicked(new Set());
-          }}
-        >
-          {selecting ? 'Cancel' : 'Select to merge'}
-        </button>
+        <div className="row-gap">
+          {!selecting && (
+            <button className="btn primary sm" onClick={onAdd}>
+              ＋ Add item
+            </button>
+          )}
+          <button
+            className={`btn sm ${selecting ? 'primary' : 'ghost'}`}
+            onClick={() => {
+              setSelecting((s) => !s);
+              setPicked(new Set());
+            }}
+          >
+            {selecting ? 'Cancel' : 'Select'}
+          </button>
+        </div>
         <div className="seg" role="group" aria-label="Show amounts">
           {Object.entries(FREQS).map(([k, p]) => (
             <button key={k} className={view === k ? 'on' : ''} aria-pressed={view === k} onClick={() => onViewChange(k)}>
@@ -103,15 +126,22 @@ export default function ItemList(props) {
           picked={picked.has(item.id)}
           onPick={() => togglePick(item.id)}
           onOpen={() => onOpenItem(tabId, item.id)}
+          expanded={expanded.has(item.id)}
+          onToggle={() => toggleExpand(item.id)}
         />
       ))}
 
       {selecting ? (
         <div className="select-bar">
-          <span>{picked.size ? `${picked.size} selected` : 'Tap items to merge'}</span>
-          <button className="btn primary" disabled={picked.size < 2} onClick={merge}>
-            Merge{picked.size >= 2 ? ` ${picked.size}` : ''} items
-          </button>
+          <span>{picked.size ? `${picked.size} selected` : 'Tap items to copy or merge'}</span>
+          <div className="row-gap">
+            <button className="btn glass sm" disabled={!picked.size} onClick={copySelected}>
+              Copy{picked.size ? ` ${picked.size}` : ''}
+            </button>
+            <button className="btn primary sm" disabled={picked.size < 2} onClick={merge}>
+              Merge{picked.size >= 2 ? ` ${picked.size}` : ''}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="ep-foot">

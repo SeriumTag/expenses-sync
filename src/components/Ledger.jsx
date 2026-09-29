@@ -17,6 +17,7 @@ import {
 import {
   BIN_DAYS,
   addItem,
+  topOrder,
   addTab,
   deleteTab,
   migrateToPeriod,
@@ -164,7 +165,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
       setActiveTab(tid);
     }
     setCatView(null);
-    setFocusItemId(addItem(base, tid, username));
+    // New items go to the top of the list, where the Add button is.
+    setFocusItemId(addItem(base, tid, username, topOrder(period.items?.[tid])));
   }
 
   function handleDeleteTab() {
@@ -400,6 +402,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
 
         {sheetItem && (
           <ItemSheet
+            key={sheet.itemId}
             ledgerId={ledgerId}
             base={base}
             pk={pk}
@@ -415,6 +418,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             currency={currency}
             username={username}
             view={view}
+            siblings={period.items?.[sheet.tabId]}
+            onOpenItem={(id) => setSheet({ type: 'item', tabId: sheet.tabId, itemId: id })}
             onClose={() => setSheet(null)}
           />
         )}
