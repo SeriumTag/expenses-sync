@@ -1,14 +1,16 @@
-import { FREQS, amountInView, compareItem, inView, monthlyOf, partMonthly, sorted } from '../lib/budget';
+import { FREQS, amountInView, compareItem, groupCatLabel, inView, itemCats, monthlyOf, partCats, partMonthly, sorted } from '../lib/budget';
 import { formatMoney, parseAmount } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
+import CatField, { GroupCat } from './CatField';
 import { ChangeBadge, FreqPill } from './ChangeBadge';
 import LiveInput from './LiveInput';
+import PotIcon from './PotIcon';
 
 const FIELDS = ['name', 'category', 'note', 'amount'];
 
 export default function ItemRow(props) {
   const { item, index, pk, tabId, prevPeriod, prevLabel, currency, view, save, focus } = props;
-  const { selecting, picked, onPick, onOpen, expanded, onToggle, ctx } = props;
+  const { mode, picked, onPick, onOpen, expanded, onToggle, onMove, isFirst, isLast, ctx } = props;
   const { lockFor, colorFor } = usePresenceCtx();
   const key = (f) => `${pk}:item:${item.id}:${f}`;
   const editor = FIELDS.map((f) => lockFor(key(f))).find(Boolean);
@@ -16,10 +18,13 @@ export default function ItemRow(props) {
   const isGroup = Boolean(item.parts);
   const freq = item.freq === 'yearly' ? 'yearly' : 'monthly';
   const groupView = item.view || view;
+  const selecting = mode === 'select';
+  const reordering = mode === 'reorder';
+  const locked = selecting || reordering;
 
   return (
     <div
-      className={`ep ${editor ? 'remote' : ''} ${change ? 'changed' : ''} ${picked ? 'picked' : ''}`}
+      className={`ep ${editor ? 'remote' : ''} ${change ? 'changed' : ''} ${picked ? 'picked' : ''} ${reordering ? 'reordering' : ''}`}
       style={editor ? { '--c': colorFor(editor.user) } : undefined}
       onClick={selecting ? onPick : undefined}
     >
@@ -27,25 +32,16 @@ export default function ItemRow(props) {
         {selecting ? <input type="checkbox" className="pick" checked={picked} readOnly aria-label={`Select ${item.name}`} /> : index + 1}
       </span>
       <div className="ep-main">
-        <LiveInput
-          className="ep-name"
-          fieldKey={key('name')}
-          value={item.name || ''}
-          onSave={save('name')}
-          placeholder="What is it?"
-          autoFocusOnMount={focus}
-          disabled={selecting}
-        />
-        <div className="ep-sub">
+        <div className="ep-title">
+          {item.track && <PotIcon size={18} />}
           <LiveInput
-            className="ep-cat"
-            fieldKey={key('category')}
-            value={item.category || ''}
-            onSave={save('category')}
-            placeholder="Category"
-            list={`categories-${tabId}`}
-            maxLength={40}
-            disabled={selecting}
+            className="ep-name"
+            fieldKey={key('name')}
+            value={item.name || ''}
+            onSave={save('name')}
+            placeholder="What is it?"
+            autoFocusOnMount={focus}
+            disabled={locked}
           />
           {isGroup && (
             <button
@@ -54,14 +50,26 @@ export default function ItemRow(props) {
                 e.stopPropagation();
                 onToggle();
               }}
-              disabled={selecting}
+              disabled={locked}
               aria-expanded={expanded}
               title={expanded ? 'Hide the parts' : 'Show the parts'}
             >
-              <span className="chev-sm">▸</span> {Object.keys(item.parts).length} items
+              <span className="chev-sm">▸</span> {Object.keys(item.parts).length}
             </button>
           )}
-          {item.track && <span className="track-chip">Savings</span>}
+        </div>
+        <div className="ep-sub">
+          {isGroup ? (
+            <GroupCat label={groupCatLabel(item)} cats={itemCats(item)} />
+          ) : (
+            <CatField
+              fieldKey={key('category')}
+              value={item.category}
+              onSave={save('category')}
+              listId={`categories-${tabId}`}
+              disabled={locked}
+            />
+          )}
           <LiveInput
             className="ep-note"
             fieldKey={key('note')}
@@ -70,13 +78,13 @@ export default function ItemRow(props) {
             placeholder="Add a note"
             maxLength={2000}
             multiline
-            disabled={selecting}
+            disabled={locked}
           />
         </div>
       </div>
       <div className="ep-amt">
         {isGroup ? (
-          <button className="group-amt" onClick={onOpen} disabled={selecting}>
+          <button className="group-amt" onClick={onOpen} disabled={locked}>
             {formatMoney(amountInView(item, item.id, groupView, ctx), currency)}
             <span className="per-small">{FREQS[groupView].short}</span>
           </button>
@@ -93,9 +101,9 @@ export default function ItemRow(props) {
               onSave={save('amount')}
               placeholder="0.00"
               aria-label="Amount"
-              disabled={selecting}
+              disabled={locked}
             />
-            <FreqPill freq={freq} onChange={save('freq')} disabled={selecting} />
+            <FreqPill freq={freq} onChange={save('freq')} disabled={locked} />
           </div>
         )}
         {!isGroup && freq !== view && (
@@ -118,7 +126,14 @@ export default function ItemRow(props) {
         <ul className="ep-parts">
           {sorted(item.parts).map((p) => (
             <li key={p.id}>
-              <span className="ep-part-name">{p.name || 'Untitled'}</span>
+              <span className="ep-part-name">
+                {p.name || 'Untitled'}
+                {partCats(p, item).map((c) => (
+                  <span key={c} className="cat-chip tiny">
+                    {c}
+                  </span>
+                ))}
+              </span>
               <span className="ep-part-amt">
                 {formatMoney(p.amount, currency)}
                 <span className={`freq-tag ${p.freq === 'yearly' ? 'yr' : ''}`}>{p.freq === 'yearly' ? 'Yr' : 'Mo'}</span>
@@ -133,17 +148,28 @@ export default function ItemRow(props) {
           ))}
         </ul>
       )}
-      <button
-        className="icon-btn ep-more"
-        title="Details"
-        aria-label={`Details for ${item.name || 'item'}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!selecting) onOpen();
-        }}
-      >
-        ›
-      </button>
+      {reordering ? (
+        <span className="move-btns ep-more">
+          <button className="icon-btn" onClick={() => onMove(-1)} disabled={isFirst} aria-label={`Move ${item.name} up`}>
+            ▲
+          </button>
+          <button className="icon-btn" onClick={() => onMove(1)} disabled={isLast} aria-label={`Move ${item.name} down`}>
+            ▼
+          </button>
+        </span>
+      ) : (
+        <button
+          className="icon-btn ep-more"
+          title="Details"
+          aria-label={`Details for ${item.name || 'item'}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!selecting) onOpen();
+          }}
+        >
+          ›
+        </button>
+      )}
     </div>
   );
 }

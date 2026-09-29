@@ -70,44 +70,86 @@ export const normCat = (name) => (name || '').trim().toLowerCase();
 // Firebase keys can't contain . # $ [ ] /
 export const catKey = (name) => normCat(name).replace(/[.#$[\]/]/g, '_') || '_';
 
+// An item can have several categories, typed "Insurance, Kids".
+export function splitCats(value) {
+  const seen = new Set();
+  const out = [];
+  for (const raw of String(value || '').split(',')) {
+    const c = raw.trim();
+    if (!c || seen.has(c.toLowerCase())) continue;
+    seen.add(c.toLowerCase());
+    out.push(c);
+  }
+  return out;
+}
+
+// A part of a merged item has its own categories (older merges: the parent's).
+export const partCats = (part, parent) => splitCats(part?.category ?? parent?.category);
+
+export function itemCats(item) {
+  if (!item?.parts) return splitCats(item?.category);
+  return splitCats(Object.values(item.parts).flatMap((p) => partCats(p, item)).join(','));
+}
+
+// What a merged item shows as its category: the shared one, or "Mixed".
+export function groupCatLabel(item) {
+  const cats = itemCats(item);
+  return cats.length === 0 ? '' : cats.length === 1 ? cats[0] : 'Mixed';
+}
+
+// The things categories are about: every plain item, and every part of a
+// merged item on its own. [{ id, item, parentId, cats }]
+export function leaves(items) {
+  const out = [];
+  for (const it of sorted(items)) {
+    if (it.parts) {
+      for (const p of sorted(it.parts)) out.push({ id: p.id, item: p, parentId: it.id, parentName: it.name, cats: partCats(p, it) });
+    } else out.push({ id: it.id, item: it, parentId: null, cats: splitCats(it.category) });
+  }
+  return out;
+}
+
 // All categories used in a period: [{ key, label, count, total }] (total in `view`)
 export function categoriesIn(period, view = 'monthly', ctx) {
   const map = new Map();
   for (const items of Object.values(period?.items || {})) {
-    for (const [id, item] of Object.entries(items || {})) {
-      const label = (item.category || '').trim();
-      if (!label) continue;
-      const key = catKey(label);
-      const c = map.get(key) || { key, label, count: 0, total: 0 };
-      c.count += 1;
-      c.total += amountInView(item, id, view, ctx);
-      map.set(key, c);
+    for (const leaf of leaves(items)) {
+      for (const label of leaf.cats) {
+        const key = catKey(label);
+        const c = map.get(key) || { key, label, count: 0, total: 0 };
+        c.count += 1;
+        c.total += amountInView(leaf.item, leaf.id, view, ctx);
+        map.set(key, c);
+      }
     }
   }
   return [...map.values()].sort((a, b) => b.total - a.total);
 }
 
-// Items in a period with a given category: [{ tabId, tabName, id, item }]
+// Everything in a period with a given category, parts of merged items listed
+// individually: [{ tabId, tabName, id, item, parentId, parentName }]
 export function itemsInCategory(period, key) {
   const out = [];
   for (const tab of sorted(period?.tabs)) {
-    for (const item of sorted(period?.items?.[tab.id])) {
-      if (item.category && catKey(item.category) === key) out.push({ tabId: tab.id, tabName: tab.name, id: item.id, item });
+    for (const leaf of leaves(period?.items?.[tab.id])) {
+      if (leaf.cats.some((c) => catKey(c) === key)) out.push({ tabId: tab.id, tabName: tab.name, ...leaf });
     }
   }
   return out;
 }
 
-// Per-tab breakdown by category, biggest first (totals in `view`).
+// Per-tab breakdown by category, biggest first (totals in `view`). An item
+// with two categories counts toward both.
 export function byCategory(items, view = 'monthly', ctx) {
   const groups = new Map();
-  for (const [id, item] of Object.entries(items || {})) {
-    const label = (item.category || '').trim() || 'Uncategorised';
-    const key = label.toLowerCase();
-    const g = groups.get(key) || { label, total: 0, count: 0 };
-    g.total += amountInView(item, id, view, ctx);
-    g.count += 1;
-    groups.set(key, g);
+  for (const leaf of leaves(items)) {
+    for (const label of leaf.cats.length ? leaf.cats : ['Uncategorised']) {
+      const key = label.toLowerCase();
+      const g = groups.get(key) || { label, total: 0, count: 0 };
+      g.total += amountInView(leaf.item, leaf.id, view, ctx);
+      g.count += 1;
+      groups.set(key, g);
+    }
   }
   return [...groups.values()].sort((a, b) => b.total - a.total);
 }

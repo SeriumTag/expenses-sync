@@ -1,20 +1,22 @@
 import { useMemo, useRef, useState } from 'react';
 import { FREQS, byCategory, setAsideTab, sorted, tabInView } from '../lib/budget';
 import { prefs } from '../lib/session';
-import { duplicateItems, mergeItems, ordersAfter, updateItemField } from '../lib/db';
+import { duplicateItems, mergeItems, moved, ordersAfter, reorderItems, updateItemField } from '../lib/db';
 import { formatMoney } from '../lib/format';
 import ItemRow from './ItemRow';
 
 export default function ItemList(props) {
   const { base, pk, tabId, items, prevPeriod, prevLabel, categories, currency, username, focusId, view } = props;
   const { onViewChange, onAdd, onImport, onOpenItem, ctx } = props;
-  const [selecting, setSelecting] = useState(false);
+  const [mode, setMode] = useState('normal'); // 'normal' | 'select' | 'reorder'
+  const [menuOpen, setMenuOpen] = useState(false);
   const [picked, setPicked] = useState(() => new Set());
   const itemsRef = useRef(items);
   itemsRef.current = items;
 
   const rows = useMemo(() => sorted(items), [items]);
   const groups = useMemo(() => byCategory(items, view, ctx), [items, view, ctx]);
+  const selecting = mode === 'select';
 
   // Skip writes to a row the other person just deleted, so it isn't half-recreated.
   const saver = (itemId) => (field) => (value) => {
@@ -29,13 +31,21 @@ export default function ItemList(props) {
       return next;
     });
 
+  const switchMode = (next) => {
+    setMode((m) => (m === next ? 'normal' : next));
+    setPicked(new Set());
+    setMenuOpen(false);
+  };
+
   // Category tags on rows can be hidden for a cleaner list (remembered on this device).
   const [showCats, setShowCats] = useState(() => prefs.get('showCats') !== false);
-  const toggleCats = () =>
+  const toggleCats = () => {
     setShowCats((v) => {
       prefs.set('showCats', !v);
       return !v;
     });
+    setMenuOpen(false);
+  };
   const setAside = useMemo(() => setAsideTab(items), [items]);
 
   // Merged items can be opened up in the list to show their parts.
@@ -47,29 +57,36 @@ export default function ItemList(props) {
       return next;
     });
 
+  const move = (id, dir) =>
+    reorderItems(
+      base,
+      tabId,
+      moved(
+        rows.map((r) => r.id),
+        id,
+        dir,
+      ),
+    );
+
   async function copySelected() {
     const chosen = rows.filter((r) => picked.has(r.id));
     await duplicateItems(base, tabId, chosen, ordersAfter(items, chosen.map((r) => r.id)), username);
-    setSelecting(false);
-    setPicked(new Set());
+    switchMode('normal');
   }
 
   async function merge() {
     const chosen = rows.filter((r) => picked.has(r.id));
-    const cats = [...new Set(chosen.map((r) => (r.category || '').trim()).filter(Boolean))];
-    const suggestion = cats.length === 1 ? cats[0] : chosen.map((r) => r.name).join(' + ');
-    const name = window.prompt('Name for the merged item', suggestion);
+    const name = window.prompt('Name for the merged item', chosen.map((r) => r.name).join(' + '));
     if (!name?.trim()) return;
     const id = await mergeItems(base, tabId, chosen, name.trim(), username);
-    setSelecting(false);
-    setPicked(new Set());
+    switchMode('normal');
     onOpenItem(tabId, id);
   }
 
   if (rows.length === 0) {
     return (
       <div className="ep-empty">
-        <div className="ep-empty-icon">🧾</div>
+        <div className="ep-empty-icon">🧺</div>
         <p>No items in this head category yet.</p>
         <div className="row-gap center">
           <button className="btn primary" onClick={onAdd}>
@@ -86,7 +103,7 @@ export default function ItemList(props) {
   const maxGroup = Math.max(...groups.map((g) => g.total), 0);
 
   return (
-    <div className={`ep-list ${selecting ? 'selecting' : ''} ${showCats ? '' : 'hide-cats'}`}>
+    <div className={`ep-list mode-${mode} ${showCats ? '' : 'hide-cats'}`}>
       <datalist id={`categories-${tabId}`}>
         {categories.map((c) => (
           <option key={c} value={c} />
@@ -95,46 +112,52 @@ export default function ItemList(props) {
 
       <div className="ep-head">
         <div className="row-gap">
-          {!selecting && (
-            <button className="btn primary sm" onClick={onAdd}>
-              ＋ Add item
-            </button>
+          {mode === 'normal' && (
+            <>
+              <button className="btn primary sm" onClick={onAdd}>
+                ＋ Add item
+              </button>
+              <button className="btn ghost sm" onClick={() => switchMode('select')}>
+                Select
+              </button>
+              <span className="list-menu-wrap">
+                <button className="btn ghost sm more-btn" onClick={() => setMenuOpen((o) => !o)} aria-label="More list options" aria-expanded={menuOpen}>
+                  ⋯
+                </button>
+                {menuOpen && (
+                  <>
+                    <div className="menu-scrim" onClick={() => setMenuOpen(false)} />
+                    <div className="list-menu" role="menu">
+                      <button role="menuitem" onClick={() => switchMode('reorder')}>
+                        <span className="menu-ico">⇅</span> Reorder items
+                      </button>
+                      <button role="menuitem" onClick={toggleCats}>
+                        <span className="menu-ico">🏷</span> {showCats ? 'Hide category tags' : 'Show category tags'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </span>
+            </>
           )}
-          <button
-            className={`btn sm ${selecting ? 'primary' : 'ghost'}`}
-            onClick={() => {
-              setSelecting((s) => !s);
-              setPicked(new Set());
-            }}
-          >
-            {selecting ? 'Cancel' : 'Select'}
-          </button>
-          <button
-            className={`btn sm tag-toggle ${showCats ? '' : 'off'}`}
-            onClick={toggleCats}
-            aria-pressed={showCats}
-            title={showCats ? 'Hide category tags' : 'Show category tags'}
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">
-              <path
-                d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9Z M7.5 7.5h.01"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span className="tag-label">{showCats ? 'Tags' : 'Tags off'}</span>
-          </button>
+          {mode !== 'normal' && (
+            <>
+              <button className="btn primary sm" onClick={() => switchMode('normal')}>
+                {mode === 'reorder' ? 'Done' : 'Cancel'}
+              </button>
+              <span className="mode-hint">{mode === 'reorder' ? 'Use ▲ ▼ to move items' : 'Tap items to copy or merge'}</span>
+            </>
+          )}
         </div>
-        <div className="seg" role="group" aria-label="Show amounts">
-          {Object.entries(FREQS).map(([k, p]) => (
-            <button key={k} className={view === k ? 'on' : ''} aria-pressed={view === k} onClick={() => onViewChange(k)}>
-              {p.label}
-            </button>
-          ))}
-        </div>
+        {mode === 'normal' && (
+          <div className="seg" role="group" aria-label="Show amounts">
+            {Object.entries(FREQS).map(([k, p]) => (
+              <button key={k} className={view === k ? 'on' : ''} aria-pressed={view === k} onClick={() => onViewChange(k)}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {rows.map((item, i) => (
@@ -150,12 +173,15 @@ export default function ItemList(props) {
           view={view}
           save={saver(item.id)}
           focus={focusId === item.id}
-          selecting={selecting}
+          mode={mode}
           picked={picked.has(item.id)}
           onPick={() => togglePick(item.id)}
           onOpen={() => onOpenItem(tabId, item.id)}
           expanded={expanded.has(item.id)}
           onToggle={() => toggleExpand(item.id)}
+          onMove={(dir) => move(item.id, dir)}
+          isFirst={i === 0}
+          isLast={i === rows.length - 1}
           ctx={ctx}
         />
       ))}

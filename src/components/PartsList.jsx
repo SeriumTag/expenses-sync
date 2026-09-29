@@ -1,11 +1,12 @@
 import { FREQS, inView, partMonthly, sorted } from '../lib/budget';
 import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
+import CatField from './CatField';
 import { FreqPill } from './ChangeBadge';
 import LiveInput from './LiveInput';
 
 // The breakdown inside a merged item, e.g. Kids Insurance → PA (Arissa) $211.08/yr …
-export default function PartsList({ path, lockPrefix, item, currency, globalView }) {
+export default function PartsList({ path, lockPrefix, item, currency, globalView, listId }) {
   const view = item.view || globalView;
   const showEach = item.showMonthly !== false;
   const parts = sorted(item.parts);
@@ -14,7 +15,7 @@ export default function PartsList({ path, lockPrefix, item, currency, globalView
 
   const savePart = (pid, field) => (value) => item.parts?.[pid] && patchPath(`${path}/parts/${pid}`, { [field]: value });
   const addPart = () =>
-    patchPath(`${path}/parts/${newKey(`${path}/parts`)}`, { name: '', amount: 0, freq: 'monthly', order: Date.now() });
+    patchPath(`${path}/parts/${newKey(`${path}/parts`)}`, { name: '', amount: 0, freq: 'monthly', category: '', order: Date.now() });
 
   return (
     <section className="sheet-section">
@@ -43,6 +44,13 @@ export default function PartsList({ path, lockPrefix, item, currency, globalView
                 value={p.name || ''}
                 onSave={savePart(p.id, 'name')}
                 placeholder="Part name"
+              />
+              <CatField
+                fieldKey={`${lockPrefix}:${p.id}:category`}
+                value={p.category ?? item.category}
+                onSave={savePart(p.id, 'category')}
+                listId={listId}
+                className="part-cat"
               />
               <LiveInput
                 className="ep-note"

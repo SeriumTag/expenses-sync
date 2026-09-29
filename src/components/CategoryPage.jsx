@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { FREQS, amountInView, itemsInCategory, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
-import { newKey, patchPath, setPath } from '../lib/db';
+import { moved, newKey, patchPath, reorderCategoryEntries, setPath } from '../lib/db';
 import { formatMoney } from '../lib/format';
 import LiveInput from './LiveInput';
+import PotIcon from './PotIcon';
 import Modal from './Modal';
 
 const FIELD_TYPES = { text: 'Text', date: 'Date', number: 'Number' };
@@ -60,11 +61,28 @@ export function CategoryPage(props) {
   const { ledgerId, pk, period, periods, catKeyValue, label, catData, tracks, currency, view, onViewChange, onBack, onOpenItem, ctx } = props;
   const { fav, onFav } = props;
   const path = `ledgers/${ledgerId}/categories/${catKeyValue}`;
-  const entries = itemsInCategory(period, catKeyValue);
+  const meta = catData?.entries || {};
+  // Your own order first (from Reorder), then the order items appear in their lists.
+  const entries = itemsInCategory(period, catKeyValue)
+    .map((e, i) => ({ ...e, rank: meta[e.id]?.order ?? 1e12 + i }))
+    .sort((a, b) => a.rank - b.rank);
   const subs = sorted(catData?.subs);
   const fields = sorted(catData?.fields);
-  const meta = catData?.entries || {};
   const [newField, setNewField] = useState(null); // { name, type }
+  const [reordering, setReordering] = useState(false);
+
+  // Moving within a group rewrites the order of everything on the page, so
+  // the other groups keep their places too.
+  const moveEntry = (groupRows, id, dir) => {
+    const groupIds = moved(
+      groupRows.map((e) => e.id),
+      id,
+      dir,
+    );
+    const inGroup = new Set(groupIds);
+    const rest = entries.map((e) => e.id).filter((x) => !inGroup.has(x));
+    reorderCategoryEntries(ledgerId, catKeyValue, [...groupIds, ...rest]);
+  };
 
   const counted = entries.filter((e) => !meta[e.id]?.exclude);
   const amount = (e) => amountInView(e.item, e.id, view, ctx);
@@ -133,6 +151,11 @@ export function CategoryPage(props) {
         <button className="btn glass sm" onClick={() => setNewField({ name: '', type: 'text' })}>
           ＋ Field
         </button>
+        {entries.length > 1 && (
+          <button className={`btn sm ${reordering ? 'primary' : 'glass'}`} onClick={() => setReordering((r) => !r)}>
+            {reordering ? 'Done' : '⇅ Reorder'}
+          </button>
+        )}
         {fields.map((f) => (
           <span key={f.id} className="field-chip">
             <LiveInput
@@ -202,7 +225,7 @@ export function CategoryPage(props) {
               )}
             </div>
             {g.rows.length === 0 && <p className="muted small">Nothing here yet. Move items in using their subcategory menu.</p>}
-            {g.rows.map((e) => {
+            {g.rows.map((e, i) => {
               const m = meta[e.id] || {};
               const tracked = e.item.track ? savingsTotal(savingsMonths(yearOf(pk), e.id, tracks?.[e.id]?.log, periods)) : null;
               return (
@@ -216,15 +239,31 @@ export function CategoryPage(props) {
                       aria-label={`Count ${e.item.name} in the total`}
                       title="Count in total"
                     />
-                    <button className="cat-entry-name" onClick={() => onOpenItem(e.tabId, e.id)}>
+                    <button className="cat-entry-name" onClick={() => onOpenItem(e.tabId, e.parentId || e.id)}>
                       <b>{e.item.name || 'Untitled'}</b>
+                      {e.item.track && <PotIcon />}
                       <span className="tab-badge">{e.tabName || 'Untitled'}</span>
-                      {e.item.parts && <span className="muted small">{Object.keys(e.item.parts).length} items</span>}
+                      {e.parentId && <span className="muted small">in {e.parentName || 'merged item'}</span>}
                     </button>
                     <b className="cat-entry-amt">
                       {formatMoney(amount(e), currency)}
                       <span className="per-small">{FREQS[view].short}</span>
                     </b>
+                    {reordering && (
+                      <span className="move-btns">
+                        <button className="icon-btn" onClick={() => moveEntry(g.rows, e.id, -1)} disabled={i === 0} aria-label={`Move ${e.item.name} up`}>
+                          ▲
+                        </button>
+                        <button
+                          className="icon-btn"
+                          onClick={() => moveEntry(g.rows, e.id, 1)}
+                          disabled={i === g.rows.length - 1}
+                          aria-label={`Move ${e.item.name} down`}
+                        >
+                          ▼
+                        </button>
+                      </span>
+                    )}
                   </div>
                   {e.item.note && <p className="cat-entry-note">{e.item.note}</p>}
                   {tracked !== null && (

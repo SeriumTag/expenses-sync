@@ -1,7 +1,9 @@
-import { FREQS, compareItem, findItem, inView, monthlyOf, setAsideOf, yearOf, yearlyOf } from '../lib/budget';
+import { FREQS, compareItem, findItem, groupCatLabel, inView, itemCats, monthlyOf, setAsideOf, yearOf, yearlyOf } from '../lib/budget';
 import { deleteItem, duplicateItems, ordersAfter, splitItem, updateItemField } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
+import CatField, { GroupCat } from './CatField';
 import { ChangeBadge, FreqPill } from './ChangeBadge';
+import PotIcon from './PotIcon';
 import LiveInput from './LiveInput';
 import Modal from './Modal';
 import PartsList from './PartsList';
@@ -38,25 +40,31 @@ export default function ItemSheet(props) {
   return (
     <Modal title={tabName || 'Item'} onClose={onClose}>
       <div className="sheet">
-        <LiveInput className="sheet-title" fieldKey={key('name')} value={item.name || ''} onSave={save('name')} placeholder="Item name" />
+        <div className="sheet-title-row">
+          <LiveInput className="sheet-title" fieldKey={key('name')} value={item.name || ''} onSave={save('name')} placeholder="Item name" />
+          {item.track && <PotIcon size={22} />}
+        </div>
 
         <div className="sheet-grid">
-          <label className="field">
-            <span>Category</span>
-            <LiveInput
-              fieldKey={key('category')}
-              value={item.category || ''}
-              onSave={save('category')}
-              placeholder="e.g. Insurance"
-              list="sheet-categories"
-              maxLength={40}
-            />
+          <div className="field">
+            <span>Categories</span>
+            {isGroup ? (
+              <>
+                <GroupCat label={groupCatLabel(item) || '—'} cats={itemCats(item)} />
+                <span className="muted small">Set each part’s category in the breakdown below.</span>
+              </>
+            ) : (
+              <>
+                <CatField fieldKey={key('category')} value={item.category} onSave={save('category')} listId="sheet-categories" className="sheet-cat" />
+                <span className="muted small">For more than one, separate with commas: Insurance, Kids</span>
+              </>
+            )}
             <datalist id="sheet-categories">
               {categories.map((c) => (
                 <option key={c} value={c} />
               ))}
             </datalist>
-          </label>
+          </div>
           {!isGroup && (
             <label className="field">
               <span>Amount</span>
@@ -106,13 +114,14 @@ export default function ItemSheet(props) {
           <ChangeBadge change={compareItem(item, itemId, prevPeriod)} prevLabel={prevLabel} currency={currency} view={view} />
         </div>
 
-        {isGroup && <PartsList path={path} lockPrefix={`${pk}:part:${itemId}`} item={item} currency={currency} globalView={view} />}
+        {isGroup && <PartsList path={path} lockPrefix={`${pk}:part:${itemId}`} item={item} currency={currency} globalView={view} listId="sheet-categories" />}
 
         <section className="sheet-section">
           <label className="switch-row">
             <input type="checkbox" checked={Boolean(item.track)} onChange={(e) => save('track')(e.target.checked || null)} />
             <span>
-              <b>Track as savings</b> <span className="muted small">— see how much has built up month by month</span>
+              <b>Track as savings pot</b> <PotIcon size={16} />{' '}
+              <span className="muted small">— see how much has built up month by month</span>
             </span>
           </label>
           {item.track && (

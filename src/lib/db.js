@@ -263,29 +263,33 @@ export function deleteItem(base, tabId, itemId) {
 }
 
 // Merge several items into one item whose parts are the originals.
+// Each part keeps its own categories, so category pages can still list it on
+// its own; the merged item shows the shared category or "Mixed".
 export function mergeItems(base, tabId, rows, name, username) {
   const key = push(ref(db, `${base}/items/${tabId}`)).key;
-  const cats = [...new Set(rows.map((r) => (r.category || '').trim()).filter(Boolean))];
   const parts = {};
   rows.forEach((r, i) => {
-    parts[r.id] = {
-      name: r.name || '',
-      amount: r.parts ? 0 : Number(r.amount) || 0,
-      freq: r.freq || 'monthly',
-      note: r.note || '',
-      order: i,
-    };
-    // Merging a merged item: bring its parts along.
     if (r.parts) {
-      delete parts[r.id];
-      Object.entries(r.parts).forEach(([pid, p], j) => (parts[pid] = { ...p, order: i + j / 100 }));
+      // Merging a merged item: bring its parts along.
+      Object.entries(r.parts).forEach(([pid, p], j) => {
+        parts[pid] = { ...p, category: p.category ?? r.category ?? '', order: i + j / 100 };
+      });
+    } else {
+      parts[r.id] = {
+        name: r.name || '',
+        amount: Number(r.amount) || 0,
+        freq: r.freq || 'monthly',
+        note: r.note || '',
+        category: r.category || '',
+        order: i,
+      };
     }
   });
   const patch = {
     [`items/${tabId}/${key}`]: {
       ...blankItem(username),
       name,
-      category: cats.length === 1 ? cats[0] : '',
+      category: '',
       order: Math.min(...rows.map((r) => r.order || Date.now())),
       parts,
     },
@@ -304,11 +308,35 @@ export function splitItem(base, tabId, itemId, item, username) {
       amount: Number(p.amount) || 0,
       freq: p.freq || 'monthly',
       note: p.note || '',
-      category: item.category || '',
+      category: p.category ?? item.category ?? '',
       order: (item.order || Date.now()) + i,
     };
   });
   return update(ref(db, base), patch);
+}
+
+// Put items in a new order (ids in the order they should appear).
+export function reorderItems(base, tabId, ids) {
+  const patch = {};
+  ids.forEach((id, i) => (patch[`items/${tabId}/${id}/order`] = (i + 1) * 1000));
+  return update(ref(db, base), patch);
+}
+
+// The order of entries on a category page is kept with the category.
+export function reorderCategoryEntries(ledgerId, catKeyValue, ids) {
+  const patch = {};
+  ids.forEach((id, i) => (patch[`entries/${id}/order`] = (i + 1) * 1000));
+  return update(ref(db, `ledgers/${ledgerId}/categories/${catKeyValue}`), patch);
+}
+
+// Move one id up (-1) or down (+1) in a list; returns the new list of ids.
+export function moved(ids, id, dir) {
+  const i = ids.indexOf(id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= ids.length) return ids;
+  const next = [...ids];
+  [next[i], next[j]] = [next[j], next[i]];
+  return next;
 }
 
 // Copy a whole period (head categories, items, salaries) to other periods.

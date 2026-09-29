@@ -6,49 +6,50 @@ import sharp from 'sharp';
 
 const OUT = new URL('../public/', import.meta.url);
 const out = (name) => fileURLToPath(new URL(name, OUT));
-const RED = '#e50914';
 
-// The "ribbon E" mark, drawn in a 1024 grid. The bars cast a shadow onto the
-// darker stem, like a folded ribbon.
-const MARK_DEFS = `
-  <linearGradient id="stem" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#9e0710"/>
-    <stop offset="1" stop-color="#6d040a"/>
-  </linearGradient>
-  <linearGradient id="bar" x1="0" y1="0" x2="1" y2="1">
-    <stop offset="0" stop-color="#ff2a36"/>
-    <stop offset="1" stop-color="${RED}"/>
-  </linearGradient>
-  <filter id="fold" x="-30%" y="-30%" width="160%" height="160%">
-    <feDropShadow dx="-16" dy="6" stdDeviation="14" flood-color="#000" flood-opacity="0.6"/>
-  </filter>`;
-
+// The coin-pouch mark (same shapes as src/components/Logo.jsx), in a 100 grid.
 const MARK = `
-  <path d="M318 236 H462 V788 H318 Z" fill="url(#stem)"/>
-  <g filter="url(#fold)">
-    <path d="M404 236 H736 L694 374 H404 Z" fill="url(#bar)"/>
-    <path d="M404 443 H652 L612 581 H404 Z" fill="url(#bar)"/>
-    <path d="M404 650 H736 L694 788 H404 Z" fill="url(#bar)"/>
-  </g>`;
+  <path d="M37 18c1-7 6-11 13-8 7-3 12 1 13 8Z" fill="#8fd6bb"/>
+  <path d="M20 50c0-15 9-23 22-23h16c13 0 22 8 22 23v14c0 16-11 26-27 26h-6c-16 0-27-10-27-26Z" fill="#f29cb2"/>
+  <path d="M33 22.5a5 5 0 0 1 5-5h24a5 5 0 0 1 0 10H38a5 5 0 0 1-5-5Z" fill="#a99be6"/>
+  <path d="M28 48c1-6 5-10 11-11" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity="0.55"/>
+  <path d="M50 26.2c-.5-.4-4.6-3-4.6-5.8 0-1.5 1.2-2.6 2.5-2.6.9 0 1.6.5 2.1 1.1.5-.6 1.2-1.1 2.1-1.1 1.3 0 2.5 1.1 2.5 2.6 0 2.8-4.1 5.4-4.6 5.8Z" fill="#fff"/><ellipse cx="33.5" cy="66" rx="5" ry="3.2" fill="#e2708f" opacity="0.45"/><ellipse cx="66.5" cy="66" rx="5" ry="3.2" fill="#e2708f" opacity="0.45"/><circle cx="40" cy="58.5" r="3.4" fill="#4b3a33"/><circle cx="60" cy="58.5" r="3.4" fill="#4b3a33"/><circle cx="41.2" cy="57.3" r="1.1" fill="#fff"/><circle cx="61.2" cy="57.3" r="1.1" fill="#fff"/><path d="M45.5 64.5q4.5 4.2 9 0" fill="none" stroke="#4b3a33" stroke-width="2.4" stroke-linecap="round"/>`;
 
-// Crop box around the mark (also used by the in-app splash in index.html).
-export const MARK_BOX = { x: 290, y: 220, w: 460, h: 590 };
+// Crop box around the mark (the in-app splash in index.html uses the same viewBox).
+export const MARK_BOX = { x: 12, y: 6, w: 76, h: 88 };
+
+// Soft pastel blobs on cream, sized to a w × h canvas.
+const blobs = (w, h, id = 'b') => `
+    <radialGradient id="${id}1" gradientUnits="userSpaceOnUse" cx="${w * 0.12}" cy="${h * 0.18}" r="${Math.max(w, h) * 0.45}">
+      <stop offset="0" stop-color="#f9cfd9"/><stop offset="1" stop-color="#f9cfd9" stop-opacity="0"/></radialGradient>
+    <radialGradient id="${id}2" gradientUnits="userSpaceOnUse" cx="${w * 0.92}" cy="${h * 0.28}" r="${Math.max(w, h) * 0.4}">
+      <stop offset="0" stop-color="#d9cff8"/><stop offset="1" stop-color="#d9cff8" stop-opacity="0"/></radialGradient>
+    <radialGradient id="${id}3" gradientUnits="userSpaceOnUse" cx="${w * 0.25}" cy="${h * 1.05}" r="${Math.max(w, h) * 0.5}">
+      <stop offset="0" stop-color="#c7ecdc"/><stop offset="1" stop-color="#c7ecdc" stop-opacity="0"/></radialGradient>
+    <radialGradient id="${id}4" gradientUnits="userSpaceOnUse" cx="${w}" cy="${h * 0.95}" r="${Math.max(w, h) * 0.38}">
+      <stop offset="0" stop-color="#fcdcc6"/><stop offset="1" stop-color="#fcdcc6" stop-opacity="0"/></radialGradient>`;
+const blobRects = (w, h, id = 'b') =>
+  `<rect width="${w}" height="${h}" fill="#fff7f1"/>` +
+  [1, 2, 3, 4].map((n) => `<rect width="${w}" height="${h}" fill="url(#${id}${n})"/>`).join('');
 
 function iconSvg({ scale = 1, rounded = false } = {}) {
-  const c = 512;
+  const k = 6.6 * scale;
+  const cx = 512;
+  const cy = 525;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
   <defs>
-    <radialGradient id="bg" cx="50%" cy="40%" r="72%">
-      <stop offset="0" stop-color="#3d0609"/>
-      <stop offset="0.5" stop-color="#140304"/>
-      <stop offset="1" stop-color="#050505"/>
-    </radialGradient>
-    <filter id="blur" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="40"/></filter>
-    ${MARK_DEFS}
+    ${blobs(1024, 1024)}
+    <filter id="soft" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="22"/></filter>
+    <clipPath id="clip"><rect width="1024" height="1024" rx="${rounded ? 224 : 0}"/></clipPath>
   </defs>
-  <rect width="1024" height="1024" rx="${rounded ? 224 : 0}" fill="url(#bg)"/>
-  <ellipse cx="512" cy="846" rx="${270 * scale}" ry="${46 * scale}" fill="${RED}" opacity="0.35" filter="url(#blur)"/>
-  <g transform="translate(${c} ${c}) scale(${scale}) translate(${-c - 15} ${-c})">${MARK}</g>
+  <g clip-path="url(#clip)">
+    ${blobRects(1024, 1024)}
+    <circle cx="150" cy="820" r="26" fill="#fff" opacity="0.8"/>
+    <circle cx="860" cy="190" r="18" fill="#fff" opacity="0.8"/>
+    <circle cx="880" cy="760" r="12" fill="#fff" opacity="0.7"/>
+    <ellipse cx="${cx}" cy="${cy + 300 * scale}" rx="${230 * scale}" ry="${40 * scale}" fill="#c98b8b" opacity="0.28" filter="url(#soft)"/>
+    <g transform="translate(${cx - 50 * k} ${cy - 50 * k}) scale(${k})">${MARK}</g>
+  </g>
 </svg>`;
 }
 
@@ -59,15 +60,8 @@ function splashSvg(w, h) {
   const x = w / 2 - markW / 2;
   const y = h * 0.45 - markH / 2;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-  <defs>
-    <radialGradient id="glow" gradientUnits="userSpaceOnUse" cx="${w / 2}" cy="${h * 0.45}" r="${w * 0.75}">
-      <stop offset="0" stop-color="${RED}" stop-opacity="0.18"/>
-      <stop offset="1" stop-color="${RED}" stop-opacity="0"/>
-    </radialGradient>
-    ${MARK_DEFS}
-  </defs>
-  <rect width="${w}" height="${h}" fill="#000"/>
-  <rect width="${w}" height="${h}" fill="url(#glow)"/>
+  <defs>${blobs(w, h)}</defs>
+  ${blobRects(w, h)}
   <g transform="translate(${x} ${y}) scale(${k}) translate(${-MARK_BOX.x} ${-MARK_BOX.y})">${MARK}</g>
 </svg>`;
 }

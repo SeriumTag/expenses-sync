@@ -24,6 +24,7 @@ export default function LiveInput({
   className = '',
   autoFocusOnMount = false,
   multiline = false,
+  onDone,
   ...inputProps
 }) {
   const { me, lockFor, setEditing, colorFor } = usePresenceCtx();
@@ -60,6 +61,7 @@ export default function LiveInput({
     flush();
     setFocused(false);
     setEditing(null);
+    onDone?.();
   };
 
   // Unmounting while focused (e.g. the row was deleted) must still send the
