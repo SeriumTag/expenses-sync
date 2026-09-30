@@ -189,6 +189,7 @@ export const savingsTotal = (months) => months.reduce((s, m) => s + (Number(m.va
 // user already had (track.start = { amount, since: "YYYY-MM" }) plus every
 // month saved from `since` onward. Without a start, it's just the saving from
 // January of `upTo`'s year.
+// Withdrawals from the pot count against it too (from `since`, up to `upTo`).
 export function potBalance(itemId, track, periods, upTo) {
   const start = track?.start;
   const since = start?.since || `${upTo.slice(0, 4)}-01`;
@@ -196,7 +197,29 @@ export function potBalance(itemId, track, periods, upTo) {
   for (let y = Number(since.slice(0, 4)); y <= Number(upTo.slice(0, 4)); y++) {
     total += savingsTotal(savingsMonths(y, itemId, track?.log, periods).filter((m) => m.key >= since && m.key <= upTo));
   }
+  for (const w of withdrawalList(track)) {
+    const month = w.date.slice(0, 7);
+    if (month >= since && month <= upTo) total -= Number(w.amount) || 0;
+  }
   return total;
+}
+
+// Money taken out of a pot: track.withdrawals = { id: { amount, date: "YYYY-MM-DD", note, by, at } }.
+// Newest first.
+export function withdrawalList(track) {
+  return Object.entries(track?.withdrawals || {})
+    .map(([id, w]) => ({ id, ...w, date: w.date || '' }))
+    .filter((w) => w.date)
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
+}
+
+// Total withdrawn in each month of `year` ("YYYY-MM" → amount).
+export function withdrawnByMonth(track, year) {
+  const out = {};
+  for (const w of withdrawalList(track)) {
+    if (w.date.startsWith(`${year}-`)) out[w.date.slice(0, 7)] = (out[w.date.slice(0, 7)] || 0) + (Number(w.amount) || 0);
+  }
+  return out;
 }
 
 // ── Amounts in the chosen view ──────────────────────────────────────

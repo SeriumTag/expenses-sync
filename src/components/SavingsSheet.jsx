@@ -1,5 +1,19 @@
-import { MONTHS, isYearKey, monthIndexOf, monthKey, monthlyOf, potBalance, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
-import { setPath } from '../lib/db';
+import { useState } from 'react';
+import {
+  MONTHS,
+  isYearKey,
+  monthIndexOf,
+  monthKey,
+  monthlyOf,
+  potBalance,
+  savingsMonths,
+  savingsTotal,
+  sorted,
+  withdrawalList,
+  withdrawnByMonth,
+  yearOf,
+} from '../lib/budget';
+import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import LiveInput from './LiveInput';
 import Modal from './Modal';
@@ -23,26 +37,42 @@ function dueMonth(pk) {
   return monthKey(year, year === now.getFullYear() ? now.getMonth() : year < now.getFullYear() ? 11 : 0);
 }
 
-// Pull-up list of savings pots: what to put in this month, and the year so far.
-export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, periods, currency, onOpenItem, onClose }) {
-  const pots = trackedItems(period, tabs);
+const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
+const monthName = (k) => `${MONTHS[monthIndexOf(k)]} ${yearOf(k)}`;
+const dayName = (d) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}`;
+const moneyInput = {
+  inputMode: 'decimal',
+  format: (v) => (v === null || v === undefined ? '' : String(v)),
+  parse: (text) => (text.trim() === '' ? null : parseAmount(text)),
+};
+
+// Pull-up list of savings pots: what to put in this month, withdrawals, and
+// what's in each pot.
+export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, periods, currency, username, onOpenItem, onClose }) {
   const year = yearOf(pk);
   const due = dueMonth(pk);
   const dueLabel = MONTHS[monthIndexOf(due)];
 
-  const rows = pots.map((p) => {
-    const months = savingsMonths(year, p.id, tracks?.[p.id]?.log, periods);
-    const month = months.find((m) => m.key === due);
+  const rows = trackedItems(period, tabs).map((p) => {
     const track = tracks?.[p.id];
-    return { ...p, months, month, track, target: monthlyOf(p.item), saved: savingsTotal(months), balance: potBalance(p.id, track, periods, due) };
+    const months = savingsMonths(year, p.id, track?.log, periods);
+    const out = withdrawnByMonth(track, year);
+    return {
+      ...p,
+      track,
+      months,
+      out,
+      month: months.find((m) => m.key === due),
+      target: monthlyOf(p.item),
+      saved: savingsTotal(months),
+      withdrawn: Object.values(out).reduce((s, v) => s + v, 0),
+      balance: potBalance(p.id, track, periods, due),
+    };
   });
   const monthTarget = rows.reduce((s, r) => s + r.target, 0);
   const yearSaved = rows.reduce((s, r) => s + r.saved, 0);
+  const yearOut = rows.reduce((s, r) => s + r.withdrawn, 0);
   const inPots = rows.reduce((s, r) => s + r.balance, 0);
-  const monthName = (k) => `${MONTHS[monthIndexOf(k)]} ${yearOf(k)}`;
-  // Money already in the pot before tracking began; months count from `since` on.
-  const saveStart = (r) => (v) =>
-    setPath(`ledgers/${ledgerId}/tracks/${r.id}/start`, v ? { amount: v, since: r.track?.start?.since || due } : null);
   const doneCount = rows.filter((r) => r.month?.logged).length;
 
   return (
@@ -60,6 +90,7 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
           <b className="pos">{formatMoney(inPots, currency)}</b>
           <span className="muted small">
             {formatMoney(yearSaved, currency)} saved in {year}
+            {yearOut > 0 && <span className="neg"> · −{formatMoney(yearOut, currency)} out</span>}
           </span>
         </div>
       </div>
@@ -72,76 +103,177 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
       {rows.length === 0 && <p className="muted">No savings pots yet. Open an item and tick “Track as savings pot”.</p>}
 
       <div className="pots-list">
-        {rows.map((r) => {
-          const best = Math.max(...r.months.map((m) => Number(m.value) || 0), 1);
-          return (
-            <div key={r.id} className={`pot-row ${r.month?.logged ? 'done' : ''}`}>
-              <div className="pot-top">
-                <PotIcon size={20} />
-                <button className="pot-name" onClick={() => onOpenItem(r.tabId, r.id)}>
-                  <b>{r.item.name || 'Untitled'}</b>
-                  <span className="tab-badge">{r.tabName || 'Untitled'}</span>
-                </button>
-                <span className="pot-target">
-                  {formatMoney(r.target, currency)}
-                  <span className="per-small">/mo</span>
-                </span>
-              </div>
-              <div className="pot-bottom">
-                <label className="pot-month">
-                  <span>{r.month?.logged ? `✓ ${dueLabel}` : dueLabel}</span>
-                  <LiveInput
-                    fieldKey={`track:${r.id}:${due}`}
-                    inputMode="decimal"
-                    value={r.month?.logged ? r.month.value : null}
-                    format={(v) => (v === null || v === undefined ? '' : String(v))}
-                    display={(v) => (v === null || v === undefined ? '' : formatMoney(v, currency))}
-                    parse={(text) => (text.trim() === '' ? null : parseAmount(text))}
-                    onSave={(v) => setPath(`ledgers/${ledgerId}/tracks/${r.id}/log/${due}`, v)}
-                    placeholder={formatMoney(r.month?.planned ?? r.target, currency)}
-                    aria-label={`${r.item.name} savings in ${dueLabel}`}
-                  />
-                </label>
-                <div className="pot-bars" aria-label={`Saved each month of ${year}`}>
-                  {r.months.map((m) => (
-                    <span
-                      key={m.key}
-                      className={`${m.logged ? 'logged' : ''} ${m.key === due ? 'now' : ''}`}
-                      style={{ height: `${Math.max(8, ((Number(m.value) || 0) / best) * 100)}%` }}
-                      title={`${m.label}: ${m.value === null ? '—' : formatMoney(m.value, currency)}`}
-                    />
-                  ))}
-                </div>
-                <span className="pot-saved">
-                  <span className="muted small">{year}</span>
-                  <b>{formatMoney(r.saved, currency)}</b>
-                </span>
-              </div>
-              <div className="pot-capital">
-                <label className="pot-month">
-                  <span title="Money already in this pot before you started tracking">Start amount</span>
-                  <LiveInput
-                    fieldKey={`track:${r.id}:start`}
-                    inputMode="decimal"
-                    value={r.track?.start?.amount ?? null}
-                    format={(v) => (v === null || v === undefined ? '' : String(v))}
-                    display={(v) => (v === null || v === undefined ? '' : formatMoney(v, currency))}
-                    parse={(text) => (text.trim() === '' ? null : parseAmount(text))}
-                    onSave={saveStart(r)}
-                    placeholder={formatMoney(0, currency)}
-                    aria-label={`${r.item.name} amount already saved`}
-                  />
-                </label>
-                <span className="muted small pot-since">{r.track?.start ? `before ${monthName(r.track.start.since)}` : 'already saved, if any'}</span>
-                <span className="pot-balance">
-                  <span className="muted small">In pot</span>
-                  <b className="pos">{formatMoney(r.balance, currency)}</b>
-                </span>
-              </div>
-            </div>
-          );
-        })}
+        {rows.map((r) => (
+          <PotRow key={r.id} r={r} ledgerId={ledgerId} due={due} year={year} currency={currency} username={username} onOpenItem={onOpenItem} />
+        ))}
       </div>
     </Modal>
+  );
+}
+
+function PotRow({ r, ledgerId, due, year, currency, username, onOpenItem }) {
+  const dueLabel = MONTHS[monthIndexOf(due)];
+  const trackPath = `ledgers/${ledgerId}/tracks/${r.id}`;
+  const history = withdrawalList(r.track);
+  const [form, setForm] = useState(null); // { amount, date, note } while recording a withdrawal
+  const [showHistory, setShowHistory] = useState(false);
+
+  // The graph shares one scale: saving grows up, withdrawals hang down.
+  const best = Math.max(...r.months.map((m) => Number(m.value) || 0), ...Object.values(r.out), 1);
+
+  // Money already in the pot before tracking began; months count from `since` on.
+  const saveStart = (v) => setPath(`${trackPath}/start`, v ? { amount: v, since: r.track?.start?.since || due } : null);
+
+  function addWithdrawal(e) {
+    e.preventDefault();
+    const amount = parseAmount(form.amount);
+    if (!(amount > 0) || !form.date) return;
+    patchPath(`${trackPath}/withdrawals/${newKey(`${trackPath}/withdrawals`)}`, {
+      amount,
+      date: form.date,
+      note: form.note.trim() || null,
+      by: username || null,
+      at: Date.now(),
+    });
+    setForm(null);
+    setShowHistory(true);
+  }
+
+  function removeWithdrawal(w) {
+    if (!window.confirm(`Remove the ${formatMoney(w.amount, currency)} withdrawal on ${dayName(w.date)}? It will be added back to the pot.`)) return;
+    setPath(`${trackPath}/withdrawals/${w.id}`, null);
+  }
+
+  return (
+    <div className={`pot-row ${r.month?.logged ? 'done' : ''}`}>
+      <div className="pot-top">
+        <PotIcon size={20} />
+        <button className="pot-name" onClick={() => onOpenItem(r.tabId, r.id)}>
+          <b>{r.item.name || 'Untitled'}</b>
+          <span className="tab-badge">{r.tabName || 'Untitled'}</span>
+        </button>
+        <span className="pot-target">
+          {formatMoney(r.target, currency)}
+          <span className="per-small">/mo</span>
+        </span>
+      </div>
+
+      <div className="pot-bottom">
+        <label className="pot-month">
+          <span>{r.month?.logged ? `✓ ${dueLabel}` : dueLabel}</span>
+          <LiveInput
+            {...moneyInput}
+            fieldKey={`track:${r.id}:${due}`}
+            value={r.month?.logged ? r.month.value : null}
+            display={(v) => (v === null || v === undefined ? '' : formatMoney(v, currency))}
+            onSave={(v) => setPath(`${trackPath}/log/${due}`, v)}
+            placeholder={formatMoney(r.month?.planned ?? r.target, currency)}
+            aria-label={`${r.item.name} savings in ${dueLabel}`}
+          />
+        </label>
+        <div className="pot-bars" aria-label={`Saved and withdrawn each month of ${year}`}>
+          {r.months.map((m) => {
+            const out = r.out[m.key] || 0;
+            return (
+              <span
+                key={m.key}
+                className={`pot-col ${m.key === due ? 'now' : ''}`}
+                title={`${m.label}: saved ${m.value === null ? '—' : formatMoney(m.value, currency)}${out ? `, withdrew ${formatMoney(out, currency)}` : ''}`}
+              >
+                <span className="pot-up">
+                  <span className={m.logged ? 'logged' : ''} style={{ height: `${Math.max(6, ((Number(m.value) || 0) / best) * 100)}%` }} />
+                </span>
+                <span className="pot-down">{out > 0 && <span style={{ height: `${Math.max(15, (out / best) * 100)}%` }} />}</span>
+              </span>
+            );
+          })}
+        </div>
+        <span className="pot-saved">
+          <span className="muted small">{year}</span>
+          <b>{formatMoney(r.saved, currency)}</b>
+          {r.withdrawn > 0 && <span className="neg small">−{formatMoney(r.withdrawn, currency)}</span>}
+        </span>
+      </div>
+
+      <div className="pot-capital">
+        <label className="pot-month">
+          <span title="Money already in this pot before you started tracking">Start amount</span>
+          <LiveInput
+            {...moneyInput}
+            fieldKey={`track:${r.id}:start`}
+            value={r.track?.start?.amount ?? null}
+            display={(v) => (v === null || v === undefined ? '' : formatMoney(v, currency))}
+            onSave={saveStart}
+            placeholder={formatMoney(0, currency)}
+            aria-label={`${r.item.name} amount already saved`}
+          />
+        </label>
+        <span className="muted small pot-since">{r.track?.start ? `before ${monthName(r.track.start.since)}` : 'already saved, if any'}</span>
+        <span className="pot-balance">
+          <span className="muted small">In pot</span>
+          <b className={r.balance < 0 ? 'neg' : 'pos'}>{formatMoney(r.balance, currency)}</b>
+        </span>
+      </div>
+
+      <div className="pot-actions">
+        <button className="btn ghost sm" onClick={() => setForm(form ? null : { amount: '', date: today(), note: '' })}>
+          {form ? 'Cancel' : '− Withdraw'}
+        </button>
+        {history.length > 0 && (
+          <button className="btn ghost sm" onClick={() => setShowHistory((v) => !v)} aria-expanded={showHistory}>
+            {showHistory ? '▾' : '▸'} Withdrawals ({history.length})
+          </button>
+        )}
+      </div>
+
+      {form && (
+        <form className="withdraw-form" onSubmit={addWithdrawal}>
+          <label>
+            <span>Amount</span>
+            <input
+              autoFocus
+              inputMode="decimal"
+              value={form.amount}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
+              placeholder={formatMoney(0, currency)}
+              aria-label="Amount withdrawn"
+            />
+          </label>
+          <label>
+            <span>Date</span>
+            <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} aria-label="Date withdrawn" />
+          </label>
+          <label className="wide">
+            <span>Reason / note</span>
+            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="e.g. Paid the insurance premium" aria-label="Reason for withdrawing" />
+          </label>
+          <button className="btn primary sm" disabled={!(parseAmount(form.amount) > 0) || !form.date}>
+            Record withdrawal
+          </button>
+        </form>
+      )}
+
+      {showHistory && history.length > 0 && (
+        <ul className="withdraw-list">
+          {history.map((w) => (
+            <li key={w.id}>
+              <span className="w-date">{dayName(w.date)}</span>
+              <span className="w-note">
+                {w.note || <span className="muted">No note</span>}
+                {w.by && <span className="muted small"> · {w.by}</span>}
+              </span>
+              <b className="neg">−{formatMoney(w.amount, currency)}</b>
+              <button className="icon-btn" onClick={() => removeWithdrawal(w)} aria-label={`Remove withdrawal on ${dayName(w.date)}`}>
+                ✕
+              </button>
+            </li>
+          ))}
+          <li className="w-total">
+            <span>Total withdrawn</span>
+            <b className="neg">−{formatMoney(history.reduce((s, w) => s + (Number(w.amount) || 0), 0), currency)}</b>
+          </li>
+        </ul>
+      )}
+    </div>
   );
 }

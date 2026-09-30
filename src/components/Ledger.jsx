@@ -627,6 +627,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         {dialog === 'savings' && (
           <SavingsSheet
             ledgerId={ledgerId}
+            username={username}
             pk={pk}
             period={period}
             tabs={tabs}
