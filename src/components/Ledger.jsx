@@ -52,6 +52,8 @@ import LiveInput from './LiveInput';
 import { LogoMark } from './Logo';
 import NavBar from './NavBar';
 import PeriodSheet from './PeriodSheet';
+import PotIcon from './PotIcon';
+import SavingsSheet, { trackedItems } from './SavingsSheet';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
@@ -197,6 +199,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const totalSetAside = tabs.reduce((sum, t) => sum + setAsideTab(period.items?.[t.id]), 0);
   const partnerOnline = partner ? Boolean(presence.others[partner]) : false;
   const prevLabel = prevKey ? shortPeriodLabel(prevKey) : '';
+  const potCount = trackedItems(period, tabs).length;
 
   const changeView = (v) => {
     setView(v);
@@ -398,9 +401,16 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                     </button>
                   )}
                 </div>
-                {favs && Object.keys(favs).length > 0 && (
-                  <div className="fav-row" aria-label="Favourite categories">
-                    {sorted(favs).map((f) => (
+                {(potCount > 0 || (favs && Object.keys(favs).length > 0)) && (
+                  <div className="fav-row" aria-label="Savings pots and favourite categories">
+                    {potCount > 0 && (
+                      <button className="fav-pill pot-pill" onClick={() => setDialog('savings')} aria-label={`Savings pots (${potCount})`}>
+                        <PotIcon size={17} />
+                        Savings
+                        <span className="pot-count">{potCount}</span>
+                      </button>
+                    )}
+                    {sorted(favs || {}).map((f) => (
                       <button key={f.id} className="fav-pill" onClick={() => openCategory(f.id)} aria-label={`Open ${f.label}`}>
                         <span className="fav-icon">{f.icon}</span>
                         {f.label}
@@ -596,6 +606,22 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         )}
         {dialog === 'period' && (
           <PeriodSheet ledgerId={ledgerId} periods={periods} current={pk} currency={currency} onSelect={selectPeriod} onClose={() => setDialog(null)} />
+        )}
+        {dialog === 'savings' && (
+          <SavingsSheet
+            ledgerId={ledgerId}
+            pk={pk}
+            period={period}
+            tabs={tabs}
+            tracks={data.tracks}
+            periods={periods}
+            currency={currency}
+            onOpenItem={(tid, iid) => {
+              setDialog(null);
+              openItem(tid, iid);
+            }}
+            onClose={() => setDialog(null)}
+          />
         )}
         {dialog === 'categories' && (
           <CategoriesSheet

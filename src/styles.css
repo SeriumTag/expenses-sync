@@ -401,6 +401,39 @@ input::placeholder, textarea::placeholder { color: var(--dim); }
 }
 .fav-pill:hover { background: #fff; transform: translateY(-1px); }
 .fav-pill .fav-icon { font-size: 15px; }
+.pot-pill { background: color-mix(in srgb, var(--ok) 16%, #fff); color: color-mix(in srgb, var(--ok) 70%, var(--text)); }
+.pot-pill:hover { background: color-mix(in srgb, var(--ok) 24%, #fff); }
+.pot-count {
+  min-width: 17px; height: 17px; padding: 0 5px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--ok); color: #fff; font-size: 10.5px; font-weight: 800;
+}
+
+/* Savings pots sheet */
+.pots-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.pots-summary > div {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 14px;
+  background: color-mix(in srgb, var(--ok) 10%, #fff);
+}
+.pots-summary b { font-size: 19px; font-variant-numeric: tabular-nums; }
+.pots-hint { margin: 0 0 10px; }
+.pots-list { display: flex; flex-direction: column; gap: 8px; }
+.pot-row { padding: 9px 10px; border-radius: 14px; background: #fff; box-shadow: var(--shadow-sm); border-left: 4px solid var(--line); }
+.pot-row.done { border-left-color: var(--ok); }
+.pot-top { display: flex; align-items: center; gap: 8px; }
+.pot-name {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font: inherit; color: var(--text); background: none; border: none; padding: 0; text-align: left; cursor: pointer;
+}
+.pot-target { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pot-bottom { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.pot-month { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--muted); }
+.pot-row.done .pot-month > span { color: var(--ok); }
+.pot-month input { width: 86px; padding: 4px 7px; font-size: 13px; }
+.pot-bars { flex: 1; display: flex; align-items: flex-end; gap: 2px; height: 26px; min-width: 60px; }
+.pot-bars span { flex: 1; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--ok) 30%, transparent); }
+.pot-bars span.logged { background: color-mix(in srgb, var(--ok) 70%, transparent); }
+.pot-bars span.now { outline: 1.5px solid var(--text); outline-offset: 0; }
+.pot-saved { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .pos { color: var(--ok); }
 .neg { color: var(--danger); }
 
