@@ -996,3 +996,14 @@ input::placeholder, textarea::placeholder { color: var(--dim); }
 }
 #app-error span { flex: 1; overflow-wrap: anywhere; }
 #app-error button { font: inherit; border: none; border-radius: 999px; padding: 6px 12px; cursor: pointer; background: var(--danger-soft); color: var(--danger); }
+
+/* Item bin & undo */
+.bin-note { margin: 12px 0 6px; }
+.undo-toast {
+  position: fixed; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 14px); z-index: 65;
+  max-width: 420px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--text); color: #fff; border-radius: 16px; padding: 10px 10px 10px 16px;
+  box-shadow: var(--shadow-lg); font-weight: 700; font-size: 14px; animation: fade-up 0.2s both;
+}
+.undo-toast span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.undo-toast button { flex-shrink: 0; font: inherit; font-weight: 800; border: none; border-radius: 999px; padding: 7px 14px; background: var(--accent); color: var(--on-accent); cursor: pointer; }

@@ -262,6 +262,58 @@ export function deleteItem(base, tabId, itemId) {
   return set(ref(db, `${base}/items/${tabId}/${itemId}`), null);
 }
 
+// ── Item bin ─────────────────────────────────────────────────────────
+// Deleted items are kept at ledgers/{id}/trash for BIN_DAYS with enough
+// context (month, head category) to put them back where they were.
+const trashEntry = (item, itemId, periodKey, tab, username) => ({
+  item,
+  itemId,
+  periodKey,
+  tabId: tab.id,
+  tabName: tab.name || '',
+  tabOrder: tab.order ?? null,
+  deletedAt: serverTimestamp(),
+  deletedBy: username,
+});
+
+export function trashItem(ledgerId, periodKey, tab, itemId, item, username) {
+  const trashId = push(ref(db, `ledgers/${ledgerId}/trash`)).key;
+  return update(ref(db, `ledgers/${ledgerId}`), {
+    [`periods/${periodKey}/items/${tab.id}/${itemId}`]: null,
+    [`trash/${trashId}`]: trashEntry(item, itemId, periodKey, tab, username),
+  }).then(() => trashId);
+}
+
+// Deleting a head category puts each of its items in the bin; restoring one
+// brings the head category back too.
+export function trashTab(ledgerId, periodKey, tab, items, username) {
+  const patch = {
+    [`periods/${periodKey}/tabs/${tab.id}`]: null,
+    [`periods/${periodKey}/items/${tab.id}`]: null,
+  };
+  for (const [itemId, item] of Object.entries(items || {})) {
+    patch[`trash/${push(ref(db, `ledgers/${ledgerId}/trash`)).key}`] = trashEntry(item, itemId, periodKey, tab, username);
+  }
+  return update(ref(db, `ledgers/${ledgerId}`), patch);
+}
+
+export async function restoreTrashed(ledgerId, trashId, entry) {
+  const tabPath = `periods/${entry.periodKey}/tabs/${entry.tabId}`;
+  const patch = {
+    [`trash/${trashId}`]: null,
+    [`periods/${entry.periodKey}/items/${entry.tabId}/${entry.itemId}`]: entry.item,
+  };
+  const tabSnap = await get(ref(db, `ledgers/${ledgerId}/${tabPath}`));
+  if (!tabSnap.exists()) patch[tabPath] = { name: entry.tabName || 'Restored', order: entry.tabOrder ?? Date.now() };
+  return update(ref(db, `ledgers/${ledgerId}`), patch);
+}
+
+export function purgeTrashed(ledgerId, trashIds) {
+  const patch = {};
+  trashIds.forEach((id) => (patch[id] = null));
+  return update(ref(db, `ledgers/${ledgerId}/trash`), patch);
+}
+
 // Merge several items into one item whose parts are the originals.
 // Each part keeps its own categories, so category pages can still list it on
 // its own; the merged item shows the shared category or "Mixed".

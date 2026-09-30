@@ -1,5 +1,5 @@
 import { FREQS, compareItem, findItem, groupCatLabel, inView, itemCats, monthlyOf, setAsideOf, yearOf, yearlyOf } from '../lib/budget';
-import { deleteItem, duplicateItems, ordersAfter, splitItem, updateItemField } from '../lib/db';
+import { duplicateItems, ordersAfter, splitItem, trashItem, updateItemField } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import CatField, { GroupCat } from './CatField';
 import { ChangeBadge, FreqPill } from './ChangeBadge';
@@ -12,7 +12,7 @@ import SavingsTracker from './SavingsTracker';
 // Pull-up card for one item: details, merged breakdown, savings tracking.
 export default function ItemSheet(props) {
   const { ledgerId, base, pk, tabId, tabName, itemId, item, periods, prevPeriod, prevLabel } = props;
-  const { tracks, categories, currency, username, view, siblings, onOpenItem, onClose } = props;
+  const { tracks, categories, currency, username, view, siblings, onOpenItem, onClose, tab, onTrashed } = props;
   const path = `${base}/items/${tabId}/${itemId}`;
   const key = (f) => `${pk}:item:${itemId}:${f}`;
   const save = (field) => (value) => updateItemField(base, tabId, itemId, field, value, username);
@@ -20,10 +20,11 @@ export default function ItemSheet(props) {
   const freq = item.freq === 'yearly' ? 'yearly' : 'monthly';
   const before = prevPeriod ? findItem(prevPeriod, itemId) : null;
 
+  // Deleting moves the item to the bin (restorable for 7 days), with Undo.
   async function remove() {
-    if (!window.confirm(`Delete “${item.name || 'this item'}”?`)) return;
     onClose();
-    await deleteItem(base, tabId, itemId);
+    const trashId = await trashItem(ledgerId, pk, { id: tabId, ...tab, name: tab?.name ?? tabName }, itemId, item, username);
+    onTrashed?.(trashId, item.name || 'Item');
   }
 
   async function duplicate() {

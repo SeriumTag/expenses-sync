@@ -24,7 +24,11 @@ import {
   copyPeriod,
   topOrder,
   addTab,
+  binExpired,
   deleteTab,
+  purgeTrashed,
+  restoreTrashed,
+  trashTab,
   migrateToPeriod,
   startEmptyPeriod,
   moveLedgerToBin,
@@ -39,6 +43,7 @@ import { hideSplash } from '../lib/splash';
 import { hueFor, partnerColor } from '../lib/theme';
 import { CategoriesSheet, CategoryPage } from './CategoryPage';
 import ImportDialog from './ImportDialog';
+import ItemBin from './ItemBin';
 import ItemList from './ItemList';
 import Loading from './Loading';
 import IconPicker from './IconPicker';
@@ -58,6 +63,10 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const [activeTab, setActiveTab] = useState(null);
   const [newTabId, setNewTabId] = useState(null);
   const [creatingPeriod, setCreatingPeriod] = useState(false);
+  const [binOpen, setBinOpen] = useState(false);
+  const [undo, setUndo] = useState(null); // { trashId, label } just after deleting an item
+  const undoTimer = useRef(null);
+  const purgingTrash = useRef(false);
   const [focusItemId, setFocusItemId] = useState(null);
   const [dialog, setDialog] = useState(null); // 'share' | 'theme' | 'import' | 'period' | 'categories'
   const [sheet, setSheet] = useState(null); // { type: 'item', tabId, itemId } | { type: 'person', id }
@@ -101,6 +110,21 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     if (!partner) return setPartnerTheme(null);
     return onValue(ref(db, `users/${partner}/theme`), (snap) => setPartnerTheme(snap.val()));
   }, [partner]);
+  // Items in the bin longer than 7 days are deleted for good (checked
+  // whenever someone has the account open).
+  useEffect(() => {
+    if (!data?.trash || purgingTrash.current) return;
+    const expired = Object.entries(data.trash)
+      .filter(([, t]) => t.deletedAt && binExpired(t.deletedAt))
+      .map(([id]) => id);
+    if (!expired.length) return;
+    purgingTrash.current = true;
+    purgeTrashed(ledgerId, expired)
+      .catch(() => {})
+      .finally(() => (purgingTrash.current = false));
+  }, [data?.trash, ledgerId]);
+  useEffect(() => () => clearTimeout(undoTimer.current), []);
+
   // Favourites are personal, so they live under the user, per account.
   useEffect(
     () => onValue(ref(db, `users/${username}/favs/${ledgerId}`), (snap) => setFavs(snap.val())),
@@ -217,11 +241,26 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     const viewer = Object.entries(presence.others).find(([, o]) => o.tab === `${pk}:${tabId}`)?.[0];
     const warning = [
       `Delete “${currentTab.name || 'Untitled'}” from ${periodLabel(pk)}${count ? ` with its ${count} item(s)` : ''}?`,
+      count ? `The items go to the bin for ${BIN_DAYS} days, where you can restore them.` : '',
       viewer ? `${viewer} is viewing it right now.` : '',
     ]
       .filter(Boolean)
-      .join('\n');
-    if (window.confirm(warning)) deleteTab(base, tabId);
+      .join('\n\n');
+    if (!window.confirm(warning)) return;
+    if (count) trashTab(ledgerId, pk, currentTab, period.items?.[tabId], username);
+    else deleteTab(base, tabId);
+  }
+
+  // "Moved to bin · Undo" for a few seconds after deleting an item.
+  function showUndo(trashId, label) {
+    clearTimeout(undoTimer.current);
+    setUndo({ trashId, label });
+    undoTimer.current = setTimeout(() => setUndo(null), 6000);
+  }
+  async function undoDelete() {
+    const entry = data.trash?.[undo?.trashId];
+    setUndo(null);
+    if (entry) await restoreTrashed(ledgerId, undo.trashId, entry);
   }
 
   function newAccount() {
@@ -265,12 +304,12 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
           partnerOnline={partnerOnline}
           username={username}
           connected={connected}
-          binCount={binCount}
+          binCount={binCount + Object.keys(data.trash || {}).length}
           onTheme={() => setDialog('theme')}
           onShare={() => setDialog('share')}
           onNewAccount={newAccount}
           onManageAccounts={onManageAccounts}
-          onOpenBin={onOpenBin}
+          onOpenBin={() => setBinOpen(true)}
           onDeleteAccount={binThisAccount}
           onLogout={onLogout}
         />
@@ -514,8 +553,32 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             view={view}
             siblings={period.items?.[sheet.tabId]}
             onOpenItem={(id) => setSheet({ type: 'item', tabId: sheet.tabId, itemId: id })}
+            tab={period.tabs?.[sheet.tabId]}
+            onTrashed={showUndo}
             onClose={() => setSheet(null)}
           />
+        )}
+        {binOpen && (
+          <ItemBin
+            ledgerId={ledgerId}
+            trash={data.trash}
+            currency={currency}
+            accountBinCount={binCount}
+            onOpenAccountBin={onOpenBin}
+            onRestored={(e) => {
+              if (e.periodKey !== pk) selectPeriod(e.periodKey);
+              setActiveTab(e.tabId);
+            }}
+            onClose={() => setBinOpen(false)}
+          />
+        )}
+        {undo && (
+          <div className="undo-toast" role="status">
+            <span>
+              “{undo.label}” moved to the bin
+            </span>
+            <button onClick={undoDelete}>Undo</button>
+          </div>
         )}
         {sheetPerson && (
           <PersonSheet
