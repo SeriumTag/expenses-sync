@@ -74,7 +74,7 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
   const yearSaved = rows.reduce((s, r) => s + r.saved, 0);
   const yearOut = rows.reduce((s, r) => s + r.withdrawn, 0);
   const inPots = rows.reduce((s, r) => s + r.balance, 0);
-  const doneCount = rows.filter((r) => r.month?.logged).length;
+  const doneCount = rows.filter((r) => r.month?.logged && !r.month.future).length;
   // Compact: one short card per pot. Detailed: start amount, withdrawals and history too.
   const [detailed, setDetailed] = useState(() => prefs.get('potsDetailed') ?? true);
   const pickView = (v) => {
@@ -165,7 +165,7 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
   }
 
   return (
-    <div className={`pot-row ${r.month?.logged ? 'done' : ''}`}>
+    <div className={`pot-row ${r.month?.logged && !r.month.future ? 'done' : ''}`}>
       <div className="pot-top">
         <PotIcon size={20} />
         <button className="pot-name" onClick={() => onOpenItem(r.tabId, r.id)}>
@@ -180,11 +180,13 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
 
       <div className="pot-bottom">
         <label className="pot-month">
-          <span>{r.month?.logged ? `✓ ${dueLabel}` : dueLabel}</span>
+          <span title={r.month?.future ? 'Not counted until this month comes' : undefined}>
+            {r.month?.future ? `${dueLabel} (upcoming)` : r.month?.logged ? `✓ ${dueLabel}` : dueLabel}
+          </span>
           <LiveInput
             {...moneyInput}
             fieldKey={`track:${r.id}:${due}`}
-            value={r.month?.logged ? r.month.value : null}
+            value={r.month?.entered ?? null}
             display={(v) => (v === null || v === undefined ? '' : formatMoney(v, currency))}
             onSave={(v) => setPath(`${trackPath}/log/${due}`, v)}
             placeholder={formatMoney(r.month?.planned ?? r.target, currency)}
@@ -197,8 +199,8 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
             return (
               <span
                 key={m.key}
-                className={`pot-col ${m.key === due ? 'now' : ''}`}
-                title={`${m.label}: saved ${m.value === null ? '—' : formatMoney(m.value, currency)}${out ? `, withdrew ${formatMoney(out, currency)}` : ''}`}
+                className={`pot-col ${m.key === due ? 'now' : ''} ${m.future ? 'future' : ''}`}
+                title={`${m.label}: ${m.future ? 'not yet (counts from this month)' : `saved ${m.value === null ? '—' : formatMoney(m.value, currency)}`}${out ? `, withdrew ${formatMoney(out, currency)}` : ''}`}
               >
                 <span className="pot-up">
                   <span className={m.logged ? 'logged' : ''} style={{ height: `${Math.max(6, ((Number(m.value) || 0) / best) * 100)}%` }} />
@@ -278,11 +280,12 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
           {showHistory && history.length > 0 && (
             <ul className="withdraw-list">
               {history.map((w) => (
-                <li key={w.id}>
+                <li key={w.id} className={w.date > today() ? 'upcoming' : ''}>
                   <span className="w-date">{dayName(w.date)}</span>
                   <span className="w-note">
                     {w.note || <span className="muted">No note</span>}
                     {w.by && <span className="muted small"> · {w.by}</span>}
+                    {w.date > today() && <span className="muted small"> · upcoming, not taken off yet</span>}
                   </span>
                   <b className="neg">−{formatMoney(w.amount, currency)}</b>
                   <button className="icon-btn" onClick={() => removeWithdrawal(w)} aria-label={`Remove withdrawal on ${dayName(w.date)}`}>
@@ -292,7 +295,7 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
               ))}
               <li className="w-total">
                 <span>Total withdrawn</span>
-                <b className="neg">−{formatMoney(history.reduce((s, w) => s + (Number(w.amount) || 0), 0), currency)}</b>
+                <b className="neg">−{formatMoney(history.reduce((s, w) => s + (w.date <= today() ? Number(w.amount) || 0 : 0), 0), currency)}</b>
               </li>
             </ul>
           )}

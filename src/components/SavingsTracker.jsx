@@ -18,12 +18,13 @@ export default function SavingsTracker({ ledgerId, itemId, year, log, periods, c
       </div>
       <div className="tracker-grid">
         {months.map((m) => (
-          <label key={m.key} className={`tracker-month ${m.logged ? 'logged' : ''}`}>
+          <label key={m.key} className={`tracker-month ${m.logged ? 'logged' : ''} ${m.future ? 'future' : ''}`}
+            title={m.future ? 'Not counted until this month comes' : undefined}>
             <span>{m.label}</span>
             <LiveInput
               fieldKey={`track:${itemId}:${m.key}`}
               inputMode="decimal"
-              value={m.value}
+              value={m.future ? m.entered : m.value}
               format={(v) => (v === null || v === undefined ? '' : String(v))}
               display={(v) => (v === null || v === undefined ? '' : formatMoney(v, currency))}
               parse={(text) => (text.trim() === '' ? null : parseAmount(text))}
@@ -35,7 +36,7 @@ export default function SavingsTracker({ ledgerId, itemId, year, log, periods, c
         ))}
       </div>
       <p className="muted small">
-        Months fill in from each month’s budget. Type to adjust a month; clear it to go back to the budget.
+        Months fill in from each month’s budget. Type to adjust a month; clear it to go back to the budget. Future months count as $0 until they come.
       </p>
     </div>
   );

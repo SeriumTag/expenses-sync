@@ -856,6 +856,10 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .tracker-month { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); font-weight: 800; }
 .tracker-month input { padding: 7px 8px; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
 .tracker-month.logged input { background: var(--ok-soft); }
+.tracker-month.future { opacity: 0.55; }
+.tracker-month.future input { background: transparent; border: 1px dashed var(--line); }
+.pot-col.future { opacity: 0.35; }
+.withdraw-list li.upcoming { opacity: 0.6; }
 
 /* ───────── Period picker ───────── */
 .year-step { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 12px; }

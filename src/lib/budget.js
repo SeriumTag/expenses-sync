@@ -174,13 +174,18 @@ export function compareItem(item, itemId, prevPeriod) {
 // ── Savings tracking ────────────────────────────────────────────────
 // A tracked item's log is kept per month ("2026-02": 150). Months without an
 // entry fall back to that month's budget, if there is one.
+// Months that haven't come yet count as nothing saved — even if an amount is
+// budgeted or typed in — until the month arrives. `entered` keeps what was typed.
 export function savingsMonths(year, itemId, log, periods) {
+  const thisMonth = new Date().toLocaleDateString('en-CA').slice(0, 7);
   return MONTHS.map((label, i) => {
     const key = monthKey(year, i);
     const logged = log?.[key];
+    const hasLog = logged !== undefined && logged !== null;
     const fromBudget = periods?.[key] ? findItem(periods[key], itemId) : null;
-    const value = logged ?? (fromBudget ? Math.round(monthlyOf(fromBudget.item) * 100) / 100 : null);
-    return { key, label, value, logged: logged !== undefined && logged !== null, planned: fromBudget ? monthlyOf(fromBudget.item) : null };
+    const future = key > thisMonth;
+    const value = future ? null : hasLog ? logged : fromBudget ? Math.round(monthlyOf(fromBudget.item) * 100) / 100 : null;
+    return { key, label, value, future, logged: hasLog, entered: hasLog ? logged : null, planned: fromBudget ? monthlyOf(fromBudget.item) : null };
   });
 }
 export const savingsTotal = (months) => months.reduce((s, m) => s + (Number(m.value) || 0), 0);
@@ -197,9 +202,10 @@ export function potBalance(itemId, track, periods, upTo) {
   for (let y = Number(since.slice(0, 4)); y <= Number(upTo.slice(0, 4)); y++) {
     total += savingsTotal(savingsMonths(y, itemId, track?.log, periods).filter((m) => m.key >= since && m.key <= upTo));
   }
+  const today = new Date().toLocaleDateString('en-CA');
   for (const w of withdrawalList(track)) {
     const month = w.date.slice(0, 7);
-    if (month >= since && month <= upTo) total -= Number(w.amount) || 0;
+    if (month >= since && month <= upTo && w.date <= today) total -= Number(w.amount) || 0;
   }
   return total;
 }
@@ -213,11 +219,12 @@ export function withdrawalList(track) {
     .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
 }
 
-// Total withdrawn in each month of `year` ("YYYY-MM" → amount).
+// Total withdrawn in each month of `year` ("YYYY-MM" → amount), up to today.
 export function withdrawnByMonth(track, year) {
   const out = {};
+  const today = new Date().toLocaleDateString('en-CA');
   for (const w of withdrawalList(track)) {
-    if (w.date.startsWith(`${year}-`)) out[w.date.slice(0, 7)] = (out[w.date.slice(0, 7)] || 0) + (Number(w.amount) || 0);
+    if (w.date.startsWith(`${year}-`) && w.date <= today) out[w.date.slice(0, 7)] = (out[w.date.slice(0, 7)] || 0) + (Number(w.amount) || 0);
   }
   return out;
 }
