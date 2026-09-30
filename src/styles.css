@@ -416,6 +416,7 @@ input::placeholder, textarea::placeholder { color: var(--dim); }
 }
 .pots-summary b { font-size: 19px; font-variant-numeric: tabular-nums; }
 .pots-hint { margin: 0 0 10px; }
+.pots-view { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 8px; }
 .pots-list { display: flex; flex-direction: column; gap: 8px; }
 .pot-row { padding: 9px 10px; border-radius: 14px; background: #fff; box-shadow: var(--shadow-sm); border-left: 4px solid var(--line); }
 .pot-row.done { border-left-color: var(--ok); }

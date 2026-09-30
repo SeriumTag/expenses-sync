@@ -15,6 +15,7 @@ import {
 } from '../lib/budget';
 import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
+import { prefs } from '../lib/session';
 import LiveInput from './LiveInput';
 import Modal from './Modal';
 import PotIcon from './PotIcon';
@@ -74,6 +75,12 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
   const yearOut = rows.reduce((s, r) => s + r.withdrawn, 0);
   const inPots = rows.reduce((s, r) => s + r.balance, 0);
   const doneCount = rows.filter((r) => r.month?.logged).length;
+  // Compact: one short card per pot. Detailed: start amount, withdrawals and history too.
+  const [detailed, setDetailed] = useState(() => prefs.get('potsDetailed') ?? true);
+  const pickView = (v) => {
+    setDetailed(v);
+    prefs.set('potsDetailed', v);
+  };
 
   return (
     <Modal title="Savings pots" onClose={onClose}>
@@ -95,6 +102,19 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
         </div>
       </div>
       {rows.length > 0 && (
+        <div className="pots-view">
+          <span className="muted small">View</span>
+          <div className="seg" role="group" aria-label="Savings pots view">
+            <button className={!detailed ? 'on' : ''} aria-pressed={!detailed} onClick={() => pickView(false)}>
+              Compact
+            </button>
+            <button className={detailed ? 'on' : ''} aria-pressed={detailed} onClick={() => pickView(true)}>
+              Detailed
+            </button>
+          </div>
+        </div>
+      )}
+      {rows.length > 0 && (
         <p className="muted small pots-hint">
           {doneCount} of {rows.length} recorded for {dueLabel}. Type what you actually put in; blank uses the budget.
         </p>
@@ -104,14 +124,14 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
 
       <div className="pots-list">
         {rows.map((r) => (
-          <PotRow key={r.id} r={r} ledgerId={ledgerId} due={due} year={year} currency={currency} username={username} onOpenItem={onOpenItem} />
+          <PotRow key={r.id} r={r} detailed={detailed} ledgerId={ledgerId} due={due} year={year} currency={currency} username={username} onOpenItem={onOpenItem} />
         ))}
       </div>
     </Modal>
   );
 }
 
-function PotRow({ r, ledgerId, due, year, currency, username, onOpenItem }) {
+function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenItem }) {
   const dueLabel = MONTHS[monthIndexOf(due)];
   const trackPath = `ledgers/${ledgerId}/tracks/${r.id}`;
   const history = withdrawalList(r.track);
@@ -195,84 +215,88 @@ function PotRow({ r, ledgerId, due, year, currency, username, onOpenItem }) {
         </span>
       </div>
 
-      <div className="pot-capital">
-        <label className="pot-month">
-          <span title="Money already in this pot before you started tracking">Start amount</span>
-          <LiveInput
-            {...moneyInput}
-            fieldKey={`track:${r.id}:start`}
-            value={r.track?.start?.amount ?? null}
-            display={(v) => (v === null || v === undefined ? '' : formatMoney(v, currency))}
-            onSave={saveStart}
-            placeholder={formatMoney(0, currency)}
-            aria-label={`${r.item.name} amount already saved`}
-          />
-        </label>
-        <span className="muted small pot-since">{r.track?.start ? `before ${monthName(r.track.start.since)}` : 'already saved, if any'}</span>
-        <span className="pot-balance">
-          <span className="muted small">In pot</span>
-          <b className={r.balance < 0 ? 'neg' : 'pos'}>{formatMoney(r.balance, currency)}</b>
-        </span>
-      </div>
-
-      <div className="pot-actions">
-        <button className="btn ghost sm" onClick={() => setForm(form ? null : { amount: '', date: today(), note: '' })}>
-          {form ? 'Cancel' : '− Withdraw'}
-        </button>
-        {history.length > 0 && (
-          <button className="btn ghost sm" onClick={() => setShowHistory((v) => !v)} aria-expanded={showHistory}>
-            {showHistory ? '▾' : '▸'} Withdrawals ({history.length})
-          </button>
-        )}
-      </div>
-
-      {form && (
-        <form className="withdraw-form" onSubmit={addWithdrawal}>
-          <label>
-            <span>Amount</span>
-            <input
-              autoFocus
-              inputMode="decimal"
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
-              placeholder={formatMoney(0, currency)}
-              aria-label="Amount withdrawn"
-            />
-          </label>
-          <label>
-            <span>Date</span>
-            <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} aria-label="Date withdrawn" />
-          </label>
-          <label className="wide">
-            <span>Reason / note</span>
-            <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="e.g. Paid the insurance premium" aria-label="Reason for withdrawing" />
-          </label>
-          <button className="btn primary sm" disabled={!(parseAmount(form.amount) > 0) || !form.date}>
-            Record withdrawal
-          </button>
-        </form>
-      )}
-
-      {showHistory && history.length > 0 && (
-        <ul className="withdraw-list">
-          {history.map((w) => (
-            <li key={w.id}>
-              <span className="w-date">{dayName(w.date)}</span>
-              <span className="w-note">
-                {w.note || <span className="muted">No note</span>}
-                {w.by && <span className="muted small"> · {w.by}</span>}
-              </span>
-              <b className="neg">−{formatMoney(w.amount, currency)}</b>
-              <button className="icon-btn" onClick={() => removeWithdrawal(w)} aria-label={`Remove withdrawal on ${dayName(w.date)}`}>
-                ✕
+      {detailed && (
+        <>
+          <div className="pot-capital">
+            <label className="pot-month">
+              <span title="Money already in this pot before you started tracking">Start amount</span>
+              <LiveInput
+                {...moneyInput}
+                fieldKey={`track:${r.id}:start`}
+                value={r.track?.start?.amount ?? null}
+                display={(v) => (v === null || v === undefined ? '' : formatMoney(v, currency))}
+                onSave={saveStart}
+                placeholder={formatMoney(0, currency)}
+                aria-label={`${r.item.name} amount already saved`}
+              />
+            </label>
+            <span className="muted small pot-since">{r.track?.start ? `before ${monthName(r.track.start.since)}` : 'already saved, if any'}</span>
+            <span className="pot-balance">
+              <span className="muted small">In pot</span>
+              <b className={r.balance < 0 ? 'neg' : 'pos'}>{formatMoney(r.balance, currency)}</b>
+            </span>
+          </div>
+    
+          <div className="pot-actions">
+            <button className="btn ghost sm" onClick={() => setForm(form ? null : { amount: '', date: today(), note: '' })}>
+              {form ? 'Cancel' : '− Withdraw'}
+            </button>
+            {history.length > 0 && (
+              <button className="btn ghost sm" onClick={() => setShowHistory((v) => !v)} aria-expanded={showHistory}>
+                {showHistory ? '▾' : '▸'} Withdrawals ({history.length})
               </button>
-            </li>
-          ))}
-          <li className="w-total">
-            <span>Total withdrawn</span>
-            <b className="neg">−{formatMoney(history.reduce((s, w) => s + (Number(w.amount) || 0), 0), currency)}</b>
-          </li>
-        </ul>
+            )}
+          </div>
+    
+          {form && (
+            <form className="withdraw-form" onSubmit={addWithdrawal}>
+              <label>
+                <span>Amount</span>
+                <input
+                  autoFocus
+                  inputMode="decimal"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                  placeholder={formatMoney(0, currency)}
+                  aria-label="Amount withdrawn"
+                />
+              </label>
+              <label>
+                <span>Date</span>
+                <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} aria-label="Date withdrawn" />
+              </label>
+              <label className="wide">
+                <span>Reason / note</span>
+                <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="e.g. Paid the insurance premium" aria-label="Reason for withdrawing" />
+              </label>
+              <button className="btn primary sm" disabled={!(parseAmount(form.amount) > 0) || !form.date}>
+                Record withdrawal
+              </button>
+            </form>
+          )}
+    
+          {showHistory && history.length > 0 && (
+            <ul className="withdraw-list">
+              {history.map((w) => (
+                <li key={w.id}>
+                  <span className="w-date">{dayName(w.date)}</span>
+                  <span className="w-note">
+                    {w.note || <span className="muted">No note</span>}
+                    {w.by && <span className="muted small"> · {w.by}</span>}
+                  </span>
+                  <b className="neg">−{formatMoney(w.amount, currency)}</b>
+                  <button className="icon-btn" onClick={() => removeWithdrawal(w)} aria-label={`Remove withdrawal on ${dayName(w.date)}`}>
+                    ✕
+                  </button>
+                </li>
+              ))}
+              <li className="w-total">
+                <span>Total withdrawn</span>
+                <b className="neg">−{formatMoney(history.reduce((s, w) => s + (Number(w.amount) || 0), 0), currency)}</b>
+              </li>
+            </ul>
+          )}
+        </>
       )}
     </div>
   );
