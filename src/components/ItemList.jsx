@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { FREQS, byCategory, setAsideTab, sorted, tabInView } from '../lib/budget';
 import { prefs } from '../lib/session';
-import { duplicateItems, mergeItems, moved, ordersAfter, reorderItems, updateItemField } from '../lib/db';
+import { duplicateItems, mergeItems, ordersAfter, reorderItems, updateItemField } from '../lib/db';
+import { reordered, useDragSort } from '../hooks/useDragSort';
 import { formatMoney } from '../lib/format';
 import ItemRow from './ItemRow';
 
@@ -58,16 +59,20 @@ export default function ItemList(props) {
       return next;
     });
 
-  const move = (id, dir) =>
-    reorderItems(
-      base,
-      tabId,
-      moved(
-        rows.map((r) => r.id),
-        id,
-        dir,
+  // Drag an item by its number (or its grip in Reorder mode) to a new place.
+  const drag = useDragSort({
+    scope: `items-${tabId}`,
+    onDrop: ({ id, index }) =>
+      reorderItems(
+        base,
+        tabId,
+        reordered(
+          rows.map((r) => r.id),
+          id,
+          index,
+        ),
       ),
-    );
+  });
 
   async function copySelected() {
     const chosen = rows.filter((r) => picked.has(r.id));
@@ -146,7 +151,7 @@ export default function ItemList(props) {
               <button className="btn primary sm" onClick={() => switchMode('normal')}>
                 {mode === 'reorder' ? 'Done' : 'Cancel'}
               </button>
-              <span className="mode-hint">{mode === 'reorder' ? 'Use ▲ ▼ to move items' : 'Tap items to copy or merge'}</span>
+              <span className="mode-hint">{mode === 'reorder' ? 'Drag ⠿ to move items' : 'Tap items to copy or merge'}</span>
             </>
           )}
         </div>
@@ -161,6 +166,7 @@ export default function ItemList(props) {
         )}
       </div>
 
+      <div className="ep-rows" {...drag.groupProps()}>
       {rows.map((item, i) => (
         <ItemRow
           key={item.id}
@@ -180,12 +186,12 @@ export default function ItemList(props) {
           onOpen={() => onOpenItem(tabId, item.id)}
           expanded={expanded.has(item.id)}
           onToggle={() => toggleExpand(item.id)}
-          onMove={(dir) => move(item.id, dir)}
-          isFirst={i === 0}
-          isLast={i === rows.length - 1}
+          dragItem={mode === 'select' ? null : drag.itemProps(item.id)}
+          dragHandle={mode === 'select' ? null : drag.handleProps(item.id)}
           ctx={ctx}
         />
       ))}
+      </div>
 
       {selecting ? (
         <div className="select-bar">

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { FREQS, amountInView, itemsInCategory, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
-import { moved, newKey, patchPath, reorderCategoryEntries, setPath } from '../lib/db';
+import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney } from '../lib/format';
+import { reordered, useDragSort } from '../hooks/useDragSort';
 import LiveInput from './LiveInput';
 import PotIcon from './PotIcon';
 import Modal from './Modal';
@@ -70,20 +71,6 @@ export function CategoryPage(props) {
   const subs = sorted(catData?.subs);
   const fields = sorted(catData?.fields);
   const [newField, setNewField] = useState(null); // { name, type }
-  const [reordering, setReordering] = useState(false);
-
-  // Moving within a group rewrites the order of everything on the page, so
-  // the other groups keep their places too.
-  const moveEntry = (groupRows, id, dir) => {
-    const groupIds = moved(
-      groupRows.map((e) => e.id),
-      id,
-      dir,
-    );
-    const inGroup = new Set(groupIds);
-    const rest = entries.map((e) => e.id).filter((x) => !inGroup.has(x));
-    reorderCategoryEntries(ledgerId, catKeyValue, [...groupIds, ...rest]);
-  };
 
   const counted = entries.filter((e) => !meta[e.id]?.exclude);
   const amount = (e) => amountInView(e.item, e.id, view, ctx);
@@ -104,15 +91,6 @@ export function CategoryPage(props) {
     Object.entries(meta).forEach(([id, m]) => m.sub === s.id && (patch[`entries/${id}/sub`] = null));
     patchPath(path, patch);
   };
-  const moveField = (id, dir) => {
-    const patch = {};
-    moved(
-      fields.map((f) => f.id),
-      id,
-      dir,
-    ).forEach((fid, i) => (patch[`fields/${fid}/order`] = (i + 1) * 1000));
-    patchPath(path, patch);
-  };
   const removeField = (f) => {
     if (!window.confirm(`Remove the “${f.name}” field and what’s been typed in it?`)) return;
     const patch = { [`fields/${f.id}`]: null };
@@ -123,7 +101,39 @@ export function CategoryPage(props) {
   const groups = [
     ...subs.map((s) => ({ sub: s, rows: entries.filter((e) => meta[e.id]?.sub === s.id) })),
     { sub: null, rows: entries.filter((e) => !subs.some((s) => s.id === meta[e.id]?.sub)) },
-  ].filter((g) => g.sub || g.rows.length);
+  ].filter((g) => g.sub || g.rows.length || subs.length);
+
+  // Drag an item (by its grip, or press and hold) to a new place — including
+  // into another subcategory. The whole page's order is rewritten so every
+  // group keeps its places.
+  const drag = useDragSort({
+    scope: `cat-${catKeyValue}`,
+    onDrop: ({ id, toGroup, index }) => {
+      const patch = {};
+      const order = groups.flatMap((g) => {
+        const key = g.sub?.id || 'none';
+        const ids = g.rows.map((e) => e.id).filter((x) => x !== id);
+        return key === toGroup ? reordered([...ids, id], id, index) : ids;
+      });
+      order.forEach((eid, i) => (patch[`entries/${eid}/order`] = (i + 1) * 1000));
+      patch[`entries/${id}/sub`] = toGroup === 'none' ? null : toGroup;
+      patchPath(path, patch);
+    },
+  });
+  // Field chips drag sideways.
+  const fieldDrag = useDragSort({
+    scope: `fields-${catKeyValue}`,
+    axis: 'x',
+    onDrop: ({ id, index }) => {
+      const patch = {};
+      reordered(
+        fields.map((f) => f.id),
+        id,
+        index,
+      ).forEach((fid, i) => (patch[`fields/${fid}/order`] = (i + 1) * 1000));
+      patchPath(path, patch);
+    },
+  });
 
   return (
     <section className="cat-page">
@@ -161,40 +171,29 @@ export function CategoryPage(props) {
         <button className="btn glass sm" onClick={() => setNewField({ name: '', type: 'text' })}>
           ＋ Field
         </button>
-        {(entries.length > 1 || fields.length > 1) && (
-          <button className={`btn sm ${reordering ? 'primary' : 'glass'}`} onClick={() => setReordering((r) => !r)}>
-            {reordering ? 'Done' : '⇅ Reorder'}
-          </button>
-        )}
+        {(entries.length > 1 || subs.length > 0) && <span className="mode-hint">Drag ⠿ to move or regroup</span>}
       </div>
       {fields.length > 0 && (
-        <div className="field-chips" aria-label="Fields">
-        {fields.map((f, i) => (
-          <span key={f.id} className={`field-chip ${reordering ? 'moving' : ''}`}>
-            {reordering && (
-              <button className="icon-btn" onClick={() => moveField(f.id, -1)} disabled={i === 0} aria-label={`Move ${f.name} left`}>
-                ◀
-              </button>
-            )}
-            <LiveInput
-              fieldKey={`cat:${catKeyValue}:field:${f.id}`}
-              value={f.name}
-              onSave={(v) => patchPath(`${path}/fields/${f.id}`, { name: v })}
-              aria-label="Field name"
-              disabled={reordering}
-            />
-            <small title={`${FIELD_TYPES[f.type] || 'Text'} field`}>{TYPE_ICONS[f.type] || 'T'}</small>
-            {reordering ? (
-              <button className="icon-btn" onClick={() => moveField(f.id, 1)} disabled={i === fields.length - 1} aria-label={`Move ${f.name} right`}>
-                ▶
-              </button>
-            ) : (
+        <div className="field-chips" aria-label="Fields" {...fieldDrag.groupProps()}>
+          {fields.map((f) => (
+            <span key={f.id} className="field-chip" {...fieldDrag.itemProps(f.id)}>
+              {fields.length > 1 && (
+                <span className="grip drag-handle" title="Drag to move" aria-label={`Drag ${f.name} to move it`} {...fieldDrag.handleProps(f.id)}>
+                  ⠿
+                </span>
+              )}
+              <LiveInput
+                fieldKey={`cat:${catKeyValue}:field:${f.id}`}
+                value={f.name}
+                onSave={(v) => patchPath(`${path}/fields/${f.id}`, { name: v })}
+                aria-label="Field name"
+              />
+              <small title={`${FIELD_TYPES[f.type] || 'Text'} field`}>{TYPE_ICONS[f.type] || 'T'}</small>
               <button className="icon-btn" aria-label={`Remove ${f.name}`} onClick={() => removeField(f)}>
                 ✕
               </button>
-            )}
-          </span>
-        ))}
+            </span>
+          ))}
         </div>
       )}
       {newField && (
@@ -229,8 +228,9 @@ export function CategoryPage(props) {
 
       {groups.map((g) => {
         const subTotal = g.rows.filter((e) => !meta[e.id]?.exclude).reduce((s, e) => s + amount(e), 0);
+        const groupKey = g.sub?.id || 'none';
         return (
-          <div key={g.sub?.id || 'none'} className="sub-group">
+          <div key={groupKey} className="sub-group" {...drag.groupProps(groupKey)}>
             <div className="sub-head">
               {g.sub ? (
                 <LiveInput
@@ -250,13 +250,16 @@ export function CategoryPage(props) {
                 </button>
               )}
             </div>
-            {g.rows.length === 0 && <p className="muted small">Nothing here yet. Move items in using their subcategory menu.</p>}
-            {g.rows.map((e, i) => {
+            {g.rows.length === 0 && <p className="drop-empty">Drag items here</p>}
+            {g.rows.map((e) => {
               const m = meta[e.id] || {};
               const tracked = e.item.track ? savingsTotal(savingsMonths(yearOf(pk), e.id, tracks?.[e.id]?.log, periods)) : null;
               return (
-                <div key={e.id} className={`cat-entry ${m.exclude ? 'excluded' : ''}`}>
+                <div key={e.id} className={`cat-entry ${m.exclude ? 'excluded' : ''}`} {...drag.itemProps(e.id, groupKey)}>
                   <div className="cat-entry-top">
+                    <span className="grip drag-handle" title="Drag to move" aria-label={`Drag ${e.item.name} to move it`} {...drag.handleProps(e.id, groupKey)}>
+                      ⠿
+                    </span>
                     <input
                       type="checkbox"
                       className="pick"
@@ -275,21 +278,6 @@ export function CategoryPage(props) {
                       {formatMoney(amount(e), currency)}
                       <span className="per-small">{FREQS[view].short}</span>
                     </b>
-                    {reordering && (
-                      <span className="move-btns">
-                        <button className="icon-btn" onClick={() => moveEntry(g.rows, e.id, -1)} disabled={i === 0} aria-label={`Move ${e.item.name} up`}>
-                          ▲
-                        </button>
-                        <button
-                          className="icon-btn"
-                          onClick={() => moveEntry(g.rows, e.id, 1)}
-                          disabled={i === g.rows.length - 1}
-                          aria-label={`Move ${e.item.name} down`}
-                        >
-                          ▼
-                        </button>
-                      </span>
-                    )}
                   </div>
                   {e.item.note && <p className="cat-entry-note">{e.item.note}</p>}
                   {tracked !== null && (

@@ -3,6 +3,7 @@ import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import CatField from './CatField';
 import { FreqPill } from './ChangeBadge';
+import { reordered, useDragSort } from '../hooks/useDragSort';
 import LiveInput from './LiveInput';
 
 // The breakdown inside a merged item, e.g. Kids Insurance → PA (Arissa) $211.08/yr …
@@ -14,6 +15,19 @@ export default function PartsList({ path, lockPrefix, item, currency, globalView
   const count = parts.length;
 
   const savePart = (pid, field) => (value) => item.parts?.[pid] && patchPath(`${path}/parts/${pid}`, { [field]: value });
+  // Drag parts by their grip to reorder them.
+  const drag = useDragSort({
+    scope: `parts-${lockPrefix}`,
+    onDrop: ({ id, index }) => {
+      const patch = {};
+      reordered(
+        parts.map((p) => p.id),
+        id,
+        index,
+      ).forEach((pid, i) => (patch[`parts/${pid}/order`] = i));
+      patchPath(path, patch);
+    },
+  });
   const addPart = () =>
     patchPath(`${path}/parts/${newKey(`${path}/parts`)}`, { name: '', amount: 0, freq: 'monthly', category: '', order: Date.now() });
 
@@ -34,9 +48,12 @@ export default function PartsList({ path, lockPrefix, item, currency, globalView
         <span>Show each part’s {view === 'yearly' ? 'yearly' : 'monthly'} amount</span>
       </label>
 
-      <div className="parts">
+      <div className="parts" {...drag.groupProps()}>
         {parts.map((p) => (
-          <div key={p.id} className="part">
+          <div key={p.id} className="part" {...drag.itemProps(p.id)}>
+            <span className="grip part-grip drag-handle" title="Drag to move" aria-label={`Drag ${p.name || 'part'} to move it`} {...drag.handleProps(p.id)}>
+              ⠿
+            </span>
             <div className="part-main">
               <LiveInput
                 className="part-name"

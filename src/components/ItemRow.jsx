@@ -12,7 +12,7 @@ const FIELDS = ['name', 'category', 'note', 'amount'];
 // Notes and details live in the item's card (›).
 export default function ItemRow(props) {
   const { item, index, pk, tabId, prevPeriod, prevLabel, currency, view, save, focus } = props;
-  const { mode, picked, onPick, onOpen, expanded, onToggle, onMove, isFirst, isLast, ctx } = props;
+  const { mode, picked, onPick, onOpen, expanded, onToggle, dragItem, dragHandle, ctx } = props;
   const { lockFor, colorFor } = usePresenceCtx();
   const key = (f) => `${pk}:item:${item.id}:${f}`;
   const editor = FIELDS.map((f) => lockFor(key(f))).find(Boolean);
@@ -36,10 +36,17 @@ export default function ItemRow(props) {
       className={`ep ${editor ? 'remote' : ''} ${change ? 'changed' : ''} ${picked ? 'picked' : ''} ${reordering ? 'reordering' : ''}`}
       style={editor ? { '--c': colorFor(editor.user) } : undefined}
       onClick={selecting ? onPick : undefined}
+      {...(dragItem || {})}
     >
-      <span className="ep-num">
-        {selecting ? <input type="checkbox" className="pick" checked={picked} readOnly aria-label={`Select ${item.name}`} /> : index + 1}
-      </span>
+      {selecting ? (
+        <span className="ep-num">
+          <input type="checkbox" className="pick" checked={picked} readOnly aria-label={`Select ${item.name}`} />
+        </span>
+      ) : (
+        <span className="ep-num drag-handle" title="Drag to move" {...(dragHandle || {})}>
+          {index + 1}
+        </span>
+      )}
 
       <div className="ep-line">
         {item.track && <PotIcon size={17} />}
@@ -115,13 +122,8 @@ export default function ItemRow(props) {
       </div>
 
       {reordering ? (
-        <span className="move-btns ep-more">
-          <button className="icon-btn" onClick={() => onMove(-1)} disabled={isFirst} aria-label={`Move ${item.name} up`}>
-            ▲
-          </button>
-          <button className="icon-btn" onClick={() => onMove(1)} disabled={isLast} aria-label={`Move ${item.name} down`}>
-            ▼
-          </button>
+        <span className="grip ep-more drag-handle" title="Drag to move" aria-label={`Drag ${item.name} to move it`} {...(dragHandle || {})}>
+          ⠿
         </span>
       ) : (
         <button
