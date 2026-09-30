@@ -185,6 +185,20 @@ export function savingsMonths(year, itemId, log, periods) {
 }
 export const savingsTotal = (months) => months.reduce((s, m) => s + (Number(m.value) || 0), 0);
 
+// What's in a pot up to and including month `upTo`: the starting amount the
+// user already had (track.start = { amount, since: "YYYY-MM" }) plus every
+// month saved from `since` onward. Without a start, it's just the saving from
+// January of `upTo`'s year.
+export function potBalance(itemId, track, periods, upTo) {
+  const start = track?.start;
+  const since = start?.since || `${upTo.slice(0, 4)}-01`;
+  let total = Number(start?.amount) || 0;
+  for (let y = Number(since.slice(0, 4)); y <= Number(upTo.slice(0, 4)); y++) {
+    total += savingsTotal(savingsMonths(y, itemId, track?.log, periods).filter((m) => m.key >= since && m.key <= upTo));
+  }
+  return total;
+}
+
 // ── Amounts in the chosen view ──────────────────────────────────────
 // ctx = { year, tracks, periods }. In the yearly view a savings-tracked item
 // counts what was actually put in month by month that year, not monthly × 12.

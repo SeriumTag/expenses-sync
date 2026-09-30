@@ -1,4 +1,4 @@
-import { MONTHS, isYearKey, monthIndexOf, monthKey, monthlyOf, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
+import { MONTHS, isYearKey, monthIndexOf, monthKey, monthlyOf, potBalance, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
 import { setPath } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import LiveInput from './LiveInput';
@@ -33,10 +33,16 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
   const rows = pots.map((p) => {
     const months = savingsMonths(year, p.id, tracks?.[p.id]?.log, periods);
     const month = months.find((m) => m.key === due);
-    return { ...p, months, month, target: monthlyOf(p.item), saved: savingsTotal(months) };
+    const track = tracks?.[p.id];
+    return { ...p, months, month, track, target: monthlyOf(p.item), saved: savingsTotal(months), balance: potBalance(p.id, track, periods, due) };
   });
   const monthTarget = rows.reduce((s, r) => s + r.target, 0);
   const yearSaved = rows.reduce((s, r) => s + r.saved, 0);
+  const inPots = rows.reduce((s, r) => s + r.balance, 0);
+  const monthName = (k) => `${MONTHS[monthIndexOf(k)]} ${yearOf(k)}`;
+  // Money already in the pot before tracking began; months count from `since` on.
+  const saveStart = (r) => (v) =>
+    setPath(`ledgers/${ledgerId}/tracks/${r.id}/start`, v ? { amount: v, since: r.track?.start?.since || due } : null);
   const doneCount = rows.filter((r) => r.month?.logged).length;
 
   return (
@@ -50,8 +56,11 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
           </b>
         </div>
         <div>
-          <span className="muted small">Saved in {year}</span>
-          <b className="pos">{formatMoney(yearSaved, currency)}</b>
+          <span className="muted small">In pots now</span>
+          <b className="pos">{formatMoney(inPots, currency)}</b>
+          <span className="muted small">
+            {formatMoney(yearSaved, currency)} saved in {year}
+          </span>
         </div>
       </div>
       {rows.length > 0 && (
@@ -105,7 +114,28 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
                 </div>
                 <span className="pot-saved">
                   <span className="muted small">{year}</span>
-                  <b className="pos">{formatMoney(r.saved, currency)}</b>
+                  <b>{formatMoney(r.saved, currency)}</b>
+                </span>
+              </div>
+              <div className="pot-capital">
+                <label className="pot-month">
+                  <span title="Money already in this pot before you started tracking">Start amount</span>
+                  <LiveInput
+                    fieldKey={`track:${r.id}:start`}
+                    inputMode="decimal"
+                    value={r.track?.start?.amount ?? null}
+                    format={(v) => (v === null || v === undefined ? '' : String(v))}
+                    display={(v) => (v === null || v === undefined ? '' : formatMoney(v, currency))}
+                    parse={(text) => (text.trim() === '' ? null : parseAmount(text))}
+                    onSave={saveStart(r)}
+                    placeholder={formatMoney(0, currency)}
+                    aria-label={`${r.item.name} amount already saved`}
+                  />
+                </label>
+                <span className="muted small pot-since">{r.track?.start ? `before ${monthName(r.track.start.since)}` : 'already saved, if any'}</span>
+                <span className="pot-balance">
+                  <span className="muted small">In pot</span>
+                  <b className="pos">{formatMoney(r.balance, currency)}</b>
                 </span>
               </div>
             </div>
