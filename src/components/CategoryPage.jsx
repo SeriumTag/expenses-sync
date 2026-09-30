@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FREQS, amountInView, itemsInCategory, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
+import { FREQS, amountInView, catKey, itemsInCategory, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
 import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney } from '../lib/format';
 import { reordered, useDragSort } from '../hooks/useDragSort';
@@ -61,7 +61,7 @@ export function FavButton({ fav, label, onClick }) {
 // subcategories, extra fields and choice of what counts toward the total.
 export function CategoryPage(props) {
   const { ledgerId, pk, period, periods, catKeyValue, label, catData, tracks, currency, view, onViewChange, onBack, onOpenItem, ctx } = props;
-  const { fav, onFav } = props;
+  const { fav, onFav, onOpenCategory, backLabel } = props;
   const path = `ledgers/${ledgerId}/categories/${catKeyValue}`;
   const meta = catData?.entries || {};
   // Your own order first (from Reorder), then the order items appear in their lists.
@@ -138,7 +138,7 @@ export function CategoryPage(props) {
   return (
     <section className="cat-page">
       <button className="btn ghost sm back" onClick={onBack}>
-        ‹ Back
+        ‹ {backLabel || 'Back'}
       </button>
       <div className="kicker">Category</div>
       <div className="cat-title-row">
@@ -268,12 +268,22 @@ export function CategoryPage(props) {
                       aria-label={`Count ${e.item.name} in the total`}
                       title="Count in total"
                     />
-                    <button className="cat-entry-name" onClick={() => onOpenItem(e.tabId, e.parentId || e.id)}>
-                      <b>{e.item.name || 'Untitled'}</b>
-                      {e.item.track && <PotIcon />}
+                    <div className="cat-entry-name">
+                      <button className="cat-entry-open" onClick={() => onOpenItem(e.tabId, e.parentId || e.id)}>
+                        <b>{e.item.name || 'Untitled'}</b>
+                        {e.item.track && <PotIcon />}
+                      </button>
                       <span className="tab-badge">{e.tabName || 'Untitled'}</span>
                       {e.parentId && <span className="muted small">in {e.parentName || 'merged item'}</span>}
-                    </button>
+                      {/* The item's other categories — tap to jump there. */}
+                      {e.cats
+                        .filter((c) => catKey(c) !== catKeyValue)
+                        .map((c) => (
+                          <button key={c} className="also-cat" onClick={() => onOpenCategory(catKey(c))} title={`Open the ${c} category`}>
+                            {c}
+                          </button>
+                        ))}
+                    </div>
                     <b className="cat-entry-amt">
                       {formatMoney(amount(e), currency)}
                       <span className="per-small">{FREQS[view].short}</span>

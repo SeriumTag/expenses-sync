@@ -73,6 +73,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const [dialog, setDialog] = useState(null); // 'share' | 'theme' | 'import' | 'period' | 'categories'
   const [sheet, setSheet] = useState(null); // { type: 'item', tabId, itemId } | { type: 'person', id }
   const [catView, setCatView] = useState(null); // category key being viewed
+  const [catTrail, setCatTrail] = useState([]); // categories hopped through, for Back
   const [nowKey, setNowKey] = useState(currentMonthKey);
   const [periodSel, setPeriodSel] = useState(null); // a month/year picked in the picker (null = today's month)
   // Monthly/Yearly display is a personal preference, remembered on this device.
@@ -290,10 +291,23 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const sheetPerson = sheet?.type === 'person' ? period.people?.[sheet.id] : null;
   const openCategory = (key) => {
     setDialog(null);
+    setCatTrail([]);
     setCatView(key);
     window.scrollTo(0, 0);
   };
-  const catLabel = catView ? favs?.[catView]?.label || categoryList.find((c) => c.key === catView)?.label || data.categories?.[catView]?.label || catView : null;
+  // From one category page to another (an item's other category): Back returns here.
+  const hopCategory = (key) => {
+    setCatTrail((t) => [...t, catView]);
+    setCatView(key);
+    window.scrollTo(0, 0);
+  };
+  const catBack = () => {
+    setCatView(catTrail[catTrail.length - 1] ?? null);
+    setCatTrail((t) => t.slice(0, -1));
+    window.scrollTo(0, 0);
+  };
+  const labelOfCat = (key) => favs?.[key]?.label || categoryList.find((c) => c.key === key)?.label || data.categories?.[key]?.label || key;
+  const catLabel = catView ? labelOfCat(catView) : null;
 
   return (
     <PresenceContext.Provider value={presence}>
@@ -333,7 +347,10 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             view={view}
             onViewChange={changeView}
             ctx={budgetCtx}
-            onBack={() => setCatView(null)}
+            key={catView}
+            onBack={catBack}
+            backLabel={catTrail.length ? labelOfCat(catTrail[catTrail.length - 1]) : null}
+            onOpenCategory={hopCategory}
             fav={favs?.[catView]}
             onFav={() => setIconPick({ key: catView, label: catLabel })}
             onOpenItem={openItem}

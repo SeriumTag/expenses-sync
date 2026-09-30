@@ -906,11 +906,19 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .cat-entry { background: var(--surface); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow-sm); transition: opacity 0.2s; }
 .cat-entry.excluded { opacity: 0.5; }
 .cat-entry-top { display: flex; align-items: center; gap: 10px; }
-.cat-entry-name {
-  flex: 1; min-width: 0; display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+.cat-entry-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cat-entry-open {
+  display: inline-flex; align-items: center; gap: 5px; min-width: 0;
   font: inherit; color: var(--text); background: none; border: none; padding: 0; text-align: left; cursor: pointer;
 }
-.cat-entry-name:hover b { color: var(--accent-deep); }
+.cat-entry-open:hover b { color: var(--accent-deep); }
+/* The item's other categories: tap to go to that category page. */
+.also-cat {
+  font: inherit; font-size: 10.5px; font-weight: 800; cursor: pointer;
+  color: var(--accent-deep); background: var(--accent-soft); border: none; border-radius: 999px; padding: 2px 9px;
+}
+.also-cat::before { content: '↗ '; opacity: 0.6; }
+.also-cat:hover { background: var(--accent); color: var(--on-accent); }
 .tab-badge { font-size: 10.5px; font-weight: 800; background: color-mix(in srgb, var(--sky) 60%, #fff); color: #4c7aa6; border-radius: 999px; padding: 2px 9px; }
 .cat-entry-amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cat-entry-note { white-space: pre-line; margin: 8px 0 0 30px; font-size: 13px; color: var(--muted); }
