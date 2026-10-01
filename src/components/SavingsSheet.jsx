@@ -142,7 +142,19 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
   const best = Math.max(...r.months.map((m) => Number(m.value) || 0), ...Object.values(r.out), 1);
 
   // Money already in the pot before tracking began; months count from `since` on.
-  const saveStart = (v) => setPath(`${trackPath}/start`, v ? { amount: v, since: r.track?.start?.since || due } : null);
+  // A new start amount applies from the first month saving was recorded (or
+  // budgeted), so those months are added on top of it.
+  const firstMonth =
+    r.months.find((m) => m.logged && !m.future && m.key <= due)?.key || r.months.find((m) => m.value && m.key <= due)?.key || due;
+  const since = r.track?.start?.since || firstMonth;
+  const saveStart = (v) => setPath(`${trackPath}/start`, v ? { amount: v, since } : null);
+  // Months the start amount can be "as of": the last two years up to now.
+  const sinceChoices = [];
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(Number(due.slice(0, 4)), Number(due.slice(5, 7)) - 1 - i, 1);
+    sinceChoices.push(monthKey(d.getFullYear(), d.getMonth()));
+  }
+  if (!sinceChoices.includes(since)) sinceChoices.push(since);
 
   function addWithdrawal(e) {
     e.preventDefault();
@@ -232,7 +244,20 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
                 aria-label={`${r.item.name} amount already saved`}
               />
             </label>
-            <span className="muted small pot-since">{r.track?.start ? `before ${monthName(r.track.start.since)}` : 'already saved, if any'}</span>
+            {r.track?.start ? (
+              <label className="muted small pot-since" title="The start amount is what was in the pot before this month; this month onward is added to it">
+                before
+                <select value={since} onChange={(e) => setPath(`${trackPath}/start/since`, e.target.value)} aria-label="Start amount is as of the start of">
+                  {sinceChoices.map((k) => (
+                    <option key={k} value={k}>
+                      {monthName(k)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <span className="muted small pot-since">already saved, if any</span>
+            )}
             <span className="pot-balance">
               <span className="muted small">In pot</span>
               <b className={r.balance < 0 ? 'neg' : 'pos'}>{formatMoney(r.balance, currency)}</b>
