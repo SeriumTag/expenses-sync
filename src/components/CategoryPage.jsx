@@ -2,10 +2,18 @@ import { useState } from 'react';
 import { FREQS, amountInView, catKey, itemsInCategory, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
 import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney } from '../lib/format';
+import { prefs } from '../lib/session';
 import { reordered, useDragSort } from '../hooks/useDragSort';
 import LiveInput from './LiveInput';
 import PotIcon from './PotIcon';
 import Modal from './Modal';
+
+const DAY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// A keyed field value as plain text, e.g. a date as "12 Oct 2026".
+function fieldText(f, v) {
+  if (f.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return `${Number(v.slice(8))} ${DAY_MONTHS[Number(v.slice(5, 7)) - 1]} ${v.slice(0, 4)}`;
+  return String(v);
+}
 
 const FIELD_TYPES = { text: 'Text', date: 'Date', number: 'Number' };
 const TYPE_ICONS = { text: 'T', date: '📅', number: '#' };
@@ -71,6 +79,24 @@ export function CategoryPage(props) {
   const subs = sorted(catData?.subs);
   const fields = sorted(catData?.fields);
   const [newField, setNewField] = useState(null); // { name, type }
+  // Locked (the default) = nothing can be typed or moved by accident. Compact
+  // shows one line per item; both views only show fields that have something
+  // keyed in, as text, unless unlocked in Detailed. Remembered on this device.
+  const [locked, setLocked] = useState(() => prefs.get('catLocked') ?? true);
+  const [compact, setCompact] = useState(() => prefs.get('catCompact') ?? false);
+  const toggleLock = () => {
+    setLocked((v) => {
+      prefs.set('catLocked', !v);
+      return !v;
+    });
+    setNewField(null);
+  };
+  const pickCompact = (v) => {
+    setCompact(v);
+    prefs.set('catCompact', v);
+  };
+  const editing = !locked && !compact;
+  const keyed = (m) => fields.filter((f) => m.values?.[f.id] !== undefined && m.values?.[f.id] !== null && m.values?.[f.id] !== '');
 
   const counted = entries.filter((e) => !meta[e.id]?.exclude);
   const amount = (e) => amountInView(e.item, e.id, view, ctx);
@@ -164,16 +190,31 @@ export function CategoryPage(props) {
         </div>
       </div>
 
-      <div className="cat-tools">
-        <button className="btn glass sm" onClick={addSub}>
-          ＋ Subcategory
+      <div className="cat-view-bar">
+        <button className={`btn sm lock-btn ${locked ? 'locked' : 'glass'}`} onClick={toggleLock} aria-pressed={locked} title={locked ? 'Unlock to edit fields and move items' : 'Lock to avoid accidental changes'}>
+          {locked ? '🔒 Locked' : '🔓 Unlocked'}
         </button>
-        <button className="btn glass sm" onClick={() => setNewField({ name: '', type: 'text' })}>
-          ＋ Field
-        </button>
-        {(entries.length > 1 || subs.length > 0) && <span className="mode-hint">Drag ⠿ to move or regroup</span>}
+        <div className="seg" role="group" aria-label="Category view">
+          <button className={compact ? 'on' : ''} aria-pressed={compact} onClick={() => pickCompact(true)}>
+            Compact
+          </button>
+          <button className={!compact ? 'on' : ''} aria-pressed={!compact} onClick={() => pickCompact(false)}>
+            Detailed
+          </button>
+        </div>
       </div>
-      {fields.length > 0 && (
+      {!locked && (
+        <div className="cat-tools">
+          <button className="btn glass sm" onClick={addSub}>
+            ＋ Subcategory
+          </button>
+          <button className="btn glass sm" onClick={() => setNewField({ name: '', type: 'text' })}>
+            ＋ Field
+          </button>
+          {(entries.length > 1 || subs.length > 0) && <span className="mode-hint">Drag ⠿ to move or regroup</span>}
+        </div>
+      )}
+      {!locked && fields.length > 0 && (
         <div className="field-chips" aria-label="Fields" {...fieldDrag.groupProps()}>
           {fields.map((f) => (
             <span key={f.id} className="field-chip" {...fieldDrag.itemProps(f.id)}>
@@ -196,7 +237,7 @@ export function CategoryPage(props) {
           ))}
         </div>
       )}
-      {newField && (
+      {newField && !locked && (
         <form
           className="new-field"
           onSubmit={(e) => {
@@ -232,7 +273,9 @@ export function CategoryPage(props) {
         return (
           <div key={groupKey} className="sub-group" {...drag.groupProps(groupKey)}>
             <div className="sub-head">
-              {g.sub ? (
+              {g.sub && locked ? (
+                <span className="sub-name">{g.sub.name || 'Untitled'}</span>
+              ) : g.sub ? (
                 <LiveInput
                   className="sub-name"
                   fieldKey={`cat:${catKeyValue}:sub:${g.sub.id}`}
@@ -244,25 +287,32 @@ export function CategoryPage(props) {
                 <span className="sub-name muted">{subs.length ? 'No subcategory' : 'Items'}</span>
               )}
               <span className="sub-total">{formatMoney(subTotal, currency)}</span>
-              {g.sub && (
+              {g.sub && !locked && (
                 <button className="icon-btn" aria-label={`Remove ${g.sub.name}`} onClick={() => removeSub(g.sub)}>
                   ✕
                 </button>
               )}
             </div>
-            {g.rows.length === 0 && <p className="drop-empty">Drag items here</p>}
+            {g.rows.length === 0 && <p className="drop-empty">{locked ? 'No items' : 'Drag items here'}</p>}
             {g.rows.map((e) => {
               const m = meta[e.id] || {};
               const tracked = e.item.track ? savingsTotal(savingsMonths(yearOf(pk), e.id, tracks?.[e.id]?.log, periods)) : null;
               return (
-                <div key={e.id} className={`cat-entry ${m.exclude ? 'excluded' : ''}`} {...drag.itemProps(e.id, groupKey)}>
+                <div
+                  key={e.id}
+                  className={`cat-entry ${m.exclude ? 'excluded' : ''} ${compact ? 'compact' : ''}`}
+                  {...(locked ? {} : drag.itemProps(e.id, groupKey))}
+                >
                   <div className="cat-entry-top">
-                    <span className="grip drag-handle" title="Drag to move" aria-label={`Drag ${e.item.name} to move it`} {...drag.handleProps(e.id, groupKey)}>
-                      ⠿
-                    </span>
+                    {!locked && (
+                      <span className="grip drag-handle" title="Drag to move" aria-label={`Drag ${e.item.name} to move it`} {...drag.handleProps(e.id, groupKey)}>
+                        ⠿
+                      </span>
+                    )}
                     <input
                       type="checkbox"
                       className="pick"
+                      disabled={locked}
                       checked={!m.exclude}
                       onChange={(ev) => patchPath(`${path}/entries/${e.id}`, { exclude: ev.target.checked ? null : true })}
                       aria-label={`Count ${e.item.name} in the total`}
@@ -289,42 +339,53 @@ export function CategoryPage(props) {
                       <span className="per-small">{FREQS[view].short}</span>
                     </b>
                   </div>
-                  {e.item.note && <p className="cat-entry-note">{e.item.note}</p>}
-                  {tracked !== null && (
+                  {!compact && e.item.note && <p className="cat-entry-note">{e.item.note}</p>}
+                  {!compact && tracked !== null && (
                     <p className="cat-entry-saved">
                       Saved in {yearOf(pk)}: <b>{formatMoney(tracked, currency)}</b>
                     </p>
                   )}
-                  <div className="cat-entry-fields" style={{ '--cols': fields.length + (subs.length > 0 ? 1 : 0) }}>
-                    {subs.length > 0 && (
-                      <label className="cf">
-                        <span className="cf-label">Subcategory</span>
-                        <select value={m.sub || ''} onChange={(ev) => patchPath(`${path}/entries/${e.id}`, { sub: ev.target.value || null })}>
-                          <option value="">None</option>
-                          {subs.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-                    {fields.map((f) => (
-                      <label key={f.id} className={`cf cf-${f.type || 'text'}`}>
-                        <span className="cf-label" title={f.name}>
-                          {f.name}
+                  {!editing && keyed(m).length > 0 && (
+                    <div className={compact ? 'cf-inline' : 'cf-text'}>
+                      {keyed(m).map((f) => (
+                        <span key={f.id} className="cf-pair">
+                          <span className="cf-label">{f.name}</span> <b>{fieldText(f, m.values[f.id])}</b>
                         </span>
-                        <LiveInput
-                          type={f.type === 'date' ? 'date' : 'text'}
-                          inputMode={f.type === 'number' ? 'decimal' : undefined}
-                          fieldKey={`cat:${catKeyValue}:${e.id}:${f.id}`}
-                          value={m.values?.[f.id] ?? ''}
-                          onSave={(v) => setPath(`${path}/entries/${e.id}/values/${f.id}`, v === '' ? null : v)}
-                          placeholder={f.type === 'date' ? '' : '—'}
-                        />
-                      </label>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
+                  {editing && (
+                    <div className="cat-entry-fields" style={{ '--cols': fields.length + (subs.length > 0 ? 1 : 0) }}>
+                      {subs.length > 0 && (
+                        <label className="cf">
+                          <span className="cf-label">Subcategory</span>
+                          <select value={m.sub || ''} onChange={(ev) => patchPath(`${path}/entries/${e.id}`, { sub: ev.target.value || null })}>
+                            <option value="">None</option>
+                            {subs.map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {fields.map((f) => (
+                        <label key={f.id} className={`cf cf-${f.type || 'text'}`}>
+                          <span className="cf-label" title={f.name}>
+                            {f.name}
+                          </span>
+                          <LiveInput
+                            type={f.type === 'date' ? 'date' : 'text'}
+                            inputMode={f.type === 'number' ? 'decimal' : undefined}
+                            fieldKey={`cat:${catKeyValue}:${e.id}:${f.id}`}
+                            value={m.values?.[f.id] ?? ''}
+                            onSave={(v) => setPath(`${path}/entries/${e.id}/values/${f.id}`, v === '' ? null : v)}
+                            placeholder={f.type === 'date' ? '' : '—'}
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })}

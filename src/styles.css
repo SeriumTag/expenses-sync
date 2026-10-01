@@ -920,6 +920,17 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .cat-total { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin: 8px 0 16px; }
 .cat-total .hero-total { margin-bottom: 4px; }
 .cat-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.cat-view-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.lock-btn.locked { background: var(--surface-2); color: var(--text); }
+/* Keyed field values as text (locked or compact). Empty fields aren't shown. */
+.cf-text { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 0 30px; }
+.cf-text .cf-pair { display: flex; flex-direction: column; min-width: 0; }
+.cf-text .cf-pair b { font-size: 13px; overflow-wrap: anywhere; }
+.cf-text .cf-label, .cf-inline .cf-label { padding-left: 0; }
+.cf-inline { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 3px 0 0 30px; font-size: 12px; }
+.cf-inline .cf-pair { display: inline-flex; align-items: baseline; gap: 4px; min-width: 0; }
+.cf-inline .cf-pair b { font-weight: 700; overflow-wrap: anywhere; }
+.cat-entry.compact { padding: 7px 12px; margin-bottom: 6px; }
 .field-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: -4px 0 12px; padding: 2px; }
 .field-chips::-webkit-scrollbar { display: none; }
 .field-chips .field-chip { flex-shrink: 0; }
@@ -1049,7 +1060,7 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
   .part-amt { grid-column: 2; align-items: flex-start; }
   .part-amt .amt-line { justify-content: flex-start; }
   .part > .icon-btn { grid-column: 3; grid-row: 1; }
-  .cat-entry-fields, .cat-entry-note, .cat-entry-saved { margin-left: 0; }
+  .cat-entry-fields, .cat-entry-note, .cat-entry-saved, .cf-text, .cf-inline { margin-left: 0; }
   .cf { min-width: 64px; }
   .cf-date { min-width: 112px; }
   .cf input, .cf select { padding: 4px 6px; font-size: 12px; }
