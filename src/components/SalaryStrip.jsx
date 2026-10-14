@@ -1,4 +1,5 @@
-import { FREQS, afterExpenses, sorted } from '../lib/budget';
+import { useState } from 'react';
+import { FREQS, afterExpenses, monthlyIncome, sorted } from '../lib/budget';
 import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import LiveInput from './LiveInput';
@@ -18,11 +19,14 @@ export function SalaryStrip({ base, period, currency, view, ctx, onOpen }) {
     <div className="salary-strip">
       {people.map((p) => {
         const { salary, left } = afterExpenses(p, period, view, ctx);
+        const extras = Object.keys(p.incomes || {}).length;
         return (
           <button key={p.id} className="salary-card" onClick={() => onOpen(p.id)}>
             <span className="salary-name">{p.name || 'Unnamed'}</span>
             <span className="salary-line">
-              <span className="muted small">Salary</span>
+              <span className="muted small" title={extras ? 'Salary plus other income' : undefined}>
+                {extras ? `Income (+${extras})` : 'Salary'}
+              </span>
               <b>{formatMoney(salary, currency)}</b>
             </span>
             <span className="salary-line">
@@ -44,6 +48,20 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
   const path = `${base}/people/${personId}`;
   const { salary, spent, left } = afterExpenses(person, period, view, ctx);
   const chosen = person.tabs || {};
+  const incomes = sorted(person.incomes);
+  const [newIncome, setNewIncome] = useState(null); // focus the name of a just-added income
+
+  function addIncome() {
+    const id = newKey(`${path}/incomes`);
+    setNewIncome(id);
+    patchPath(`${path}/incomes/${id}`, { name: '', amount: 0, order: Date.now() });
+  }
+  function removeIncome(x) {
+    if (x.name || x.amount) {
+      if (!window.confirm(`Remove “${x.name || 'this income'}”${x.amount ? ` (${formatMoney(x.amount, currency)}/mo)` : ''}?`)) return;
+    }
+    setPath(`${path}/incomes/${x.id}`, null);
+  }
 
   async function remove() {
     if (!window.confirm(`Remove ${person.name || 'this person'} from the summary?`)) return;
@@ -66,7 +84,7 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
             />
           </label>
           <label className="field">
-            <span>Monthly salary</span>
+            <span>Main salary (monthly)</span>
             <LiveInput
               className="ep-amount"
               inputMode="decimal"
@@ -82,7 +100,56 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
         </div>
 
         <section className="sheet-section">
-          <h3>After expenses = salary minus…</h3>
+          <h3>Other income</h3>
+          {incomes.length === 0 && <p className="muted small">Side jobs, allowances, rental… e.g. Grab $1,200 a month.</p>}
+          {incomes.length > 0 && (
+            <div className="income-list">
+              {incomes.map((x) => (
+                <div key={x.id} className="income-row">
+                  <LiveInput
+                    className="income-name"
+                    fieldKey={`${pk}:person:${personId}:income:${x.id}:name`}
+                    value={x.name || ''}
+                    onSave={(v) => person.incomes?.[x.id] && patchPath(`${path}/incomes/${x.id}`, { name: v })}
+                    placeholder="Name, e.g. Grab"
+                    autoFocusOnMount={x.id === newIncome}
+                    aria-label="Income name"
+                  />
+                  <LiveInput
+                    className="ep-amount income-amt"
+                    inputMode="decimal"
+                    fieldKey={`${pk}:person:${personId}:income:${x.id}:amount`}
+                    value={x.amount}
+                    format={(v) => (v ? String(v) : '')}
+                    parse={parseAmount}
+                    display={(v) => formatMoney(v, currency)}
+                    onSave={(v) => person.incomes?.[x.id] && patchPath(`${path}/incomes/${x.id}`, { amount: v })}
+                    placeholder="0.00"
+                    aria-label={`${x.name || 'Income'} per month`}
+                  />
+                  <span className="muted small">/mo</span>
+                  <button className="icon-btn" aria-label={`Remove ${x.name || 'income'}`} onClick={() => removeIncome(x)}>
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="sheet-row between">
+            <button className="btn glass sm" onClick={addIncome}>
+              ＋ Add income
+            </button>
+            {incomes.length > 0 && (
+              <span className="ep-total">
+                Total income <b>{formatMoney(monthlyIncome(person), currency)}</b>
+                <span className="muted small">/mo</span>
+              </span>
+            )}
+          </div>
+        </section>
+
+        <section className="sheet-section">
+          <h3>After expenses = income minus…</h3>
           {tabs.map((t) => (
             <label key={t.id} className="switch-row">
               <input
@@ -97,7 +164,7 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
 
         <div className="sheet-summary">
           <span>
-            <span className="muted small">Salary </span>
+            <span className="muted small">{incomes.length ? 'Income ' : 'Salary '}</span>
             <b>{formatMoney(salary, currency)}</b>
           </span>
           <span>

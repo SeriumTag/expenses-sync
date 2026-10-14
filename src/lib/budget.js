@@ -241,9 +241,14 @@ export const tabInView = (items, view, ctx) =>
   Object.entries(items || {}).reduce((s, [id, item]) => s + amountInView(item, id, view, ctx), 0);
 
 // ── Salary ──────────────────────────────────────────────────────────
-// Salary, spending and what's left, all in `view` (salary is stored monthly).
+// A person's other incomes besides the main salary, e.g. Grab $1,200/mo:
+// person.incomes = { id: { name, amount, order } }, stored monthly.
+export const monthlyIncome = (person) =>
+  (Number(person?.salary) || 0) + Object.values(person?.incomes || {}).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+
+// Salary (all incomes), spending and what's left, all in `view` (stored monthly).
 export function afterExpenses(person, period, view = 'monthly', ctx) {
-  const salary = inView(Number(person?.salary) || 0, view);
+  const salary = inView(monthlyIncome(person), view);
   const spent = Object.keys(person?.tabs || {}).reduce((s, tabId) => s + tabInView(period?.items?.[tabId], view, ctx), 0);
   return { salary, spent, left: salary - spent };
 }
