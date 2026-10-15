@@ -252,3 +252,24 @@ export function afterExpenses(person, period, view = 'monthly', ctx) {
   const spent = Object.keys(person?.tabs || {}).reduce((s, tabId) => s + tabInView(period?.items?.[tabId], view, ctx), 0);
   return { salary, spent, left: salary - spent };
 }
+
+// ── Spending budgets ────────────────────────────────────────────────
+// An item ticked "Track spending" (item.budget) is an allowance, e.g. Food
+// $300/mo, that day-to-day spends are logged against. Spends are kept per item
+// across months: ledgers/{lid}/spending/{itemId}/{id} = { date, note, amount, by, at },
+// and each month (or year) only counts its own dates.
+export function spendsIn(spending, itemId, pk) {
+  const prefix = isYearKey(pk) ? `${pk}-` : pk;
+  return Object.entries(spending?.[itemId] || {})
+    .map(([id, s]) => ({ id, ...s }))
+    .filter((s) => s.date?.startsWith(prefix))
+    .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
+}
+
+// Budget, spent and left for an item in period `pk` (a whole year counts 12 months).
+export function budgetStatus(item, itemId, spending, pk) {
+  const budget = monthlyOf(item) * (isYearKey(pk) ? 12 : 1);
+  const spends = spendsIn(spending, itemId, pk);
+  const spent = spends.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  return { budget, spent, left: budget - spent, spends };
+}

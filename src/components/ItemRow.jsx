@@ -1,4 +1,4 @@
-import { FREQS, amountInView, compareItem, groupCatLabel, inView, itemCats, monthlyOf, partCats, partMonthly, sorted } from '../lib/budget';
+import { FREQS, amountInView, budgetStatus, compareItem, groupCatLabel, inView, itemCats, monthlyOf, partCats, partMonthly, sorted } from '../lib/budget';
 import { formatMoney, parseAmount } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
 import CatField, { GroupCat } from './CatField';
@@ -23,6 +23,9 @@ export default function ItemRow(props) {
   const selecting = mode === 'select';
   const reordering = mode === 'reorder';
   const locked = selecting || reordering;
+
+  // A spending budget shows what's left of it this month (or year).
+  const left = item.budget && ctx?.pk ? budgetStatus(item, item.id, ctx.spending, ctx.pk).left : null;
 
   const conv =
     !isGroup && freq !== view
@@ -100,7 +103,13 @@ export default function ItemRow(props) {
 
       <div className="ep-amt">
         <ChangeBadge change={change} prevLabel={prevLabel} currency={currency} view={view} />
-        {conv && <span className="conv">{conv}</span>}
+        {left !== null ? (
+          <span className={`conv budget-left-tag ${left < 0 ? 'over' : ''}`} title="What's left of this budget">
+            {left < 0 ? `${formatMoney(-left, currency)} over` : `${formatMoney(left, currency)} left`}
+          </span>
+        ) : (
+          conv && <span className="conv">{conv}</span>
+        )}
         {isGroup ? (
           <button className="group-amt" onClick={onOpen} disabled={locked}>
             {formatMoney(amountInView(item, item.id, groupView, ctx), currency)}

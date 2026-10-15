@@ -10,10 +10,12 @@ import PartsList from './PartsList';
 import SavingsTracker from './SavingsTracker';
 import { confirmTwice } from '../lib/confirm';
 import Attachments from './Attachments';
+import BudgetTracker from './BudgetTracker';
 
 // Pull-up card for one item: details, merged breakdown, savings tracking.
 export default function ItemSheet(props) {
   const { ledgerId, base, pk, tabId, tabName, itemId, item, periods, prevPeriod, prevLabel } = props;
+  const { spending } = props;
   const { tracks, categories, currency, username, view, siblings, onOpenItem, onClose, tab, onTrashed } = props;
   const path = `${base}/items/${tabId}/${itemId}`;
   const key = (f) => `${pk}:item:${itemId}:${f}`;
@@ -140,6 +142,18 @@ export default function ItemSheet(props) {
               currency={currency}
               name={item.name}
             />
+          )}
+        </section>
+
+        <section className="sheet-section">
+          <label className="switch-row">
+            <input type="checkbox" checked={Boolean(item.budget)} onChange={(e) => save('budget')(e.target.checked || null)} />
+            <span>
+              <b>Track spending</b> 💸 <span className="muted small">— log what you spend (e.g. each meal) and see what’s left of this budget</span>
+            </span>
+          </label>
+          {item.budget && (
+            <BudgetTracker ledgerId={ledgerId} itemId={itemId} item={item} pk={pk} spending={spending} currency={currency} username={username} />
           )}
         </section>
 
