@@ -7,6 +7,7 @@ import { reordered, useDragSort } from '../hooks/useDragSort';
 import LiveInput from './LiveInput';
 import PotIcon from './PotIcon';
 import Modal from './Modal';
+import { confirmTwice } from '../lib/confirm';
 
 const DAY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // A keyed field value as plain text, e.g. a date as "12 Oct 2026".
@@ -112,13 +113,13 @@ export function CategoryPage(props) {
     setNewField(null);
   };
   const removeSub = (s) => {
-    if (!window.confirm(`Remove subcategory “${s.name}”? Its items move to “No subcategory”.`)) return;
+    if (!confirmTwice(`Remove subcategory “${s.name}”? Its items move to “No subcategory”.`, `the subcategory “${s.name}”`)) return;
     const patch = { [`subs/${s.id}`]: null };
     Object.entries(meta).forEach(([id, m]) => m.sub === s.id && (patch[`entries/${id}/sub`] = null));
     patchPath(path, patch);
   };
   const removeField = (f) => {
-    if (!window.confirm(`Remove the “${f.name}” field and what’s been typed in it?`)) return;
+    if (!confirmTwice(`Remove the “${f.name}” field and what’s been typed in it?`, `the “${f.name}” field`)) return;
     const patch = { [`fields/${f.id}`]: null };
     Object.keys(meta).forEach((id) => (patch[`entries/${id}/values/${f.id}`] = null));
     patchPath(path, patch);

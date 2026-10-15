@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { USERNAME_RE, normalizeUsername } from '../lib/db';
 import { forgetProfile, loadProfiles } from '../lib/session';
+import { confirmTwice } from '../lib/confirm';
 import { normalizeTheme } from '../lib/theme';
 import { LogoMark, Wordmark } from './Logo';
 
@@ -29,6 +30,7 @@ export default function Login({ onLogin, ready, pendingJoin }) {
   }
 
   function removeProfile(profileName) {
+    if (!confirmTwice(`Remove ${profileName} from this device? Their data stays safe; they can sign in again with the same username.`, `${profileName} from this device`)) return;
     forgetProfile(profileName);
     const next = loadProfiles();
     setProfiles(next);

@@ -4,6 +4,7 @@ import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import LiveInput from './LiveInput';
 import Modal from './Modal';
+import { confirmTwice } from '../lib/confirm';
 
 // Summary cards at the top: each person's salary and what's left after the
 // head categories they chose.
@@ -57,14 +58,12 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
     patchPath(`${path}/incomes/${id}`, { name: '', amount: 0, order: Date.now() });
   }
   function removeIncome(x) {
-    if (x.name || x.amount) {
-      if (!window.confirm(`Remove “${x.name || 'this income'}”${x.amount ? ` (${formatMoney(x.amount, currency)}/mo)` : ''}?`)) return;
-    }
+    if (!confirmTwice(`Remove “${x.name || 'this income'}”${x.amount ? ` (${formatMoney(x.amount, currency)}/mo)` : ''}?`, `“${x.name || 'this income'}”`)) return;
     setPath(`${path}/incomes/${x.id}`, null);
   }
 
   async function remove() {
-    if (!window.confirm(`Remove ${person.name || 'this person'} from the summary?`)) return;
+    if (!confirmTwice(`Remove ${person.name || 'this person'} from the summary?`, `${person.name || 'this person'}`)) return;
     onClose();
     await setPath(path, null);
   }

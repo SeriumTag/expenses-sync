@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { BIN_DAYS, binDaysLeft, purgeLedger, restoreLedger } from '../lib/db';
+import { confirmTwice } from '../lib/confirm';
 
 // List of deleted accounts with Restore / Delete forever. Used in a modal and
 // on the "no accounts" screen.
@@ -39,7 +40,7 @@ export function BinList({ items, onRestored }) {
               className="btn sm danger"
               disabled={busy === id}
               onClick={async () => {
-                if (!window.confirm(`Delete “${meta.name || 'Untitled'}” forever? This can’t be undone, for you or anyone it’s shared with.`)) return;
+                if (!confirmTwice(`Delete “${meta.name || 'Untitled'}” forever? This can’t be undone, for you or anyone it’s shared with.`, `“${meta.name || 'Untitled'}” forever`)) return;
                 setBusy(id);
                 await purgeLedger(id);
                 setBusy(null);

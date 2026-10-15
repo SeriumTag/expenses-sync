@@ -1,5 +1,6 @@
 import { BIN_DAYS, moveLedgerToBin } from '../lib/db';
 import Modal from './Modal';
+import { confirmTwice } from '../lib/confirm';
 
 // Every expense account this user belongs to, with Open and Delete.
 export default function AccountsDialog({ accounts, currentId, username, binCount, onOpen, onCreate, onOpenBin, onClose }) {
@@ -9,7 +10,7 @@ export default function AccountsDialog({ accounts, currentId, username, binCount
       'Anyone it’s shared with loses access too.',
       `It goes to the bin for ${BIN_DAYS} days, where it can be restored. After that it’s deleted for good.`,
     ].join('\n\n');
-    if (window.confirm(msg)) moveLedgerToBin(account.id, username);
+    if (confirmTwice(msg, `the account “${account.name}”`)) moveLedgerToBin(account.id, username);
   }
 
   return (

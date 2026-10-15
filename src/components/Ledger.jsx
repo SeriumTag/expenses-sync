@@ -57,6 +57,7 @@ import SavingsSheet, { trackedItems } from './SavingsSheet';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
+import { confirmTwice } from '../lib/confirm';
 
 const EMPTY_PERIOD = {};
 
@@ -250,7 +251,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     ]
       .filter(Boolean)
       .join('\n\n');
-    if (!window.confirm(warning)) return;
+    if (!confirmTwice(warning, `the head category “${currentTab.name || 'Untitled'}”`)) return;
     if (count) trashTab(ledgerId, pk, currentTab, period.items?.[tabId], username);
     else deleteTab(base, tabId);
   }
@@ -281,7 +282,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     ]
       .filter(Boolean)
       .join('\n\n');
-    if (window.confirm(msg)) {
+    if (confirmTwice(msg, `the account “${meta.name || 'Untitled'}”`)) {
       setDialog(null);
       moveLedgerToBin(ledgerId, username);
     }
@@ -662,7 +663,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                 ? setFavIcon(username, ledgerId, iconPick.key, icon)
                 : saveFav(username, ledgerId, iconPick.key, iconPick.label, icon)
             }
-            onRemove={() => removeFav(username, ledgerId, iconPick.key)}
+            onRemove={() => confirmTwice(`Remove “${iconPick.label}” from your favourites?`, `“${iconPick.label}” from favourites`) && removeFav(username, ledgerId, iconPick.key)}
             onClose={() => setIconPick(null)}
           />
         )}

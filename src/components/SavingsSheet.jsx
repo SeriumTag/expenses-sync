@@ -19,6 +19,7 @@ import { prefs } from '../lib/session';
 import LiveInput from './LiveInput';
 import Modal from './Modal';
 import PotIcon from './PotIcon';
+import { confirmTwice } from '../lib/confirm';
 
 // Every item ticked "Track as savings pot" in the period being shown.
 export function trackedItems(period, tabs) {
@@ -172,7 +173,7 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
   }
 
   function removeWithdrawal(w) {
-    if (!window.confirm(`Remove the ${formatMoney(w.amount, currency)} withdrawal on ${dayName(w.date)}? It will be added back to the pot.`)) return;
+    if (!confirmTwice(`Remove the ${formatMoney(w.amount, currency)} withdrawal on ${dayName(w.date)}? It will be added back to the pot.`, 'this withdrawal')) return;
     setPath(`${trackPath}/withdrawals/${w.id}`, null);
   }
 

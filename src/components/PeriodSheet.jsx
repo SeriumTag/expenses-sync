@@ -3,6 +3,7 @@ import { MONTHS, isYearKey, monthKey, periodLabel, previousPeriod, sumTab, yearO
 import { copyPeriod, deletePeriod, startEmptyPeriod } from '../lib/db';
 import { formatMoney } from '../lib/format';
 import Modal from './Modal';
+import { confirmTwice } from '../lib/confirm';
 
 const periodTotal = (p) => Object.values(p?.items || {}).reduce((s, items) => s + sumTab(items), 0);
 
@@ -43,7 +44,7 @@ export default function PeriodSheet({ ledgerId, periods, current, currency, onSe
   async function copyToTargets() {
     const list = [...targets];
     const existing = list.filter((k) => periods[k]);
-    if (existing.length && !window.confirm(`Replace what’s already in ${existing.map(periodLabel).join(', ')}?`)) return;
+    if (existing.length && !confirmTwice(`Replace what’s already in ${existing.map(periodLabel).join(', ')}? What’s there now will be overwritten.`, `what’s in ${existing.map(periodLabel).join(', ')}`)) return;
     setBusy(true);
     await copyPeriod(ledgerId, periods[current], list);
     setBusy(false);
@@ -53,7 +54,7 @@ export default function PeriodSheet({ ledgerId, periods, current, currency, onSe
 
   async function removeCurrent() {
     if (keys.length <= 1) return;
-    if (!window.confirm(`Delete the whole budget for ${periodLabel(current)}? Other months stay as they are.`)) return;
+    if (!confirmTwice(`Delete the whole budget for ${periodLabel(current)}? Other months stay as they are.`, `the whole ${periodLabel(current)} budget`)) return;
     const next = keys.filter((k) => k !== current).sort().pop();
     onSelect(next);
     onClose();

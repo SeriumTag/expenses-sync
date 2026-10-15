@@ -3,6 +3,7 @@ import { monthlyOf, periodLabel } from '../lib/budget';
 import { BIN_DAYS, binDaysLeft, purgeTrashed, restoreTrashed } from '../lib/db';
 import { formatMoney } from '../lib/format';
 import Modal from './Modal';
+import { confirmTwice } from '../lib/confirm';
 
 // Deleted items of this account (kept 7 days), plus a way to the account bin.
 export default function ItemBin({ ledgerId, trash, currency, accountBinCount, onOpenAccountBin, onRestored, onClose }) {
@@ -19,7 +20,7 @@ export default function ItemBin({ ledgerId, trash, currency, accountBinCount, on
   }
 
   async function purge(e) {
-    if (!window.confirm(`Delete “${e.item?.name || 'this item'}” forever? This can’t be undone.`)) return;
+    if (!confirmTwice(`Delete “${e.item?.name || 'this item'}” forever? This can’t be undone.`, `“${e.item?.name || 'this item'}” forever`)) return;
     setBusy(e.id);
     await purgeTrashed(ledgerId, [e.id]);
     setBusy(null);

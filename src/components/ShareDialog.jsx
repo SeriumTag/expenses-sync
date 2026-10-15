@@ -5,6 +5,7 @@ import { extractCode } from '../lib/format';
 import LiveInput from './LiveInput';
 import Modal from './Modal';
 import Scanner from './Scanner';
+import { confirmTwice } from '../lib/confirm';
 
 export default function ShareDialog({ ledgerId, meta, members, username, onJoin, onDelete, onClose }) {
   const [code, setCode] = useState('');
@@ -42,14 +43,14 @@ export default function ShareDialog({ ledgerId, meta, members, username, onJoin,
   }
 
   async function kick() {
-    if (!window.confirm(`Remove ${partner} from this account? They'll lose access right away.`)) return;
+    if (!confirmTwice(`Remove ${partner} from this account? They'll lose access right away.`, `${partner} from this account`)) return;
     await removeMember(ledgerId, partner);
     // New code so the old QR/link can't be reused.
     await rotateCode(ledgerId, meta.code);
   }
 
   async function leave() {
-    if (!window.confirm('Leave this shared account? You’ll need a new code to rejoin.')) return;
+    if (!confirmTwice('Leave this shared account? You’ll need a new code to rejoin.', 'yourself from this account')) return;
     await removeMember(ledgerId, username);
   }
 

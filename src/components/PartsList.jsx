@@ -5,6 +5,7 @@ import CatField from './CatField';
 import { FreqPill } from './ChangeBadge';
 import { reordered, useDragSort } from '../hooks/useDragSort';
 import LiveInput from './LiveInput';
+import { confirmTwice } from '../lib/confirm';
 
 // The breakdown inside a merged item, e.g. Kids Insurance → PA (Arissa) $211.08/yr …
 export default function PartsList({ path, lockPrefix, item, currency, globalView, listId }) {
@@ -105,7 +106,7 @@ export default function PartsList({ path, lockPrefix, item, currency, globalView
               className="icon-btn"
               aria-label="Remove part"
               disabled={count <= 1}
-              onClick={() => setPath(`${path}/parts/${p.id}`, null)}
+              onClick={() => confirmTwice(`Remove “${p.name || 'this part'}” from ${item.name || 'this item'}?`, `“${p.name || 'this part'}”`) && setPath(`${path}/parts/${p.id}`, null)}
             >
               ✕
             </button>

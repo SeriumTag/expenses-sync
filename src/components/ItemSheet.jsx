@@ -8,6 +8,7 @@ import LiveInput from './LiveInput';
 import Modal from './Modal';
 import PartsList from './PartsList';
 import SavingsTracker from './SavingsTracker';
+import { confirmTwice } from '../lib/confirm';
 
 // Pull-up card for one item: details, merged breakdown, savings tracking.
 export default function ItemSheet(props) {
@@ -22,6 +23,7 @@ export default function ItemSheet(props) {
 
   // Deleting moves the item to the bin (restorable for 7 days), with Undo.
   async function remove() {
+    if (!confirmTwice(`Delete “${item.name || 'this item'}”? It goes to the bin for 7 days, where you can restore it.`, `“${item.name || 'this item'}”`)) return;
     onClose();
     const trashId = await trashItem(ledgerId, pk, { id: tabId, ...tab, name: tab?.name ?? tabName }, itemId, item, username);
     onTrashed?.(trashId, item.name || 'Item');
