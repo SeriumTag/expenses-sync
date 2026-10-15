@@ -24,6 +24,7 @@ export default function LiveInput({
   className = '',
   autoFocusOnMount = false,
   multiline = false,
+  onStart,
   onDone,
   ...inputProps
 }) {
@@ -53,6 +54,7 @@ export default function LiveInput({
     setDraft(format(value));
     setFocused(true);
     mySince.current = setEditing(fieldKey);
+    onStart?.();
   };
 
   const release = () => {

@@ -20,6 +20,9 @@ export default function CatField({ fieldKey, value, onSave, listId, disabled, cl
         maxLength={80}
         disabled={disabled}
         autoFocusOnMount={editing}
+        // Stay a text box while typing: each letter is saved live, and the
+        // first one would otherwise turn the empty box into chips mid-word.
+        onStart={() => setEditing(true)}
         onDone={() => setEditing(false)}
       />
     );
