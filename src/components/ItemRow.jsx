@@ -86,6 +86,11 @@ export default function ItemRow(props) {
             📝
           </button>
         )}
+        {item.files && (
+          <span className="clip-dot" title={`${Object.keys(item.files).length} attachment(s)`} aria-label={`${Object.keys(item.files).length} attachments`}>
+            📎{Object.keys(item.files).length > 1 && <small>{Object.keys(item.files).length}</small>}
+          </span>
+        )}
         {isGroup ? (
           <GroupCat label={groupCatLabel(item)} cats={itemCats(item)} />
         ) : (

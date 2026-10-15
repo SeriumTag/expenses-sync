@@ -37,6 +37,7 @@ import {
   unlinkLedger,
 } from '../lib/db';
 import { removeFav, saveFav, setFavIcon, suggestIcon } from '../lib/favs';
+import { cleanUpFiles } from '../lib/files';
 import { formatMoney } from '../lib/format';
 import { prefs } from '../lib/session';
 import { hideSplash } from '../lib/splash';
@@ -128,6 +129,14 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
       .finally(() => (purgingTrash.current = false));
   }, [data?.trash, ledgerId]);
   useEffect(() => () => clearTimeout(undoTimer.current), []);
+
+  // Clear out attached files that nothing uses any more (a few seconds after
+  // changes settle, so it doesn't run on every keystroke).
+  useEffect(() => {
+    if (!data?.fileIndex) return undefined;
+    const t = setTimeout(() => cleanUpFiles(ledgerId, data)?.catch(() => {}), 5000);
+    return () => clearTimeout(t);
+  }, [data, ledgerId]);
 
   // Favourites are personal, so they live under the user, per account.
   useEffect(

@@ -139,11 +139,14 @@ export function restoreLedger(ledgerId) {
 }
 
 export async function purgeLedger(ledgerId) {
-  const [membersSnap, codeSnap] = await Promise.all([
+  const [membersSnap, codeSnap, filesSnap] = await Promise.all([
     get(ref(db, `ledgers/${ledgerId}/members`)),
     get(ref(db, `ledgers/${ledgerId}/meta/code`)),
+    get(ref(db, `ledgers/${ledgerId}/fileIndex`)),
   ]);
   const patch = { [`ledgers/${ledgerId}`]: null, [`presence/${ledgerId}`]: null };
+  // Attached files are stored under whoever added them; they go too.
+  Object.entries(filesSnap.val() || {}).forEach(([fid, f]) => f?.by && (patch[`users/${f.by}/files/${fid}`] = null));
   if (codeSnap.val()) patch[`codes/${codeSnap.val()}`] = null;
   Object.keys(membersSnap.val() || {}).forEach((m) => (patch[`users/${m}/ledgers/${ledgerId}`] = null));
   return update(ref(db), patch);
@@ -334,15 +337,19 @@ export function mergeItems(base, tabId, rows, name, username) {
         note: r.note || '',
         category: r.category || '',
         order: i,
+        ...(r.files ? { files: r.files } : {}), // attachments stay with their part
       };
     }
   });
+  // Attachments on merged items being merged again move to the new item.
+  const files = Object.assign({}, ...rows.filter((r) => r.parts && r.files).map((r) => r.files));
   const patch = {
     [`items/${tabId}/${key}`]: {
       ...blankItem(username),
       name,
       category: '',
       order: Math.min(...rows.map((r) => r.order || Date.now())),
+      ...(Object.keys(files).length ? { files } : {}),
       parts,
     },
   };
@@ -363,6 +370,9 @@ export function splitItem(base, tabId, itemId, item, username) {
       category: p.category ?? item.category ?? '',
       order: (item.order || Date.now()) + i,
     };
+    // Each part keeps its attachments; the merged item's own go to the first.
+    const files = { ...(i === 0 ? item.files : null), ...p.files };
+    if (Object.keys(files).length) patch[`items/${tabId}/${pid}`].files = files;
   });
   return update(ref(db, base), patch);
 }

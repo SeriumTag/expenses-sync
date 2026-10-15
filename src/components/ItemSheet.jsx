@@ -9,6 +9,7 @@ import Modal from './Modal';
 import PartsList from './PartsList';
 import SavingsTracker from './SavingsTracker';
 import { confirmTwice } from '../lib/confirm';
+import Attachments from './Attachments';
 
 // Pull-up card for one item: details, merged breakdown, savings tracking.
 export default function ItemSheet(props) {
@@ -116,6 +117,8 @@ export default function ItemSheet(props) {
           )}
           <ChangeBadge change={compareItem(item, itemId, prevPeriod)} prevLabel={prevLabel} currency={currency} view={view} />
         </div>
+
+        <Attachments ledgerId={ledgerId} itemPath={`periods/${pk}/items/${tabId}/${itemId}`} files={item.files} username={username} />
 
         {isGroup && <PartsList path={path} lockPrefix={`${pk}:part:${itemId}`} item={item} currency={currency} globalView={view} listId="sheet-categories" />}
 
