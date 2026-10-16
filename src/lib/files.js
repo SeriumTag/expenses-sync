@@ -133,6 +133,8 @@ function filesInUse(data) {
     visit(t.item);
     Object.values(t.items || {}).forEach(visit);
   }
+  // Receipts on logged spends (spending/{itemId}/{spendId}/files).
+  for (const spends of Object.values(data?.spending || {})) Object.values(spends || {}).forEach(visit);
   return used;
 }
 

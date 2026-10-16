@@ -8,7 +8,8 @@ const ACCEPT = 'image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.pp
 
 // Photos and documents attached to an item: receipts, policies, statements…
 // itemPath is relative to the ledger, e.g. periods/2026-10/items/{tab}/{item}.
-export default function Attachments({ ledgerId, itemPath, files, username }) {
+// `compact` is the small version used under a logged spend (receipts).
+export default function Attachments({ ledgerId, itemPath, files, username, compact = false, what = 'this item' }) {
   const list = fileList(files);
   const [uploading, setUploading] = useState([]); // names being uploaded
   const [error, setError] = useState('');
@@ -38,23 +39,27 @@ export default function Attachments({ ledgerId, itemPath, files, username }) {
   }
 
   function remove(f) {
-    if (!confirmTwice(`Remove “${f.name}” from this item?`, `“${f.name}”`)) return;
+    if (!confirmTwice(`Remove “${f.name}” from ${what}?`, `“${f.name}”`)) return;
     setOpen(null);
     setPath(`ledgers/${ledgerId}/${itemPath}/files/${f.id}`, null);
   }
 
   return (
-    <section className="sheet-section attachments">
-      <div className="sheet-row between">
-        <h3>
-          Attachments{list.length > 0 && <span className="muted small"> · {list.length}</span>}
-        </h3>
-        <button className="btn glass sm" onClick={() => input.current?.click()}>
-          📎 Attach
-        </button>
+    <section className={compact ? 'attachments compact' : 'sheet-section attachments'}>
+      {compact ? (
         <input ref={input} type="file" accept={ACCEPT} multiple hidden onChange={pick} />
-      </div>
-      {list.length === 0 && !uploading.length && <p className="muted small">Add photos or documents, e.g. a receipt, policy or bill.</p>}
+      ) : (
+        <div className="sheet-row between">
+          <h3>
+            Attachments{list.length > 0 && <span className="muted small"> · {list.length}</span>}
+          </h3>
+          <button className="btn glass sm" onClick={() => input.current?.click()}>
+            📎 Attach
+          </button>
+          <input ref={input} type="file" accept={ACCEPT} multiple hidden onChange={pick} />
+        </div>
+      )}
+      {!compact && list.length === 0 && !uploading.length && <p className="muted small">Add photos or documents, e.g. a receipt, policy or bill.</p>}
       {(list.length > 0 || uploading.length > 0) && (
         <div className="att-grid">
           {list.map((f) => (
@@ -66,7 +71,18 @@ export default function Attachments({ ledgerId, itemPath, files, username }) {
               <span className="att-name">Uploading…</span>
             </div>
           ))}
+          {compact && (
+            <button className="att-tile att-add" onClick={() => input.current?.click()} aria-label="Attach a photo or document">
+              <span className="att-icon">＋</span>
+              <span className="att-name">Photo / file</span>
+            </button>
+          )}
         </div>
+      )}
+      {compact && list.length === 0 && !uploading.length && (
+        <button className="btn ghost sm" onClick={() => input.current?.click()}>
+          📎 Attach photo or file
+        </button>
       )}
       {error && <p className="att-error">{error}</p>}
       {open && <AttachmentViewer file={open} onRemove={() => remove(open)} onClose={() => setOpen(null)} />}
