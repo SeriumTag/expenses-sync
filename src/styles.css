@@ -1397,3 +1397,20 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .home-person .hp-nums > span:not(.hp-hint) { align-items: flex-start; }
 .home-person .hp-nums > span:last-child:not(.hp-hint) { align-items: flex-end; }
 .home-person .hp-hint { grid-column: 2 / -1; max-width: none; text-align: right; align-self: center; }
+/* Each person as a square tile, two per row */
+.people-block { display: flex; flex-direction: column; gap: 8px; }
+.people-block .home-card-head { padding: 0 4px; }
+.people-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.person-tile {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px; border: none; border-radius: 22px; text-align: left;
+  background: var(--surface, #fff); box-shadow: var(--shadow-sm); font: inherit; color: var(--text); cursor: pointer;
+  /* Square-ish, but grows to fit; content starts at the top (buttons centre by default). */
+  min-height: 168px; justify-content: flex-start; align-items: stretch;
+}
+.person-tile:active { background: var(--accent-soft); }
+.pt-name { font-family: var(--display); font-weight: 600; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-line { display: flex; flex-direction: column; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.pt-line b { font-size: 15px; }
+.pt-left { margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--line); }
+.pt-left b { font-size: 19px; }
+.pt-hint { margin-top: auto; line-height: 1.35; }

@@ -121,8 +121,8 @@ export default function HomeScreen(props) {
         </div>
       )}
 
-      {/* 5. Each person: income, what they pay, what is left */}
-      <section className="home-card">
+      {/* 5. Each person: a tile each, income on top, expenses, then what's left. */}
+      <section className="people-block">
         <div className="home-card-head">
           <h2>Each person</h2>
           <button className="link-btn" onClick={onAddPerson}>
@@ -130,36 +130,36 @@ export default function HomeScreen(props) {
           </button>
         </div>
         {people.length === 0 && <p className="muted small">Add each person’s salary to see what’s left after expenses.</p>}
-        {people.map((p) => {
-          // Each person's own "left": their income minus the groups they pay for.
-          const mine = afterExpenses(p, period, view, ctx);
-          const picked = Object.keys(p.tabs || {}).length > 0;
-          return (
-            <button key={p.id} className="home-person" onClick={() => onOpenPerson(p.id)}>
-              <span className="hp-name">{p.name || 'Unnamed'}</span>
-              <span className="hp-nums">
-                <span>
+        <div className="people-grid">
+          {people.map((p) => {
+            // Each person's own "left": their income minus the groups they pay for.
+            const mine = afterExpenses(p, period, view, ctx);
+            const picked = Object.keys(p.tabs || {}).length > 0;
+            return (
+              <button key={p.id} className="person-tile" onClick={() => onOpenPerson(p.id)}>
+                <span className="pt-name">{p.name || 'Unnamed'}</span>
+                <span className="pt-line">
                   <span className="muted small">Income</span>
                   <b>{formatMoney(mine.salary, currency)}</b>
                 </span>
                 {picked ? (
                   <>
-                    <span>
+                    <span className="pt-line">
                       <span className="muted small">Expenses</span>
-                      <b>{formatMoney(mine.spent, currency)}</b>
+                      <b>− {formatMoney(mine.spent, currency)}</b>
                     </span>
-                    <span>
+                    <span className="pt-line pt-left">
                       <span className="muted small">Left</span>
                       <b className={mine.left < 0 ? 'neg' : 'pos'}>{formatMoney(mine.left, currency)}</b>
                     </span>
                   </>
                 ) : (
-                  <span className="hp-hint muted small">Tap to choose what they pay for</span>
+                  <span className="pt-hint muted small">Tap to choose what {p.name ? `${p.name} pays` : 'they pay'} for</span>
                 )}
-              </span>
-            </button>
-          );
-        })}
+              </button>
+            );
+          })}
+        </div>
       </section>
 
       <p className="home-shared muted small">
