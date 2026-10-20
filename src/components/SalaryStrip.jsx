@@ -148,7 +148,8 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
         </section>
 
         <section className="sheet-section">
-          <h3>After expenses = income minus…</h3>
+          <h3>What does {person.name || 'this person'} pay for?</h3>
+          <p className="muted small">Tick the groups paid from this income. What’s left is shown on Home.</p>
           {tabs.map((t) => (
             <label key={t.id} className="switch-row">
               <input

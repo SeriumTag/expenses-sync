@@ -1,29 +1,21 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FREQS, byCategory, setAsideTab, sorted, tabInView } from '../lib/budget';
 import { prefs } from '../lib/session';
-import { duplicateItems, mergeItems, ordersAfter, reorderItems, updateItemField } from '../lib/db';
+import { duplicateItems, mergeItems, ordersAfter, reorderItems } from '../lib/db';
 import { reordered, useDragSort } from '../hooks/useDragSort';
 import { formatMoney } from '../lib/format';
 import ItemRow from './ItemRow';
 
 export default function ItemList(props) {
-  const { base, pk, tabId, items, prevPeriod, prevLabel, categories, currency, username, focusId, view } = props;
+  const { base, pk, tabId, items, prevPeriod, prevLabel, currency, username, view } = props;
   const { onViewChange, onAdd, onImport, onOpenItem, ctx } = props;
-  const [mode, setMode] = useState('normal'); // 'normal' | 'select' | 'reorder'
+  const [mode, setMode] = useState('normal'); // 'normal' | 'edit' (tick, copy, combine, move)
   const [menuOpen, setMenuOpen] = useState(false);
   const [picked, setPicked] = useState(() => new Set());
-  const itemsRef = useRef(items);
-  itemsRef.current = items;
 
   const rows = useMemo(() => sorted(items), [items]);
   const groups = useMemo(() => byCategory(items, view, ctx), [items, view, ctx]);
-  const selecting = mode === 'select';
-
-  // Skip writes to a row the other person just deleted, so it isn't half-recreated.
-  const saver = (itemId) => (field) => (value) => {
-    if (!itemsRef.current?.[itemId]) return;
-    return updateItemField(base, tabId, itemId, field, value, username);
-  };
+  const editing = mode === 'edit';
 
   const togglePick = (id) =>
     setPicked((prev) => {
@@ -82,7 +74,7 @@ export default function ItemList(props) {
 
   async function merge() {
     const chosen = rows.filter((r) => picked.has(r.id));
-    const name = window.prompt('Name for the merged item', chosen.map((r) => r.name).join(' + '));
+    const name = window.prompt('Name for the combined item', chosen.map((r) => r.name).join(' + '));
     if (!name?.trim()) return;
     const id = await mergeItems(base, tabId, chosen, name.trim(), username);
     switchMode('normal');
@@ -109,53 +101,52 @@ export default function ItemList(props) {
   const maxGroup = Math.max(...groups.map((g) => g.total), 0);
 
   return (
-    <div className={`ep-list mode-${mode} ${showCats ? '' : 'hide-cats'}`}>
-      <datalist id={`categories-${tabId}`}>
-        {categories.map((c) => (
-          <option key={c} value={c} />
-        ))}
-      </datalist>
-
+    <div className={`ep-list mode-${mode}`}>
       <div className="ep-head">
-        <div className="row-gap">
-          {mode === 'normal' && (
-            <>
-              <button className="btn primary sm" onClick={onAdd}>
-                ＋ Add
+        {editing ? (
+          <div className="row-gap">
+            <button className="btn primary sm" onClick={() => switchMode('normal')}>
+              Done
+            </button>
+            <span className="mode-hint-show">Tick to copy or combine · drag ⠿ to move</span>
+          </div>
+        ) : (
+          <div className="row-gap">
+            <button className="btn primary sm" onClick={onAdd}>
+              ＋ Add
+            </button>
+            {rows.length > 1 && (
+              <button className="btn ghost sm" onClick={() => switchMode('edit')}>
+                Edit list
               </button>
-              <button className="btn ghost sm" onClick={() => switchMode('select')}>
-                Select
+            )}
+            <span className="list-menu-wrap">
+              <button className="btn ghost sm more-btn" onClick={() => setMenuOpen((o) => !o)} aria-label="More list options" aria-expanded={menuOpen}>
+                ⋯
               </button>
-              <span className="list-menu-wrap">
-                <button className="btn ghost sm more-btn" onClick={() => setMenuOpen((o) => !o)} aria-label="More list options" aria-expanded={menuOpen}>
-                  ⋯
-                </button>
-                {menuOpen && (
-                  <>
-                    <div className="menu-scrim" onClick={() => setMenuOpen(false)} />
-                    <div className="list-menu" role="menu">
-                      <button role="menuitem" onClick={() => switchMode('reorder')}>
-                        <span className="menu-ico">⇅</span> Reorder items
-                      </button>
-                      <button role="menuitem" onClick={toggleCats}>
-                        <span className="menu-ico">🏷</span> {showCats ? 'Hide category tags' : 'Show category tags'}
-                      </button>
-                    </div>
-                  </>
-                )}
-              </span>
-            </>
-          )}
-          {mode !== 'normal' && (
-            <>
-              <button className="btn primary sm" onClick={() => switchMode('normal')}>
-                {mode === 'reorder' ? 'Done' : 'Cancel'}
-              </button>
-              <span className="mode-hint">{mode === 'reorder' ? 'Drag ⠿ to move items' : 'Tap items to copy or merge'}</span>
-            </>
-          )}
-        </div>
-        {mode === 'normal' && (
+              {menuOpen && (
+                <>
+                  <div className="menu-scrim" onClick={() => setMenuOpen(false)} />
+                  <div className="list-menu" role="menu">
+                    <button role="menuitem" onClick={toggleCats}>
+                      <span className="menu-ico">🏷</span> {showCats ? 'Hide categories' : 'Show categories'}
+                    </button>
+                    <button
+                      role="menuitem"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onImport();
+                      }}
+                    >
+                      <span className="menu-ico">📋</span> Paste from a spreadsheet
+                    </button>
+                  </div>
+                </>
+              )}
+            </span>
+          </div>
+        )}
+        {!editing && (
           <div className="seg" role="group" aria-label="Show amounts">
             {Object.entries(FREQS).map(([k, p]) => (
               <button key={k} className={view === k ? 'on' : ''} aria-pressed={view === k} onClick={() => onViewChange(k)}>
@@ -167,64 +158,56 @@ export default function ItemList(props) {
       </div>
 
       <div className="ep-rows" {...drag.groupProps()}>
-      {rows.map((item, i) => (
+      {rows.map((item) => (
         <ItemRow
           key={item.id}
           item={item}
-          index={i}
           pk={pk}
-          tabId={tabId}
           prevPeriod={prevPeriod}
           prevLabel={prevLabel}
           currency={currency}
           view={view}
-          save={saver(item.id)}
-          focus={focusId === item.id}
-          mode={mode}
+          showCats={showCats}
+          editing={editing}
           picked={picked.has(item.id)}
           onPick={() => togglePick(item.id)}
           onOpen={() => onOpenItem(tabId, item.id)}
           expanded={expanded.has(item.id)}
           onToggle={() => toggleExpand(item.id)}
-          dragItem={mode === 'select' ? null : drag.itemProps(item.id)}
-          dragHandle={mode === 'select' ? null : drag.handleProps(item.id)}
+          dragItem={editing ? drag.itemProps(item.id) : null}
+          dragHandle={editing ? drag.handleProps(item.id) : null}
           ctx={ctx}
         />
       ))}
       </div>
 
-      {selecting ? (
+      {editing ? (
         <div className="select-bar">
-          <span>{picked.size ? `${picked.size} selected` : 'Tap items to copy or merge'}</span>
+          <span>{picked.size ? `${picked.size} ticked` : 'Tick items to copy or combine'}</span>
           <div className="row-gap">
             <button className="btn glass sm" disabled={!picked.size} onClick={copySelected}>
               Copy{picked.size ? ` ${picked.size}` : ''}
             </button>
             <button className="btn primary sm" disabled={picked.size < 2} onClick={merge}>
-              Merge{picked.size >= 2 ? ` ${picked.size}` : ''}
+              Combine{picked.size >= 2 ? ` ${picked.size}` : ''}
             </button>
           </div>
         </div>
       ) : (
         <div className="ep-foot">
-          <div className="row-gap">
-            <button className="btn glass" onClick={onAdd}>
-              ＋ Add
-            </button>
-            <button className="btn ghost sm" onClick={onImport}>
-              Paste from sheet
-            </button>
-          </div>
+          <button className="btn glass sm" onClick={onAdd}>
+            ＋ Add
+          </button>
           <span className="ep-total">
             {FREQS[view].label} total <b>{formatMoney(tabInView(items, view, ctx), currency)}</b>
           </span>
         </div>
       )}
 
-      {setAside > 0 && !selecting && (
+      {setAside > 0 && !editing && (
         <div className="set-aside" title="The yearly bills in this list, spread over 12 months">
           <span>
-            <b>Set aside for yearly bills</b>
+            <b>Save monthly for yearly bills</b>
             <span className="muted small"> · so they’re covered when due</span>
           </span>
           <span className="set-aside-amt">
@@ -235,7 +218,7 @@ export default function ItemList(props) {
         </div>
       )}
 
-      {groups.length > 1 && !selecting && (
+      {groups.length > 1 && !editing && (
         <section className="cat-breakdown" aria-label="Totals by category">
           <h3>By category</h3>
           {groups.map((g) => (

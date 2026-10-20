@@ -5,6 +5,7 @@ import { useConnected } from '../hooks/useConnected';
 import { PresenceContext, usePresence } from '../hooks/usePresence';
 import {
   FREQS,
+  amountInView,
   categoriesIn,
   tabInView,
   yearOf,
@@ -50,6 +51,7 @@ import { CategoriesSheet, CategoryPage } from './CategoryPage';
 import ImportDialog from './ImportDialog';
 import ItemBin from './ItemBin';
 import ItemList from './ItemList';
+import ItemRow, { matchesSearch } from './ItemRow';
 import Loading from './Loading';
 import IconPicker from './IconPicker';
 import ItemSheet from './ItemSheet';
@@ -62,6 +64,7 @@ import { SavingsPanel, trackedItems } from './SavingsSheet';
 import { BudgetsPanel, budgetItems } from './BudgetsSheet';
 import BottomNav, { MonthNav } from './BottomNav';
 import HomeScreen from './HomeScreen';
+import QuickSpend from './QuickSpend';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
@@ -87,6 +90,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const [screen, setScreenState] = useState(() => prefs.get('screen') || 'home');
   const [spendOpen, setSpendOpen] = useState(null); // budget to open on the Spending tab
   const [groupMenu, setGroupMenu] = useState(false);
+  const [query, setQuery] = useState(''); // search on the Expenses tab
   const [nowKey, setNowKey] = useState(currentMonthKey);
   const [periodSel, setPeriodSel] = useState(null); // a month/year picked in the picker (null = today's month)
   // Monthly/Yearly display is a personal preference, remembered on this device.
@@ -246,9 +250,10 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     const d = new Date(Number(pk.slice(0, 4)), Number(pk.slice(5, 7)) - 1 + dir, 1);
     selectPeriod(monthKey(d.getFullYear(), d.getMonth()));
   };
+  // "Log a spend" opens a quick sheet over whatever screen is showing.
   const logSpend = (budgetId) => {
     setSpendOpen(budgetId || null);
-    setScreen('spending');
+    setDialog('spend');
   };
 
   // Set up the month being shown: a copy of an earlier one, or empty.
@@ -490,6 +495,55 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                   </div>
                 )}
 
+                <div className="search-box">
+                  <span aria-hidden="true">🔍</span>
+                  <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search all expenses" aria-label="Search all expenses" />
+                  {query && (
+                    <button className="icon-btn" onClick={() => setQuery('')} aria-label="Clear search">
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {query.trim() && (
+                  <section className="detail search-results">
+                    {(() => {
+                      const words = query.trim().toLowerCase().split(/\s+/);
+                      const found = tabs.flatMap((t) =>
+                        sorted(period.items?.[t.id])
+                          .filter((it) => matchesSearch(it, words))
+                          .map((it) => ({ it, t })),
+                      );
+                      if (!found.length) return <p className="muted center-text">Nothing matches “{query.trim()}”.</p>;
+                      return (
+                        <>
+                          <p className="muted small">
+                            {found.length} found · {formatMoney(found.reduce((sum, { it }) => sum + amountInView(it, it.id, view, budgetCtx), 0), currency)}
+                            {FREQS[view].short}
+                          </p>
+                          {found.map(({ it, t }) => (
+                            <ItemRow
+                              key={it.id}
+                              item={it}
+                              pk={pk}
+                              prevPeriod={prevPeriod}
+                              prevLabel={prevLabel}
+                              currency={currency}
+                              view={view}
+                              ctx={budgetCtx}
+                              groupName={t.name || 'Untitled'}
+                              onOpen={() => openItem(t.id, it.id)}
+                              onToggle={() => openItem(t.id, it.id)}
+                            />
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </section>
+                )}
+
+                {!query.trim() && (
+                <>
                 <section className="row">
                   <h2 className="row-title">Groups</h2>
                   <div className="cards" role="tablist">
@@ -587,6 +641,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                     />
                   </section>
                 )}
+                </>
+                )}
               </>
             )}
 
@@ -604,7 +660,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                   )}
                 </div>
                 <BudgetsPanel
-                  key={`${pk}:${spendOpen || ''}`}
+                  key={pk}
                   ledgerId={ledgerId}
                   pk={pk}
                   period={period}
@@ -612,7 +668,6 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                   spending={data.spending}
                   currency={currency}
                   username={username}
-                  startOpen={spendOpen}
                   onOpenItem={openItem}
                   onAddBudget={() => addExpense('budget')}
                 />
@@ -716,6 +771,23 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         )}
         {dialog === 'period' && (
           <PeriodSheet ledgerId={ledgerId} periods={periods} current={pk} currency={currency} onSelect={selectPeriod} onClose={() => setDialog(null)} />
+        )}
+        {dialog === 'spend' && (
+          <QuickSpend
+            ledgerId={ledgerId}
+            pk={pk}
+            period={period}
+            tabs={tabs}
+            spending={data.spending}
+            currency={currency}
+            username={username}
+            startWith={spendOpen}
+            onAddBudget={() => {
+              setDialog(null);
+              addExpense('budget');
+            }}
+            onClose={() => setDialog(null)}
+          />
         )}
         {dialog === 'categories' && (
           <CategoriesSheet

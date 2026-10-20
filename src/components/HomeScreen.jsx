@@ -1,4 +1,4 @@
-import { budgetStatus, inView, isYearKey, monthlyIncome, potBalance, setAsideTab, sorted, tabInView } from '../lib/budget';
+import { afterExpenses, budgetStatus, inView, isYearKey, monthlyIncome, potBalance, setAsideTab, sorted, tabInView } from '../lib/budget';
 import { formatMoney } from '../lib/format';
 import { budgetItems } from './BudgetsSheet';
 import { trackedItems } from './SavingsSheet';
@@ -130,12 +130,30 @@ export default function HomeScreen(props) {
           </button>
         </div>
         {people.length === 0 && <p className="muted small">Add each person’s salary to see what’s left after expenses.</p>}
-        {people.map((p) => (
-          <button key={p.id} className="home-row" onClick={() => onOpenPerson(p.id)}>
-            <span>{p.name || 'Unnamed'}</span>
-            <b>{formatMoney(inView(monthlyIncome(p), view), currency)}</b>
-          </button>
-        ))}
+        {people.map((p) => {
+          // Each person's own "left": their income minus the groups they pay for.
+          const mine = afterExpenses(p, period, view, ctx);
+          const picked = Object.keys(p.tabs || {}).length > 0;
+          return (
+            <button key={p.id} className="home-person" onClick={() => onOpenPerson(p.id)}>
+              <span className="hp-name">{p.name || 'Unnamed'}</span>
+              <span className="hp-nums">
+                <span>
+                  <span className="muted small">Income</span>
+                  <b>{formatMoney(mine.salary, currency)}</b>
+                </span>
+                {picked ? (
+                  <span>
+                    <span className="muted small">Left</span>
+                    <b className={mine.left < 0 ? 'neg' : 'pos'}>{formatMoney(mine.left, currency)}</b>
+                  </span>
+                ) : (
+                  <span className="hp-hint muted small">Tap to choose what they pay for</span>
+                )}
+              </span>
+            </button>
+          );
+        })}
       </section>
 
       <p className="home-shared muted small">

@@ -1,162 +1,110 @@
-import { FREQS, amountInView, budgetStatus, spentMode, compareItem, groupCatLabel, inView, itemCats, monthlyOf, partCats, partMonthly, sorted } from '../lib/budget';
-import { formatMoney, parseAmount } from '../lib/format';
+import { FREQS, amountInView, budgetStatus, spentMode, compareItem, itemCats, inView, partCats, partMonthly, sorted } from '../lib/budget';
+import { formatMoney } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
-import CatField, { GroupCat } from './CatField';
-import { ChangeBadge, FreqPill } from './ChangeBadge';
-import LiveInput from './LiveInput';
-import PotIcon from './PotIcon';
+import { ChangeBadge } from './ChangeBadge';
 
 const FIELDS = ['name', 'category', 'note', 'amount'];
 
-// One compact line per item: name, merged count, categories, amount.
-// Notes and details live in the item's card (›).
+// One line per item, read-only: tap it to open its card and change things
+// there (so nothing gets changed by accident). In Edit mode the row can be
+// ticked (to copy / combine) and dragged by its grip.
 export default function ItemRow(props) {
-  const { item, index, pk, tabId, prevPeriod, prevLabel, currency, view, save, focus } = props;
-  const { mode, picked, onPick, onOpen, expanded, onToggle, dragItem, dragHandle, ctx } = props;
+  const { item, pk, prevPeriod, prevLabel, currency, view, ctx, showCats, groupName } = props;
+  const { editing, picked, onPick, onOpen, expanded, onToggle, dragItem, dragHandle } = props;
   const { lockFor, colorFor } = usePresenceCtx();
-  const key = (f) => `${pk}:item:${item.id}:${f}`;
-  const editor = FIELDS.map((f) => lockFor(key(f))).find(Boolean);
+  const editor = FIELDS.map((f) => lockFor(`${pk}:item:${item.id}:${f}`)).find(Boolean);
   const change = compareItem(item, item.id, prevPeriod);
   const isGroup = Boolean(item.parts);
   const freq = item.freq === 'yearly' ? 'yearly' : 'monthly';
-  const groupView = item.view || view;
-  const selecting = mode === 'select';
-  const reordering = mode === 'reorder';
-  const locked = selecting || reordering;
-
-  // A spending budget shows what's left of it this month (or year).
+  const shownView = isGroup ? item.view || view : view;
   const noBudget = spentMode(item);
-  const left = item.budget && !noBudget && ctx?.pk ? budgetStatus(item, item.id, ctx.spending, ctx.pk).left : null;
+  const status = item.budget && ctx?.pk ? budgetStatus(item, item.id, ctx.spending, ctx.pk) : null;
+  const amount = amountInView(item, item.id, shownView, ctx);
+  const icon = item.track ? '🐷' : item.budget ? '💸' : null;
+  const cats = showCats ? itemCats(item) : [];
+  const fileCount = Object.keys(item.files || {}).length;
 
-  const conv =
-    !isGroup && freq !== view
-      ? item.track && view === 'yearly'
-        ? `${formatMoney(amountInView(item, item.id, view, ctx), currency)} saved`
-        : `≈ ${formatMoney(inView(monthlyOf(item), view), currency)}${FREQS[view].short}`
-      : null;
+  // Small second line: the original amount when it's yearly (or monthly in the
+  // yearly view), the parts of a combined item, categories.
+  const native =
+    !isGroup && !noBudget && freq !== view ? `${formatMoney(Number(item.amount) || 0, currency)}${freq === 'yearly' ? '/yr' : '/mo'}` : null;
 
   return (
     <div
-      className={`ep ${editor ? 'remote' : ''} ${change ? 'changed' : ''} ${picked ? 'picked' : ''} ${reordering ? 'reordering' : ''}`}
+      className={`ep2 ${editor ? 'remote' : ''} ${change ? 'changed' : ''} ${picked ? 'picked' : ''} ${editing ? 'editing' : ''}`}
       style={editor ? { '--c': colorFor(editor.user) } : undefined}
-      onClick={selecting ? onPick : undefined}
+      role="button"
+      tabIndex={0}
+      onClick={editing ? onPick : onOpen}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), editing ? onPick() : onOpen())}
+      aria-label={editing ? `Select ${item.name || 'item'}` : `Open ${item.name || 'item'}`}
       {...(dragItem || {})}
     >
-      {selecting ? (
-        <span className="ep-num">
-          <input type="checkbox" className="pick" checked={picked} readOnly aria-label={`Select ${item.name}`} />
+      {editing && <input type="checkbox" className="pick" checked={picked} readOnly tabIndex={-1} aria-hidden="true" />}
+      <div className="ep2-main">
+        <span className="ep2-name">
+          {icon && <span className="ep2-ico">{icon}</span>}
+          <span className={item.name ? '' : 'muted'}>{item.name || 'Untitled'}</span>
+          {item.note && (
+            <span className="ep2-mark" title={item.note}>
+              📝
+            </span>
+          )}
+          {fileCount > 0 && (
+            <span className="ep2-mark" title={`${fileCount} attachment(s)`}>
+              📎
+            </span>
+          )}
         </span>
-      ) : (
-        <span className="ep-num drag-handle" title="Drag to move" {...(dragHandle || {})}>
-          {index + 1}
-        </span>
-      )}
-
-      <div className="ep-line">
-        {item.track && <PotIcon size={17} />}
-        <LiveInput
-          className="ep-name"
-          fieldKey={key('name')}
-          value={item.name || ''}
-          onSave={save('name')}
-          placeholder="What is it?"
-          autoFocusOnMount={focus}
-          disabled={locked}
-        />
-        {isGroup && (
-          <button
-            className={`parts-chip ${expanded ? 'open' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle();
-            }}
-            disabled={locked}
-            aria-expanded={expanded}
-            title={expanded ? 'Hide the parts' : 'Show the parts'}
-          >
-            <span className="chev-sm">▸</span> {Object.keys(item.parts).length}
-          </button>
-        )}
-        {item.note && (
-          <button
-            className="note-dot"
-            title={item.note}
-            aria-label="Has a note, open details"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (!locked) onOpen();
-            }}
-          >
-            📝
-          </button>
-        )}
-        {item.files && (
-          <span className="clip-dot" title={`${Object.keys(item.files).length} attachment(s)`} aria-label={`${Object.keys(item.files).length} attachments`}>
-            📎{Object.keys(item.files).length > 1 && <small>{Object.keys(item.files).length}</small>}
+        {(native || isGroup || cats.length > 0 || groupName || editor) && (
+          <span className="ep2-sub">
+            {editor && <span className="ep2-editing">{editor.user} is editing…</span>}
+            {groupName && <span>{groupName}</span>}
+            {isGroup && (
+              <button
+                className={`parts-link ${expanded ? 'open' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle();
+                }}
+                aria-expanded={expanded}
+              >
+                {Object.keys(item.parts).length} parts {expanded ? '▾' : '▸'}
+              </button>
+            )}
+            {native && <span>{native}</span>}
+            {cats.length > 0 && <span>{cats.join(' · ')}</span>}
           </span>
-        )}
-        {isGroup ? (
-          <GroupCat label={groupCatLabel(item)} cats={itemCats(item)} />
-        ) : (
-          <CatField fieldKey={key('category')} value={item.category} onSave={save('category')} listId={`categories-${tabId}`} disabled={locked} />
         )}
       </div>
 
-      <div className="ep-amt">
-        <ChangeBadge change={change} prevLabel={prevLabel} currency={currency} view={view} />
-        {left !== null ? (
-          <span className={`conv budget-left-tag ${left < 0 ? 'over' : ''}`} title="What's left of this budget">
-            {left < 0 ? `${formatMoney(-left, currency)} over` : `${formatMoney(left, currency)} left`}
+      <div className="ep2-amt">
+        <span className="ep2-amount">
+          <ChangeBadge change={change} prevLabel={prevLabel} currency={currency} view={view} />
+          <b>{formatMoney(amount, currency)}</b>
+          <span className="per-small">{noBudget ? ' spent' : item.track && shownView === 'yearly' ? ' saved' : FREQS[shownView].short}</span>
+        </span>
+        {status && !noBudget && (
+          <span className={`ep2-left ${status.left < 0 ? 'neg' : 'pos'}`}>
+            {status.left < 0 ? `${formatMoney(-status.left, currency)} over` : `${formatMoney(status.left, currency)} left`}
           </span>
-        ) : (
-          conv && <span className="conv">{conv}</span>
-        )}
-        {noBudget && !isGroup ? (
-          <button className="group-amt spent-amt" onClick={onOpen} disabled={locked} title="No fixed budget: what's been spent">
-            {formatMoney(amountInView(item, item.id, view, ctx), currency)}
-            <span className="per-small">{view === 'yearly' ? ' spent/yr' : ' spent'}</span>
-          </button>
-        ) : isGroup ? (
-          <button className="group-amt" onClick={onOpen} disabled={locked}>
-            {formatMoney(amountInView(item, item.id, groupView, ctx), currency)}
-            <span className="per-small">{FREQS[groupView].short}</span>
-          </button>
-        ) : (
-          <>
-            <LiveInput
-              className="ep-amount"
-              inputMode="decimal"
-              fieldKey={key('amount')}
-              value={item.amount}
-              format={(v) => (v ? String(v) : '')}
-              parse={parseAmount}
-              display={(v) => formatMoney(v, currency)}
-              onSave={save('amount')}
-              placeholder="0.00"
-              aria-label="Amount"
-              disabled={locked}
-            />
-            <FreqPill freq={freq} onChange={save('freq')} disabled={locked} />
-          </>
         )}
       </div>
 
-      {reordering ? (
-        <span className="grip ep-more drag-handle" title="Drag to move" aria-label={`Drag ${item.name} to move it`} {...(dragHandle || {})}>
+      {editing ? (
+        <span
+          className="grip ep2-grip drag-handle"
+          title="Drag to move"
+          aria-label={`Drag ${item.name} to move it`}
+          onClick={(e) => e.stopPropagation()}
+          {...(dragHandle || {})}
+        >
           ⠿
         </span>
       ) : (
-        <button
-          className="icon-btn ep-more"
-          title="Details"
-          aria-label={`Details for ${item.name || 'item'}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            if (!selecting) onOpen();
-          }}
-        >
+        <span className="ep2-chev" aria-hidden="true">
           ›
-        </button>
+        </span>
       )}
 
       {isGroup && expanded && (
@@ -165,11 +113,12 @@ export default function ItemRow(props) {
             <li key={p.id}>
               <span className="ep-part-name">
                 {p.name || 'Untitled'}
-                {partCats(p, item).map((c) => (
-                  <span key={c} className="cat-chip tiny">
-                    {c}
-                  </span>
-                ))}
+                {showCats &&
+                  partCats(p, item).map((c) => (
+                    <span key={c} className="cat-chip tiny">
+                      {c}
+                    </span>
+                  ))}
               </span>
               <span className="ep-part-amt">
                 {(p.freq === 'yearly' ? 'yearly' : 'monthly') !== view && (
@@ -188,3 +137,13 @@ export default function ItemRow(props) {
     </div>
   );
 }
+
+// Used by search: which item matches the words typed.
+export function matchesSearch(item, words) {
+  const text = [item.name, item.note, item.category, ...Object.values(item.parts || {}).flatMap((p) => [p.name, p.category, p.note])]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  return words.every((w) => text.includes(w));
+}
+

@@ -57,7 +57,7 @@ export function BudgetBar({ status, currency }) {
 
 // Log what was spent against an item's budget, e.g. Food: 2 Oct Chicken rice $4.
 // otherBudgets: [{ id, name }] — the other tracked budgets a spend can be moved to.
-export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, currency, username, otherBudgets = [], showList = true }) {
+export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, currency, username, otherBudgets = [], showList = true, autoFocus = false }) {
   const status = budgetStatus(item, itemId, spending, pk);
   const path = `ledgers/${ledgerId}/spending/${itemId}`;
   const [form, setForm] = useState(() => ({ date: defaultDate(pk), note: '', amount: '' }));
@@ -81,6 +81,8 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
     try {
       await patchPath(`${path}/${id}`, { date: form.date, note: form.note.trim() || null, amount, by: username || null, at: Date.now() });
       setForm({ date: form.date, note: '', amount: '' }); // keep the date for logging several in a row
+      setNotice(`✓ Added ${form.note.trim() || 'spend'} ${formatMoney(amount, currency)}`);
+      setTimeout(() => setNotice(''), 3000);
       setPendingFiles([]);
       setListOpen(true);
       // Then any receipt photos picked for it.
@@ -136,7 +138,13 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
           onChange={(e) => setForm({ ...form, date: e.target.value })}
           aria-label="Date spent"
         />
-        <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="What? e.g. Chicken rice" aria-label="What was it" />
+        <input
+          autoFocus={autoFocus}
+          value={form.note}
+          onChange={(e) => setForm({ ...form, note: e.target.value })}
+          placeholder="What? e.g. Chicken rice"
+          aria-label="What was it"
+        />
         <input
           inputMode="decimal"
           value={form.amount}

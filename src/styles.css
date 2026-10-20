@@ -1321,3 +1321,56 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 /* Same side margins as the rest of the app for everything on the new screens. */
 .screen > :not(.row):not(.detail):not(.new-month):not(.month-nav) { margin-left: var(--gutter); margin-right: var(--gutter); max-width: 980px; }
 .screen > .fav-row { margin-bottom: 4px; }
+.home-person { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 2px; border: none; border-top: 1px dashed var(--line); background: none; font: inherit; color: var(--text); cursor: pointer; text-align: left; }
+.home-card-head + .home-person { border-top: none; }
+.hp-name { font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.hp-nums { display: flex; gap: 14px; font-variant-numeric: tabular-nums; }
+.hp-nums > span:not(.hp-hint) { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.hp-hint { max-width: 120px; text-align: right; }
+
+/* Read-only item rows: tap to open */
+.ep2 {
+  position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; align-items: center; gap: 4px 10px;
+  padding: 10px 6px; border-bottom: 1px solid var(--line); cursor: pointer; border-radius: 10px;
+  -webkit-tap-highlight-color: transparent;
+}
+.ep2:last-child { border-bottom: none; }
+.ep2:hover, .ep2:focus-visible { background: color-mix(in srgb, var(--accent-soft) 40%, transparent); outline: none; }
+.ep2:active { background: var(--accent-soft); }
+.ep2.editing { grid-template-columns: 24px minmax(0, 1fr) auto 26px; cursor: default; }
+.ep2.picked { background: var(--accent-soft); }
+.ep2.changed { box-shadow: inset 3px 0 0 var(--accent); }
+.ep2.remote { box-shadow: inset 3px 0 0 var(--c); }
+.ep2-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ep2-name { display: flex; align-items: center; gap: 5px; font-weight: 700; font-size: 15px; min-width: 0; }
+.ep2-name > span:not(.ep2-ico):not(.ep2-mark) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ep2-ico { font-size: 14px; flex-shrink: 0; }
+.ep2-mark { font-size: 11px; opacity: 0.7; flex-shrink: 0; }
+.ep2-sub { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 12px; color: var(--muted); }
+.ep2-editing { color: var(--c, var(--accent-deep)); font-weight: 800; }
+.parts-link { border: none; background: none; padding: 0; font: inherit; font-weight: 800; color: var(--accent-deep); cursor: pointer; }
+.ep2-amt { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; font-variant-numeric: tabular-nums; }
+.ep2-amount { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.ep2-amount b { font-size: 15px; }
+.ep2-left { font-size: 11.5px; font-weight: 800; white-space: nowrap; }
+.ep2-chev { color: var(--dim); font-size: 18px; text-align: center; }
+.ep2-grip { width: 26px; min-height: 30px; }
+.ep2 .ep-parts { grid-column: 1 / -1; }
+.mode-hint-show { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+
+.search-box { display: flex; align-items: center; gap: 8px; padding: 0 12px; margin-bottom: 10px; border-radius: 14px; background: var(--surface, #fff); box-shadow: var(--shadow-sm); }
+.search-box input { flex: 1; min-width: 0; border: none; background: none; padding: 11px 0; font-size: 15px; box-shadow: none; }
+.search-box input:focus { outline: none; }
+.search-results { margin-bottom: 12px; }
+.center-text { text-align: center; padding: 14px 0; }
+
+/* Quick "Log a spend" */
+.field-label { display: block; font-size: 12px; font-weight: 800; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
+.budget-chips { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px; }
+.budget-chip {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 12px; border-radius: 14px;
+  border: 2px solid var(--line); background: var(--surface, #fff); font: inherit; color: var(--text); cursor: pointer; text-align: left;
+}
+.budget-chip span { font-size: 12px; font-weight: 800; }
+.budget-chip.on { border-color: var(--accent); background: var(--accent-soft); }
+.empty-card.flat { box-shadow: none; background: none; }
