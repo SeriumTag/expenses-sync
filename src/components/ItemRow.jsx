@@ -1,4 +1,4 @@
-import { FREQS, amountInView, budgetStatus, compareItem, groupCatLabel, inView, itemCats, monthlyOf, partCats, partMonthly, sorted } from '../lib/budget';
+import { FREQS, amountInView, budgetStatus, spentMode, compareItem, groupCatLabel, inView, itemCats, monthlyOf, partCats, partMonthly, sorted } from '../lib/budget';
 import { formatMoney, parseAmount } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
 import CatField, { GroupCat } from './CatField';
@@ -25,7 +25,8 @@ export default function ItemRow(props) {
   const locked = selecting || reordering;
 
   // A spending budget shows what's left of it this month (or year).
-  const left = item.budget && ctx?.pk ? budgetStatus(item, item.id, ctx.spending, ctx.pk).left : null;
+  const noBudget = spentMode(item);
+  const left = item.budget && !noBudget && ctx?.pk ? budgetStatus(item, item.id, ctx.spending, ctx.pk).left : null;
 
   const conv =
     !isGroup && freq !== view
@@ -110,7 +111,12 @@ export default function ItemRow(props) {
         ) : (
           conv && <span className="conv">{conv}</span>
         )}
-        {isGroup ? (
+        {noBudget && !isGroup ? (
+          <button className="group-amt spent-amt" onClick={onOpen} disabled={locked} title="No fixed budget: what's been spent">
+            {formatMoney(amountInView(item, item.id, view, ctx), currency)}
+            <span className="per-small">{view === 'yearly' ? ' spent/yr' : ' spent'}</span>
+          </button>
+        ) : isGroup ? (
           <button className="group-amt" onClick={onOpen} disabled={locked}>
             {formatMoney(amountInView(item, item.id, groupView, ctx), currency)}
             <span className="per-small">{FREQS[groupView].short}</span>

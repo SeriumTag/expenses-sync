@@ -5,6 +5,7 @@ import { newKey, patchPath, setPath } from '../lib/db';
 import { attachFile } from '../lib/files';
 import { formatMoney, parseAmount } from '../lib/format';
 import Attachments from './Attachments';
+import LiveInput from './LiveInput';
 
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
 const dayName = (d) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`;
@@ -18,7 +19,20 @@ function defaultDate(pk) {
 
 // Budget, spent and left with a bar — shared by the item card and the Budgets list.
 export function BudgetBar({ status, currency }) {
-  const { budget, spent, left } = status;
+  const { budget, spent, left, noBudget } = status;
+  if (noBudget) {
+    return (
+      <div className="budget-bar none">
+        <div className="budget-nums">
+          <span>
+            <span className="muted small">Spent </span>
+            <b>{formatMoney(spent, currency)}</b>
+          </span>
+          <span className="muted small">No fixed budget · counts what’s spent</span>
+        </div>
+      </div>
+    );
+  }
   const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : spent > 0 ? 100 : 0;
   const over = left < 0;
   return (
@@ -42,7 +56,8 @@ export function BudgetBar({ status, currency }) {
 }
 
 // Log what was spent against an item's budget, e.g. Food: 2 Oct Chicken rice $4.
-export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, currency, username, showList = true }) {
+// otherBudgets: [{ id, name }] — the other tracked budgets a spend can be moved to.
+export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, currency, username, otherBudgets = [], showList = true }) {
   const status = budgetStatus(item, itemId, spending, pk);
   const path = `ledgers/${ledgerId}/spending/${itemId}`;
   const [form, setForm] = useState(() => ({ date: defaultDate(pk), note: '', amount: '' }));
@@ -50,7 +65,8 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
   const [pendingFiles, setPendingFiles] = useState([]); // photos picked before tapping Add
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [filesOpen, setFilesOpen] = useState(null); // spend whose attachments are shown
+  const [detail, setDetail] = useState(null); // spend whose details (date, move, receipts) are open
+  const [notice, setNotice] = useState('');
   const fileInput = useRef(null);
   const amount = parseAmount(form.amount);
   const canAdd = amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(form.date);
@@ -82,8 +98,23 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
     }
   }
 
+  // Edits to a spend; skipped if the other person just removed or moved it.
+  const saveSpend = (s, field) => (value) => spending?.[itemId]?.[s.id] && patchPath(`${path}/${s.id}`, { [field]: value });
+
+  // Move a spend (with its receipts) to another tracked budget.
+  async function moveTo(s, targetId) {
+    const target = otherBudgets.find((b) => b.id === targetId);
+    const entry = spending?.[itemId]?.[s.id];
+    if (!target || !entry) return;
+    setDetail(null);
+    await patchPath(`ledgers/${ledgerId}/spending`, { [`${itemId}/${s.id}`]: null, [`${targetId}/${s.id}`]: entry });
+    setNotice(`Moved “${s.note || 'spend'}” to ${target.name || 'another budget'}.`);
+    setTimeout(() => setNotice(''), 4000);
+  }
+
   function remove(s) {
     if (!confirmTwice(`Remove “${s.note || 'this spend'}” (${formatMoney(s.amount, currency)}) on ${dayName(s.date)}? It goes back into the budget.`, 'this spend')) return;
+    setDetail(null);
     setPath(`${path}/${s.id}`, null);
   }
 
@@ -147,6 +178,7 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
         </p>
       )}
       {error && <p className="att-error">{error}</p>}
+      {notice && <p className="spend-notice" role="status">{notice}</p>}
 
       {status.spends.length > 0 && (
         <>
@@ -155,40 +187,88 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
           </button>
           {listOpen && (
             <ul className="spend-list">
-              {status.spends.map((s) => (
-                <li key={s.id} className={filesOpen === s.id ? 'open' : ''}>
-                  <span className="s-date">{dayName(s.date)}</span>
-                  <span className="s-note">
-                    {s.note || <span className="muted">No note</span>}
-                    {s.by && s.by !== username && <span className="muted small"> · {s.by}</span>}
-                  </span>
-                  <b>{formatMoney(s.amount, currency)}</b>
-                  <button
-                    className={`icon-btn s-clip ${s.files ? 'has' : ''}`}
-                    onClick={() => setFilesOpen(filesOpen === s.id ? null : s.id)}
-                    aria-expanded={filesOpen === s.id}
-                    aria-label={s.files ? `${Object.keys(s.files).length} attachment(s)` : 'Attach a photo or file'}
-                    title={s.files ? 'Attachments' : 'Attach a photo or file'}
-                  >
-                    📎{s.files && Object.keys(s.files).length > 1 && <small>{Object.keys(s.files).length}</small>}
-                  </button>
-                  <button className="icon-btn" onClick={() => remove(s)} aria-label={`Remove ${s.note || 'spend'} on ${dayName(s.date)}`}>
-                    ✕
-                  </button>
-                  {filesOpen === s.id && (
-                    <div className="s-files">
-                      <Attachments
-                        ledgerId={ledgerId}
-                        itemPath={`spending/${itemId}/${s.id}`}
-                        files={s.files}
-                        username={username}
-                        compact
-                        what={`“${s.note || 'this spend'}”`}
+              {status.spends.map((s) => {
+                const open = detail === s.id;
+                const nFiles = Object.keys(s.files || {}).length;
+                return (
+                  <li key={s.id} className={open ? 'open' : ''}>
+                    <span className="s-date">{dayName(s.date)}</span>
+                    <span className="s-note">
+                      <LiveInput
+                        className="s-note-input"
+                        fieldKey={`spend:${itemId}:${s.id}:note`}
+                        value={s.note || ''}
+                        onSave={(v) => saveSpend(s, 'note')(v.trim() ? v : null)}
+                        placeholder="No note"
+                        aria-label="What was it"
                       />
-                    </div>
-                  )}
-                </li>
-              ))}
+                      {s.by && s.by !== username && <span className="muted small s-by">{s.by}</span>}
+                    </span>
+                    <LiveInput
+                      className="s-amt-input"
+                      inputMode="decimal"
+                      fieldKey={`spend:${itemId}:${s.id}:amount`}
+                      value={s.amount}
+                      format={(v) => (v ? String(v) : '')}
+                      parse={parseAmount}
+                      display={(v) => formatMoney(v, currency)}
+                      onSave={(v) => v > 0 && saveSpend(s, 'amount')(v)}
+                      aria-label="Amount spent"
+                    />
+                    <button
+                      className={`icon-btn s-more ${nFiles ? 'has-files' : ''}`}
+                      onClick={() => setDetail(open ? null : s.id)}
+                      aria-expanded={open}
+                      aria-label={`More for ${s.note || 'this spend'}${nFiles ? `, ${nFiles} attachment(s)` : ''}`}
+                      title="Date, move, receipts"
+                    >
+                      {nFiles ? '📎' : '⋯'}
+                      {nFiles > 1 && <small>{nFiles}</small>}
+                    </button>
+                    {open && (
+                      <div className="s-detail">
+                        <div className="s-detail-row">
+                          <label>
+                            <span>Date</span>
+                            <input
+                              type="date"
+                              value={s.date}
+                              onChange={(e) => /^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && saveSpend(s, 'date')(e.target.value)}
+                              aria-label="Date spent"
+                            />
+                          </label>
+                          {otherBudgets.length > 0 && (
+                            <label>
+                              <span>Move to</span>
+                              <select value="" onChange={(e) => e.target.value && moveTo(s, e.target.value)} aria-label="Move this spend to another budget">
+                                <option value="">Choose a budget…</option>
+                                {otherBudgets.map((b) => (
+                                  <option key={b.id} value={b.id}>
+                                    {b.name || 'Untitled'}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                        </div>
+                        <Attachments
+                          ledgerId={ledgerId}
+                          itemPath={`spending/${itemId}/${s.id}`}
+                          files={s.files}
+                          username={username}
+                          compact
+                          what={`“${s.note || 'this spend'}”`}
+                        />
+                        <div className="s-detail-actions">
+                          <button className="btn danger sm" onClick={() => remove(s)}>
+                            Remove spend
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>

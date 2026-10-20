@@ -594,6 +594,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             prevLabel={prevLabel}
             tracks={data.tracks}
             spending={data.spending}
+            otherBudgets={budgetItems(period, tabs).map((b) => ({ id: b.id, name: b.item.name }))}
             categories={categoryNames}
             currency={currency}
             username={username}

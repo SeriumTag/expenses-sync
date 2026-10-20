@@ -236,7 +236,8 @@ export function yearlyOf(item, id, ctx) {
   if (item?.track && ctx) return savingsTotal(savingsMonths(ctx.year, id, ctx.tracks?.[id]?.log, ctx.periods));
   return monthlyOf(item) * 12;
 }
-export const amountInView = (item, id, view, ctx) => (view === 'yearly' ? yearlyOf(item, id, ctx) : monthlyOf(item));
+export const amountInView = (item, id, view, ctx) =>
+  spentMode(item) ? spentInView(id, view, ctx) : view === 'yearly' ? yearlyOf(item, id, ctx) : monthlyOf(item);
 export const tabInView = (items, view, ctx) =>
   Object.entries(items || {}).reduce((s, [id, item]) => s + amountInView(item, id, view, ctx), 0);
 
@@ -266,10 +267,26 @@ export function spendsIn(spending, itemId, pk) {
     .sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
 }
 
+// "No fixed budget" (item.budgetMode === 'spent'): instead of a planned
+// amount, the item counts as whatever was actually spent.
+export const spentMode = (item) => Boolean(item?.budget && item.budgetMode === 'spent');
+const sumSpends = (list) => list.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+
+// What a "no fixed budget" item counts as in totals: this month's spends
+// (monthly view) or the whole year's (yearly view).
+function spentInView(itemId, view, ctx) {
+  const pk = ctx?.pk;
+  if (!pk) return 0;
+  const yearSpent = sumSpends(spendsIn(ctx.spending, itemId, pk.slice(0, 4)));
+  if (view === 'yearly') return yearSpent;
+  return isYearKey(pk) ? yearSpent / 12 : sumSpends(spendsIn(ctx.spending, itemId, pk));
+}
+
 // Budget, spent and left for an item in period `pk` (a whole year counts 12 months).
 export function budgetStatus(item, itemId, spending, pk) {
-  const budget = monthlyOf(item) * (isYearKey(pk) ? 12 : 1);
   const spends = spendsIn(spending, itemId, pk);
-  const spent = spends.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const spent = sumSpends(spends);
+  if (spentMode(item)) return { budget: spent, spent, left: 0, spends, noBudget: true };
+  const budget = monthlyOf(item) * (isYearKey(pk) ? 12 : 1);
   return { budget, spent, left: budget - spent, spends };
 }

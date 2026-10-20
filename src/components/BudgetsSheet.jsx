@@ -44,7 +44,16 @@ export default function BudgetsSheet({ ledgerId, pk, period, tabs, spending, cur
               </button>
             </div>
             {open === r.id ? (
-              <BudgetTracker ledgerId={ledgerId} itemId={r.id} item={r.item} pk={pk} spending={spending} currency={currency} username={username} />
+              <BudgetTracker
+                ledgerId={ledgerId}
+                itemId={r.id}
+                item={r.item}
+                pk={pk}
+                spending={spending}
+                currency={currency}
+                username={username}
+                otherBudgets={rows.filter((o) => o.id !== r.id).map((o) => ({ id: o.id, name: o.item.name }))}
+              />
             ) : (
               <>
                 <BudgetBar status={r.status} currency={currency} />

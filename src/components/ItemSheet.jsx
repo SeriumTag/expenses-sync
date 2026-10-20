@@ -1,4 +1,4 @@
-import { FREQS, compareItem, findItem, groupCatLabel, inView, itemCats, monthlyOf, setAsideOf, yearOf, yearlyOf } from '../lib/budget';
+import { FREQS, amountInView, compareItem, spentMode, findItem, groupCatLabel, inView, itemCats, monthlyOf, setAsideOf, yearOf, yearlyOf } from '../lib/budget';
 import { duplicateItems, ordersAfter, splitItem, trashItem, updateItemField } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import CatField, { GroupCat } from './CatField';
@@ -15,8 +15,10 @@ import BudgetTracker from './BudgetTracker';
 // Pull-up card for one item: details, merged breakdown, savings tracking.
 export default function ItemSheet(props) {
   const { ledgerId, base, pk, tabId, tabName, itemId, item, periods, prevPeriod, prevLabel } = props;
-  const { spending } = props;
+  const { spending, otherBudgets } = props;
   const { tracks, categories, currency, username, view, siblings, onOpenItem, onClose, tab, onTrashed } = props;
+  const noBudget = spentMode(item);
+  const ctx = { year: yearOf(pk), tracks, periods, spending, pk };
   const path = `${base}/items/${tabId}/${itemId}`;
   const key = (f) => `${pk}:item:${itemId}:${f}`;
   const save = (field) => (value) => updateItemField(base, tabId, itemId, field, value, username);
@@ -71,9 +73,19 @@ export default function ItemSheet(props) {
               ))}
             </datalist>
           </div>
-          {!isGroup && (
-            <label className="field">
+          {!isGroup && noBudget && (
+            <div className="field">
               <span>Amount</span>
+              <b className="spent-amount">
+                {formatMoney(amountInView(item, itemId, 'monthly', ctx), currency)}
+                <span className="muted small"> spent so far</span>
+              </b>
+              <span className="muted small">No fixed budget: this item counts what’s spent.</span>
+            </div>
+          )}
+          {!isGroup && !noBudget && (
+            <label className="field">
+              <span>{item.budget ? 'Budget' : 'Amount'}</span>
               <div className="amt-line">
                 <LiveInput
                   className="ep-amount"
@@ -99,11 +111,11 @@ export default function ItemSheet(props) {
 
         <div className="sheet-summary">
           <span>
-            <b>{formatMoney(monthlyOf(item), currency)}</b>
+            <b>{formatMoney(noBudget ? amountInView(item, itemId, 'monthly', ctx) : monthlyOf(item), currency)}</b>
             <span className="muted small">/mo</span>
           </span>
           <span>
-            <b>{formatMoney(yearlyOf(item, itemId, { year: yearOf(pk), tracks, periods }), currency)}</b>
+            <b>{formatMoney(noBudget ? amountInView(item, itemId, 'yearly', ctx) : yearlyOf(item, itemId, ctx), currency)}</b>
             <span className="muted small">{item.track ? ` saved in ${yearOf(pk)}` : '/yr'}</span>
           </span>
           {setAsideOf(item) > 0 && (
@@ -152,8 +164,33 @@ export default function ItemSheet(props) {
               <b>Track spending</b> 💸 <span className="muted small">— log what you spend (e.g. each meal) and see what’s left of this budget</span>
             </span>
           </label>
+          {item.budget && !isGroup && (
+            <div className="budget-mode" role="radiogroup" aria-label="Budget">
+              <label>
+                <input type="radio" name={`bm-${itemId}`} checked={!noBudget} onChange={() => save('budgetMode')(null)} />
+                <span>
+                  <b>Fixed budget</b> <span className="muted small">— the amount above, e.g. {formatMoney(300, currency)} a month</span>
+                </span>
+              </label>
+              <label>
+                <input type="radio" name={`bm-${itemId}`} checked={noBudget} onChange={() => save('budgetMode')('spent')} />
+                <span>
+                  <b>No fixed budget</b> <span className="muted small">— just log spends; the total spent counts as this item’s amount</span>
+                </span>
+              </label>
+            </div>
+          )}
           {item.budget && (
-            <BudgetTracker ledgerId={ledgerId} itemId={itemId} item={item} pk={pk} spending={spending} currency={currency} username={username} />
+            <BudgetTracker
+              ledgerId={ledgerId}
+              itemId={itemId}
+              item={item}
+              pk={pk}
+              spending={spending}
+              currency={currency}
+              username={username}
+              otherBudgets={(otherBudgets || []).filter((b) => b.id !== itemId)}
+            />
           )}
         </section>
 
