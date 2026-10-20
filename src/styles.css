@@ -1391,3 +1391,9 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .welcome-dots span.on { background: var(--accent); width: 20px; border-radius: 4px; }
 .welcome-actions { display: flex; justify-content: space-between; gap: 10px; align-self: stretch; margin-top: 4px; }
 .welcome-actions .btn { flex: 1; justify-content: center; }
+/* Person rows: name on top, then Income · Expenses · Left in three columns. */
+.home-person { flex-direction: column; align-items: stretch; gap: 4px; }
+.home-person .hp-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.home-person .hp-nums > span:not(.hp-hint) { align-items: flex-start; }
+.home-person .hp-nums > span:last-child:not(.hp-hint) { align-items: flex-end; }
+.home-person .hp-hint { grid-column: 2 / -1; max-width: none; text-align: right; align-self: center; }

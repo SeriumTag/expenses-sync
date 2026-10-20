@@ -121,10 +121,10 @@ export default function HomeScreen(props) {
         </div>
       )}
 
-      {/* 5. Income */}
+      {/* 5. Each person: income, what they pay, what is left */}
       <section className="home-card">
         <div className="home-card-head">
-          <h2>Income</h2>
+          <h2>Each person</h2>
           <button className="link-btn" onClick={onAddPerson}>
             ＋ Add
           </button>
@@ -143,10 +143,16 @@ export default function HomeScreen(props) {
                   <b>{formatMoney(mine.salary, currency)}</b>
                 </span>
                 {picked ? (
-                  <span>
-                    <span className="muted small">Left</span>
-                    <b className={mine.left < 0 ? 'neg' : 'pos'}>{formatMoney(mine.left, currency)}</b>
-                  </span>
+                  <>
+                    <span>
+                      <span className="muted small">Expenses</span>
+                      <b>{formatMoney(mine.spent, currency)}</b>
+                    </span>
+                    <span>
+                      <span className="muted small">Left</span>
+                      <b className={mine.left < 0 ? 'neg' : 'pos'}>{formatMoney(mine.left, currency)}</b>
+                    </span>
+                  </>
                 ) : (
                   <span className="hp-hint muted small">Tap to choose what they pay for</span>
                 )}
