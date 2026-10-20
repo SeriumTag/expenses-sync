@@ -1374,3 +1374,20 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .budget-chip span { font-size: 12px; font-weight: 800; }
 .budget-chip.on { border-color: var(--accent); background: var(--accent-soft); }
 .empty-card.flat { box-shadow: none; background: none; }
+
+/* Welcome tour */
+.welcome { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 16px; background: rgba(40, 25, 45, 0.55); backdrop-filter: blur(4px); animation: fade-in 0.2s both; }
+.welcome-card {
+  width: min(420px, 100%); display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  padding: 26px 22px 18px; border-radius: 26px; background: var(--surface, #fff); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+.welcome-icon { font-size: 52px; line-height: 1; }
+.welcome-card h2 { margin: 0; font-family: var(--display); font-weight: 600; font-size: 24px; }
+.welcome-card p { margin: 0; line-height: 1.5; color: var(--muted); }
+.welcome-card ul { margin: 4px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; align-self: stretch; text-align: left; }
+.welcome-card li { padding: 8px 12px; border-radius: 12px; background: var(--surface-2); font-size: 14px; font-weight: 600; }
+.welcome-dots { display: flex; gap: 6px; margin-top: 6px; }
+.welcome-dots span { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.welcome-dots span.on { background: var(--accent); width: 20px; border-radius: 4px; }
+.welcome-actions { display: flex; justify-content: space-between; gap: 10px; align-self: stretch; margin-top: 4px; }
+.welcome-actions .btn { flex: 1; justify-content: center; }

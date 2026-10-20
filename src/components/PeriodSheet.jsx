@@ -54,7 +54,7 @@ export default function PeriodSheet({ ledgerId, periods, current, currency, onSe
 
   async function removeCurrent() {
     if (keys.length <= 1) return;
-    if (!confirmTwice(`Delete the whole budget for ${periodLabel(current)}? Other months stay as they are.`, `the whole ${periodLabel(current)} budget`)) return;
+    if (!confirmTwice(`Delete everything in ${periodLabel(current)}? Other months stay as they are.`, `the whole ${periodLabel(current)} budget`)) return;
     const next = keys.filter((k) => k !== current).sort().pop();
     onSelect(next);
     onClose();
@@ -64,7 +64,7 @@ export default function PeriodSheet({ ledgerId, periods, current, currency, onSe
   const copyFrom = pending ? previousPeriod(pending, keys) || current : null;
 
   return (
-    <Modal title={copying ? 'Copy this budget to…' : 'Choose month or year'} onClose={onClose}>
+    <Modal title={copying ? 'Copy this month to…' : 'Choose month or year'} onClose={onClose}>
       <div className="year-step">
         <button className="icon-btn" onClick={() => setYear((y) => y - 1)} aria-label="Previous year">
           ‹

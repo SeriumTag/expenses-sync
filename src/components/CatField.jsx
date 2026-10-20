@@ -53,7 +53,7 @@ export function GroupCat({ label, cats }) {
   if (!label) return null;
   return (
     <span className={`ep-cat cat-chips static`} title={cats.join(', ')}>
-      <span className={`cat-chip ${label === 'Mixed' ? 'mixed' : ''}`}>{label}</span>
+      <span className={`cat-chip ${label === 'Mixed' ? 'mixed' : ''}`}>{label === 'Mixed' ? 'Several' : label}</span>
     </span>
   );
 }

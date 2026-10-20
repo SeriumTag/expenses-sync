@@ -5,7 +5,7 @@ import { LogoMark, Wordmark } from './Logo';
 // Top bar: brand, account switcher, partner presence and the profile menu.
 export default function NavBar(props) {
   const { scrolled, ledgers, ledgerId, onSwitch, partner, partnerOnline, username, connected, binCount } = props;
-  const { onTheme, onShare, onNewAccount, onManageAccounts, onOpenBin, onDeleteAccount, onLogout } = props;
+  const { onTheme, onShare, onNewAccount, onManageAccounts, onOpenBin, onDeleteAccount, onLogout, onHelp, accountName } = props;
   const [open, setOpen] = useState(false);
   const run = (fn) => () => {
     setOpen(false);
@@ -69,11 +69,14 @@ export default function NavBar(props) {
                     <span className="muted small">Signed in on this device</span>
                   </div>
                 </div>
-                <button role="menuitem" onClick={run(onTheme)}>
-                  <span className="menu-swatch" /> Theme colour
+                <button role="menuitem" onClick={run(onHelp)}>
+                  <span className="menu-ico">💡</span> How the app works
                 </button>
                 <button role="menuitem" onClick={run(onShare)}>
-                  <span className="menu-ico">⇄</span> Share &amp; sync
+                  <span className="menu-ico">⇄</span> Share with your partner
+                </button>
+                <button role="menuitem" onClick={run(onTheme)}>
+                  <span className="menu-swatch" /> Theme colour
                 </button>
                 <button role="menuitem" onClick={run(onManageAccounts)}>
                   <span className="menu-ico">▤</span> Manage accounts
@@ -87,14 +90,14 @@ export default function NavBar(props) {
                   </button>
                 )}
                 <button role="menuitem" onClick={run(onOpenBin)}>
-                  <span className="menu-ico">🗑</span> Bin{binCount ? ` (${binCount})` : ''}
+                  <span className="menu-ico">♻️</span> Bin: restore deleted things{binCount ? ` (${binCount})` : ''}
                 </button>
-                <button role="menuitem" className="menu-danger" onClick={run(onDeleteAccount)}>
-                  <span className="menu-ico">✕</span> Delete this account
+                <button role="menuitem" onClick={onLogout}>
+                  <span className="menu-ico">↩</span> Sign out
                 </button>
                 <hr />
-                <button role="menuitem" onClick={onLogout}>
-                  Sign out of Expense Sync
+                <button role="menuitem" className="menu-danger" onClick={run(onDeleteAccount)}>
+                  <span className="menu-ico">🗑</span> Delete the whole account “{accountName || 'Untitled'}”
                 </button>
               </div>
             </>

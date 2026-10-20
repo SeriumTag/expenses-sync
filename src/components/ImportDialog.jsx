@@ -67,7 +67,7 @@ export default function ImportDialog({ base, tabId, tabName, tabs, username, cur
   }
 
   return (
-    <Modal title="Paste from sheet" onClose={onClose}>
+    <Modal title="Paste from a spreadsheet" onClose={onClose}>
       <p className="muted small">
         In Excel or Google Sheets, select your cells (item, amount, category, notes) and copy, then paste below. Each
         titled section, like <b>Kelly</b> or <b>Combined Account</b>, becomes its own tab. TOTAL rows are skipped.

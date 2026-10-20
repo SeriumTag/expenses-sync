@@ -1,5 +1,5 @@
 // Little green savings pot shown beside items tracked as a savings pot.
-export default function PotIcon({ size = 16, title = 'Savings pot' }) {
+export default function PotIcon({ size = 16, title = 'Savings' }) {
   return (
     <svg className="pot-icon" width={size} height={size} viewBox="0 0 24 24" role="img" aria-label={title}>
       <title>{title}</title>

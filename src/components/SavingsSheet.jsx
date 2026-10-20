@@ -94,7 +94,7 @@ export function SavingsPanel({ ledgerId, pk, period, tabs, tracks, periods, curr
           </b>
         </div>
         <div>
-          <span className="muted small">In pots now</span>
+          <span className="muted small">Saved so far</span>
           <b className="pos">{formatMoney(inPots, currency)}</b>
           <span className="muted small">
             {formatMoney(yearSaved, currency)} saved in {year}
@@ -194,7 +194,7 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
   }
 
   function removeWithdrawal(w) {
-    if (!confirmTwice(`Remove the ${formatMoney(w.amount, currency)} withdrawal on ${dayName(w.date)}? It will be added back to the pot.`, 'this withdrawal')) return;
+    if (!confirmTwice(`Remove the ${formatMoney(w.amount, currency)} withdrawal on ${dayName(w.date)}? It will be added back to these savings.`, 'this withdrawal')) return;
     setPath(`${trackPath}/withdrawals/${w.id}`, null);
   }
 
@@ -278,10 +278,10 @@ function PotRow({ r, detailed, ledgerId, due, year, currency, username, onOpenIt
                 </select>
               </label>
             ) : (
-              <span className="muted small pot-since">already saved, if any</span>
+              <span className="muted small pot-since">money already saved, if any</span>
             )}
             <span className="pot-balance">
-              <span className="muted small">In pot</span>
+              <span className="muted small">Saved</span>
               <b className={r.balance < 0 ? 'neg' : 'pos'}>{formatMoney(r.balance, currency)}</b>
             </span>
           </div>

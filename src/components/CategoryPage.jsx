@@ -266,7 +266,7 @@ export function CategoryPage(props) {
         </form>
       )}
 
-      {entries.length === 0 && <p className="muted">No items use this category in this period.</p>}
+      {entries.length === 0 && <p className="muted">Nothing uses this category this month.</p>}
 
       {groups.map((g) => {
         const subTotal = g.rows.filter((e) => !meta[e.id]?.exclude).reduce((s, e) => s + amount(e), 0);
@@ -325,7 +325,7 @@ export function CategoryPage(props) {
                         {e.item.track && <PotIcon />}
                       </button>
                       <span className="tab-badge">{e.tabName || 'Untitled'}</span>
-                      {e.parentId && <span className="muted small">in {e.parentName || 'merged item'}</span>}
+                      {e.parentId && <span className="muted small">in {e.parentName || 'a combined item'}</span>}
                       {/* The item's other categories — tap to jump there. */}
                       {e.cats
                         .filter((c) => catKey(c) !== catKeyValue)

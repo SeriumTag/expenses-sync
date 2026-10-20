@@ -91,7 +91,7 @@ export default function ItemList(props) {
             ＋ Add the first one
           </button>
           <button className="btn glass" onClick={onImport}>
-            Paste from sheet
+            Paste from a spreadsheet
           </button>
         </div>
       </div>

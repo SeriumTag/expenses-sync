@@ -65,6 +65,7 @@ import { BudgetsPanel, budgetItems } from './BudgetsSheet';
 import BottomNav, { MonthNav } from './BottomNav';
 import HomeScreen from './HomeScreen';
 import QuickSpend from './QuickSpend';
+import Welcome from './Welcome';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
@@ -91,6 +92,12 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const [spendOpen, setSpendOpen] = useState(null); // budget to open on the Spending tab
   const [groupMenu, setGroupMenu] = useState(false);
   const [query, setQuery] = useState(''); // search on the Expenses tab
+  // The short tour: once per device, and from the menu.
+  const [welcome, setWelcome] = useState(() => !prefs.get('welcomed'));
+  const closeWelcome = () => {
+    prefs.set('welcomed', true);
+    setWelcome(false);
+  };
   const [nowKey, setNowKey] = useState(currentMonthKey);
   const [periodSel, setPeriodSel] = useState(null); // a month/year picked in the picker (null = today's month)
   // Monthly/Yearly display is a personal preference, remembered on this device.
@@ -390,6 +397,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
           onOpenBin={() => setBinOpen(true)}
           onDeleteAccount={binThisAccount}
           onLogout={onLogout}
+          onHelp={() => setWelcome(true)}
+          accountName={meta.name}
         />
 
         {!connected && <div className="banner">You’re offline. Changes are saved and will sync when you reconnect.</div>}
@@ -838,6 +847,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             onClose={() => setDialog(null)}
           />
         )}
+        {welcome && <Welcome onDone={closeWelcome} />}
         {dialog === 'theme' && <ThemeDialog theme={theme} onChange={onThemeChange} onClose={() => setDialog(null)} />}
       </div>
     </PresenceContext.Provider>
