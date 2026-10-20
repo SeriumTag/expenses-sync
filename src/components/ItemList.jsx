@@ -93,7 +93,7 @@ export default function ItemList(props) {
     return (
       <div className="ep-empty">
         <div className="ep-empty-icon">🧺</div>
-        <p>No items in this head category yet.</p>
+        <p>Nothing in this group yet.</p>
         <div className="row-gap center">
           <button className="btn primary" onClick={onAdd}>
             ＋ Add the first one
@@ -121,7 +121,7 @@ export default function ItemList(props) {
           {mode === 'normal' && (
             <>
               <button className="btn primary sm" onClick={onAdd}>
-                ＋ Add item
+                ＋ Add
               </button>
               <button className="btn ghost sm" onClick={() => switchMode('select')}>
                 Select
@@ -209,7 +209,7 @@ export default function ItemList(props) {
         <div className="ep-foot">
           <div className="row-gap">
             <button className="btn glass" onClick={onAdd}>
-              ＋ Add item
+              ＋ Add
             </button>
             <button className="btn ghost sm" onClick={onImport}>
               Paste from sheet

@@ -40,7 +40,7 @@ export default function ItemBin({ ledgerId, trash, currency, accountBinCount, on
                 <div className="bin-info">
                   <b>{e.item?.name || 'Untitled'}</b>
                   <span className="muted small">
-                    {e.tabName || 'Head category'} · {periodLabel(e.periodKey)} · {formatMoney(monthlyOf(e.item), currency)}/mo
+                    {e.tabName || 'Group'} · {periodLabel(e.periodKey)} · {formatMoney(monthlyOf(e.item), currency)}/mo
                   </span>
                   <span className="muted small">
                     Deleted by {e.deletedBy || 'someone'} ·{' '}

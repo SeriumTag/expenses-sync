@@ -50,7 +50,7 @@ const moneyInput = {
 
 // Pull-up list of savings pots: what to put in this month, withdrawals, and
 // what's in each pot.
-export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, periods, currency, username, onOpenItem, onClose }) {
+export function SavingsPanel({ ledgerId, pk, period, tabs, tracks, periods, currency, username, onOpenItem, onAddSavings }) {
   const year = yearOf(pk);
   const due = dueMonth(pk);
   const dueLabel = MONTHS[monthIndexOf(due)];
@@ -84,7 +84,7 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
   };
 
   return (
-    <Modal title="Savings pots" onClose={onClose}>
+    <>
       <div className="pots-summary">
         <div>
           <span className="muted small">To put aside in {dueLabel}</span>
@@ -121,13 +121,34 @@ export default function SavingsSheet({ ledgerId, pk, period, tabs, tracks, perio
         </p>
       )}
 
-      {rows.length === 0 && <p className="muted">No savings pots yet. Open an item and tick “Track as savings pot”.</p>}
+      {rows.length === 0 && (
+        <div className="empty-card">
+          <div className="empty-ico">🐷</div>
+          <p>
+            <b>No savings yet.</b>
+            <br />Add money you put aside each month, like Medisave or an emergency fund, and watch it grow.
+          </p>
+          {onAddSavings && (
+            <button className="btn primary" onClick={onAddSavings}>
+              ＋ Add savings
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="pots-list">
         {rows.map((r) => (
           <PotRow key={r.id} r={r} detailed={detailed} ledgerId={ledgerId} due={due} year={year} currency={currency} username={username} onOpenItem={onOpenItem} />
         ))}
       </div>
+    </>
+  );
+}
+
+export default function SavingsSheet({ onClose, ...props }) {
+  return (
+    <Modal title="Savings" onClose={onClose}>
+      <SavingsPanel {...props} />
     </Modal>
   );
 }

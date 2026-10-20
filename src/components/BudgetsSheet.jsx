@@ -14,23 +14,37 @@ export function budgetItems(period, tabs) {
 }
 
 // Quick place to log a spend (e.g. lunch) and see what's left of each budget.
-export default function BudgetsSheet({ ledgerId, pk, period, tabs, spending, currency, username, onOpenItem, onClose }) {
+// The Spending tab shows this panel; `startOpen` opens one budget's log form.
+export function BudgetsPanel({ ledgerId, pk, period, tabs, spending, currency, username, onOpenItem, onAddBudget, startOpen }) {
   const rows = budgetItems(period, tabs).map((b) => ({ ...b, status: budgetStatus(b.item, b.id, spending, pk) }));
-  const [open, setOpen] = useState(() => (rows.length === 1 ? rows[0].id : null));
+  const [open, setOpen] = useState(() => startOpen || (rows.length === 1 ? rows[0].id : null));
   const total = rows.reduce(
     (t, r) => ({ budget: t.budget + r.status.budget, spent: t.spent + r.status.spent, left: t.left + r.status.left }),
     { budget: 0, spent: 0, left: 0 },
   );
 
   return (
-    <Modal title="Budgets" onClose={onClose}>
+    <>
       {rows.length > 1 && (
         <div className="budgets-total">
           <span className="muted small">All budgets · {periodLabel(pk)}</span>
           <BudgetBar status={total} currency={currency} />
         </div>
       )}
-      {rows.length === 0 && <p className="muted">No budgets yet. Open an item (e.g. Food) and tick “Track spending”.</p>}
+      {rows.length === 0 && (
+        <div className="empty-card">
+          <div className="empty-ico">💸</div>
+          <p>
+            <b>No spending budgets yet.</b>
+            <br />A budget is for things you buy bit by bit, like food or petrol. Log each spend and see what’s left.
+          </p>
+          {onAddBudget && (
+            <button className="btn primary" onClick={onAddBudget}>
+              ＋ Add a spending budget
+            </button>
+          )}
+        </div>
+      )}
       <div className="budgets-list">
         {rows.map((r) => (
           <div key={r.id} className={`budget-row ${open === r.id ? 'open' : ''}`}>
@@ -67,6 +81,14 @@ export default function BudgetsSheet({ ledgerId, pk, period, tabs, spending, cur
           </div>
         ))}
       </div>
+    </>
+  );
+}
+
+export default function BudgetsSheet({ onClose, ...props }) {
+  return (
+    <Modal title="Spending" onClose={onClose}>
+      <BudgetsPanel {...props} />
     </Modal>
   );
 }

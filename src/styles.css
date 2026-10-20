@@ -1227,3 +1227,97 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .budget-mode input { margin-top: 3px; accent-color: var(--accent); }
 .spent-amount { font-size: 18px; font-variant-numeric: tabular-nums; }
 .budget-bar.none { padding: 2px 0; }
+
+/* ── Simpler layout: bottom tabs, month arrows, Home ─────────────── */
+.screen { padding-bottom: calc(84px + var(--safe-bottom, 0px)); }
+.bottom-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  padding: 6px 8px calc(6px + var(--safe-bottom, 0px));
+  background: color-mix(in srgb, var(--surface, #fff) 92%, transparent); backdrop-filter: blur(14px);
+  border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(80, 50, 90, 0.06);
+}
+.bottom-nav button {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border: none; background: none;
+  border-radius: 14px; font: inherit; color: var(--muted); cursor: pointer;
+}
+.bottom-nav .bn-ico { font-size: 22px; line-height: 1; filter: grayscale(0.6); opacity: 0.75; }
+.bottom-nav .bn-label { font-size: 11.5px; font-weight: 800; }
+.bottom-nav button.on { color: var(--accent-deep); background: var(--accent-soft); }
+.bottom-nav button.on .bn-ico { filter: none; opacity: 1; }
+@media (min-width: 900px) {
+  .bottom-nav { left: 50%; right: auto; transform: translateX(-50%); width: 520px; bottom: 12px; border-radius: 22px; border: 1px solid var(--line); padding-bottom: 6px; }
+}
+
+.month-nav { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 4px 0 14px; }
+.mn-step {
+  width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--surface-2); color: var(--text);
+  font-size: 22px; line-height: 1; cursor: pointer; display: grid; place-items: center;
+}
+.mn-label { border: none; background: none; font: inherit; font-family: var(--display); font-weight: 600; font-size: 20px; color: var(--text); padding: 6px 10px; cursor: pointer; border-radius: 12px; }
+.mn-label span { font-size: 12px; color: var(--muted); }
+.mn-today { font-size: 12.5px; margin-left: 4px; }
+
+.screen-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.screen-title { font-family: var(--display); font-weight: 600; font-size: 28px; margin: 0; line-height: 1.1; }
+.detail-title-text { font-family: var(--display); font-weight: 600; font-size: 22px; margin: 0; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.list-menu.right { left: auto; right: 0; }
+.list-menu button.danger { color: var(--danger); }
+
+.home { display: flex; flex-direction: column; gap: 12px; }
+.home-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: 22px; border: none; text-align: left;
+  background: var(--surface, #fff); box-shadow: var(--shadow-sm); font: inherit; color: var(--text);
+}
+.home-card h2 { margin: 0; font-size: 16px; font-family: var(--display); font-weight: 600; }
+.home-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
+.home-card.summary { align-items: center; text-align: center; padding: 22px 16px; background: linear-gradient(160deg, var(--accent-soft), var(--surface, #fff) 70%); }
+.summary-label { font-size: 14px; font-weight: 800; color: var(--muted); }
+.summary-big { font-family: var(--display); font-weight: 600; font-size: 44px; line-height: 1.05; color: var(--ok); font-variant-numeric: tabular-nums; }
+.summary-big.neg { color: var(--danger); }
+.home-card.summary:not(:has(.summary-split)) .summary-big { color: var(--text); }
+.summary-split { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 6px; }
+.summary-split > span, .summary-link { display: flex; flex-direction: column; align-items: center; gap: 1px; font-variant-numeric: tabular-nums; }
+.summary-split b { font-size: 17px; }
+.summary-split .minus { font-size: 20px; color: var(--muted); }
+.summary-link { border: none; background: rgba(255, 255, 255, 0.6); border-radius: 12px; padding: 4px 10px; font: inherit; color: var(--text); cursor: pointer; }
+.home-actions { display: grid; grid-template-columns: 1.3fr 1fr; gap: 10px; }
+.big-btn { padding: 15px 12px !important; font-size: 16px !important; border-radius: 18px !important; justify-content: center; }
+.home-budget { display: flex; flex-direction: column; gap: 6px; padding: 10px 2px; border: none; border-top: 1px dashed var(--line); background: none; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.home-budget:first-of-type { border-top: none; }
+.hb-top { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
+.hb-top .pos, .hb-top .neg { font-weight: 800; }
+.budget-track.near span { background: #e6a93a; }
+.budget-track.over span { background: var(--danger); }
+.home-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.home-pair:has(> :only-child) { grid-template-columns: 1fr; }
+.home-card.mini { cursor: pointer; gap: 2px; }
+.home-card.mini b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.home-row { display: flex; justify-content: space-between; padding: 8px 2px; border: none; border-top: 1px dashed var(--line); background: none; font: inherit; color: var(--text); cursor: pointer; font-variant-numeric: tabular-nums; }
+.home-card-head + .home-row, .home-card-head + p + .home-row { border-top: none; }
+.home-shared { text-align: center; margin: 4px 0 0; }
+.empty-card { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 26px 18px; border-radius: 22px; background: var(--surface, #fff); box-shadow: var(--shadow-sm); }
+.empty-ico { font-size: 40px; }
+.empty-card p { margin: 0; line-height: 1.5; }
+
+/* Item card: "What is this?" and a clearly separate delete */
+.sheet-where { margin: -6px 0 6px; }
+.kind-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.kind-opt {
+  display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 12px 6px; border-radius: 16px;
+  border: 2px solid var(--line); background: var(--surface, #fff); font: inherit; color: var(--text); cursor: pointer;
+}
+.kind-opt .kind-ico { font-size: 24px; line-height: 1; }
+.kind-opt .kind-label { font-size: 13px; font-weight: 800; text-align: center; line-height: 1.2; }
+.kind-opt.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-deep); }
+.small-seg button { padding: 6px 10px; font-size: 12.5px; }
+.big-amount input { font-size: 18px; font-weight: 800; }
+.compact-switch { margin-top: -4px; }
+.sheet-more { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+.sheet-more > summary { cursor: pointer; font-weight: 800; color: var(--muted); font-size: 13.5px; padding: 4px 0; }
+.sheet-actions.start { justify-content: flex-start; }
+.danger-zone { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 18px; padding-top: 14px; border-top: 1px dashed var(--line); }
+.btn.danger-outline { background: none; border: 1.5px solid var(--danger); color: var(--danger); font-weight: 800; padding: 9px 16px; border-radius: 14px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Same side margins as the rest of the app for everything on the new screens. */
+.screen > :not(.row):not(.detail):not(.new-month):not(.month-nav) { margin-left: var(--gutter); margin-right: var(--gutter); max-width: 980px; }
+.screen > .fav-row { margin-bottom: 4px; }
