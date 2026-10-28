@@ -1,27 +1,37 @@
-// Soft pastel accents (think plush-toy shop: blush, lavender, mint, peach…).
+// The design's palette (Cute Expenses App): pink first, then its friends.
 export const THEMES = [
-  { name: 'Blush', value: '#f29cb2' },
-  { name: 'Lavender', value: '#a99be6' },
-  { name: 'Mint', value: '#7fcfb2' },
-  { name: 'Peach', value: '#f6b28c' },
-  { name: 'Sky', value: '#8ec3ea' },
-  { name: 'Honey', value: '#efc16a' },
-  { name: 'Rose', value: '#e88fa2' },
-  { name: 'Sage', value: '#a6c59c' },
+  { name: 'Pink', value: '#ff7d9c' },
+  { name: 'Peach', value: '#ffad7a' },
+  { name: 'Mint', value: '#5fc9a7' },
+  { name: 'Lavender', value: '#b8a9ff' },
+  { name: 'Sky', value: '#6ec6e8' },
+  { name: 'Yellow', value: '#ffc93c' },
+  { name: 'Rose', value: '#e85d7e' },
+  { name: 'Sage', value: '#8cc98a' },
 ];
 
 export const DEFAULT_THEME = THEMES[0].value;
 
-// Colours chosen before the pastel redesign turn into their soft versions.
+// Colours saved before (the first bold set, then the soft pastels) move to
+// their place in the new palette, so everyone's choice carries over.
 const LEGACY = {
-  '#e50914': '#f29cb2',
-  '#2f80ed': '#8ec3ea',
-  '#10b981': '#7fcfb2',
-  '#8b5cf6': '#a99be6',
-  '#f97316': '#f6b28c',
-  '#ec4899': '#e88fa2',
-  '#eab308': '#efc16a',
-  '#14b8a6': '#86d3cf',
+  '#e50914': '#ff7d9c',
+  '#2f80ed': '#6ec6e8',
+  '#10b981': '#5fc9a7',
+  '#8b5cf6': '#b8a9ff',
+  '#f97316': '#ffad7a',
+  '#ec4899': '#e85d7e',
+  '#eab308': '#ffc93c',
+  '#14b8a6': '#5fc9a7',
+  '#f29cb2': '#ff7d9c',
+  '#a99be6': '#b8a9ff',
+  '#7fcfb2': '#5fc9a7',
+  '#f6b28c': '#ffad7a',
+  '#8ec3ea': '#6ec6e8',
+  '#efc16a': '#ffc93c',
+  '#e88fa2': '#e85d7e',
+  '#a6c59c': '#8cc98a',
+  '#86d3cf': '#5fc9a7',
 };
 
 export const isHex = (v) => /^#[0-9a-f]{6}$/i.test(v || '');
@@ -39,9 +49,10 @@ function luminance(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-// Cocoa text on light (pastel) accents, white on darker custom colours.
-export const INK = '#4b3a33';
-export const textOn = (hex) => (luminance(normalizeTheme(hex)) > 0.3 ? INK : '#ffffff');
+// White text on the palette's colours (like the design's pink buttons); ink
+// only on very light ones such as yellow.
+export const INK = '#3b2632';
+export const textOn = (hex) => (luminance(normalizeTheme(hex)) > 0.56 ? INK : '#ffffff');
 
 export function applyTheme(hex) {
   const color = normalizeTheme(hex);

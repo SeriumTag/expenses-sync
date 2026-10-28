@@ -36,8 +36,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
     <title>Expense Sync</title>
     <meta name="description" content="Track expenses together, live." />
-    <meta name="theme-color" content="#fff7f1" />
-    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#fff7f1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1c171d" media="(prefers-color-scheme: dark)" />
+    <meta name="color-scheme" content="light dark" />
 
     <!-- Installable app (Android / desktop) -->
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -66,7 +67,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
 
     <!-- Splash: starts exactly where the iPhone launch screen leaves off, then animates. -->
     <style>
@@ -90,17 +91,17 @@
       #splash .word {
         position: absolute; left: 0; right: 0; text-align: center;
         top: calc(45% + min(28vw, 150px) * 0.58 + 26px);
-        font: 600 clamp(26px, 7.5vw, 38px) / 1 'Fredoka', 'Nunito', system-ui, sans-serif;
-        color: #4b3a33;
+        font: 800 clamp(28px, 8vw, 40px) / 1 'Baloo 2', 'Nunito', system-ui, sans-serif;
+        color: #3b2632;
         animation: splash-word 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s both;
         transition: opacity 0.25s;
       }
-      #splash .word b { color: #e07f98; font-weight: 600; }
+      #splash .word b { color: #e85d7e; font-weight: 800; }
       #splash .dots { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 60px); transform: translateX(-50%); display: flex; gap: 8px; }
       #splash .dots i { width: 9px; height: 9px; border-radius: 50%; animation: splash-dot 1s ease-in-out infinite; }
-      #splash .dots i:nth-child(1) { background: #f29cb2; }
-      #splash .dots i:nth-child(2) { background: #a99be6; animation-delay: 0.15s; }
-      #splash .dots i:nth-child(3) { background: #7fcfb2; animation-delay: 0.3s; }
+      #splash .dots i:nth-child(1) { background: #ff7d9c; }
+      #splash .dots i:nth-child(2) { background: #ffad7a; animation-delay: 0.15s; }
+      #splash .dots i:nth-child(3) { background: #5fc9a7; animation-delay: 0.3s; }
       #splash.hide { opacity: 0; pointer-events: none; }
       #splash.hide .mark { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
       #splash.hide .word, #splash.hide .dots { opacity: 0; }
@@ -117,8 +118,8 @@
         text-align: center; font: 700 15px/1.5 'Nunito', system-ui, sans-serif; color: #8d786d;
       }
       #splash .stuck button {
-        margin-top: 10px; font: 800 15px 'Nunito', system-ui, sans-serif; color: #4b3a33;
-        background: #f29cb2; border: none; border-radius: 999px; padding: 10px 22px;
+        margin-top: 10px; font: 800 15px 'Nunito', system-ui, sans-serif; color: #fff;
+        background: #ff7d9c; border: none; border-radius: 999px; padding: 10px 22px;
       }
       @media (prefers-reduced-motion: reduce) {
         #splash *, #splash .dots i { animation: none !important; transition: none !important; }
