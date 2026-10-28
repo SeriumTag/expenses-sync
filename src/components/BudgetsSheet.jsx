@@ -67,6 +67,7 @@ export function BudgetsPanel({ ledgerId, pk, period, tabs, spending, currency, u
                 currency={currency}
                 username={username}
                 otherBudgets={rows.filter((o) => o.id !== r.id).map((o) => ({ id: o.id, name: o.item.name }))}
+                groups={tabs.map((t) => ({ id: t.id, name: t.name }))}
               />
             ) : (
               <>

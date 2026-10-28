@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { MONTHS, allSpendCategories, budgetStatus, isYearKey, spendCategoryTotals, splitCats } from '../lib/budget';
 import { confirmTwice } from '../lib/confirm';
-import { newKey, patchPath, setPath } from '../lib/db';
+import { newKey, patchPath, setPath, spendToItem } from '../lib/db';
 import { attachFile } from '../lib/files';
 import { formatMoney, parseAmount } from '../lib/format';
 import Attachments from './Attachments';
@@ -57,7 +57,7 @@ export function BudgetBar({ status, currency }) {
 
 // Log what was spent against an item's budget, e.g. Food: 2 Oct Chicken rice $4.
 // otherBudgets: [{ id, name }] — the other tracked budgets a spend can be moved to.
-export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, currency, username, otherBudgets = [], showList = true, autoFocus = false }) {
+export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, currency, username, otherBudgets = [], groups = [], showList = true, autoFocus = false }) {
   const status = budgetStatus(item, itemId, spending, pk);
   const path = `ledgers/${ledgerId}/spending/${itemId}`;
   const [form, setForm] = useState(() => ({ date: defaultDate(pk), note: '', category: '', amount: '' }));
@@ -67,6 +67,7 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
   const [error, setError] = useState('');
   const [detail, setDetail] = useState(null); // spend whose details (date, move, receipts) are open
   const [notice, setNotice] = useState('');
+  const [makeItem, setMakeItem] = useState({ tab: '', kind: 'bill' }); // for "Make it its own item"
   const fileInput = useRef(null);
   const amount = parseAmount(form.amount);
   const canAdd = amount > 0 && /^\d{4}-\d{2}-\d{2}$/.test(form.date);
@@ -118,6 +119,18 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
     setDetail(null);
     await patchPath(`ledgers/${ledgerId}/spending`, { [`${itemId}/${s.id}`]: null, [`${targetId}/${s.id}`]: entry });
     setNotice(`Moved “${s.note || 'spend'}” to ${target.name || 'another budget'}.`);
+    setTimeout(() => setNotice(''), 4000);
+  }
+
+  // Turn a spend into its own item (bill, budget or savings) in a group.
+  async function toItem(s) {
+    const tab = makeItem.tab || groups[0]?.id;
+    const entry = spending?.[itemId]?.[s.id];
+    if (!tab || !entry) return;
+    setDetail(null);
+    await spendToItem(ledgerId, pk, itemId, s.id, entry, tab, makeItem.kind, username);
+    const g = groups.find((x) => x.id === tab);
+    setNotice(`Made “${s.note || 'spend'}” its own item in ${g?.name || 'the group'}.`);
     setTimeout(() => setNotice(''), 4000);
   }
 
@@ -320,6 +333,30 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                           compact
                           what={`“${s.note || 'this spend'}”`}
                         />
+                        {groups.length > 0 && (
+                          <div className="s-make-item">
+                            <span className="s-make-label">Make it its own item</span>
+                            <select
+                              value={makeItem.tab || groups[0].id}
+                              onChange={(e) => setMakeItem({ ...makeItem, tab: e.target.value })}
+                              aria-label="Group for the new item"
+                            >
+                              {groups.map((g) => (
+                                <option key={g.id} value={g.id}>
+                                  in {g.name || 'Untitled'}
+                                </option>
+                              ))}
+                            </select>
+                            <select value={makeItem.kind} onChange={(e) => setMakeItem({ ...makeItem, kind: e.target.value })} aria-label="What the new item is">
+                              <option value="bill">as a Bill</option>
+                              <option value="budget">as a Spending budget</option>
+                              <option value="savings">as Savings</option>
+                            </select>
+                            <button className="btn glass sm" onClick={() => toItem(s)}>
+                              Make item
+                            </button>
+                          </div>
+                        )}
                         <div className="s-detail-actions">
                           <button className="btn danger sm" onClick={() => remove(s)}>
                             Remove spend

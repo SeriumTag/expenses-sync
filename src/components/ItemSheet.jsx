@@ -1,5 +1,5 @@
 import { FREQS, amountInView, compareItem, spentMode, findItem, groupCatLabel, inView, itemCats, monthlyOf, setAsideOf, yearOf, yearlyOf } from '../lib/budget';
-import { duplicateItems, ordersAfter, splitItem, trashItem, updateItemField } from '../lib/db';
+import { duplicateItems, itemToSpend, moveItem, ordersAfter, splitItem, trashItem, updateItemField } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import CatField, { GroupCat } from './CatField';
 import { ChangeBadge } from './ChangeBadge';
@@ -24,6 +24,7 @@ export default function ItemSheet(props) {
   const { ledgerId, base, pk, tabId, tabName, itemId, item, periods, prevPeriod, prevLabel } = props;
   const { spending, otherBudgets } = props;
   const { tracks, categories, currency, username, view, siblings, onOpenItem, onClose, tab, onTrashed } = props;
+  const { groups = [], onMoved } = props;
   const noBudget = spentMode(item);
   const ctx = { year: yearOf(pk), tracks, periods, spending, pk };
   const path = `${base}/items/${tabId}/${itemId}`;
@@ -48,6 +49,29 @@ export default function ItemSheet(props) {
     onClose();
     const trashId = await trashItem(ledgerId, pk, { id: tabId, ...tab, name: tab?.name ?? tabName }, itemId, item, username);
     onTrashed?.(trashId, item.name || 'Item');
+  }
+
+  // Move to another group of this month.
+  async function moveTo(toTab) {
+    if (!toTab || toTab === tabId) return;
+    await moveItem(base, tabId, toTab, itemId, item);
+    onMoved?.(toTab);
+  }
+
+  // Turn this item into a spend under a budget (e.g. Mummy → Credit Card).
+  async function toSpend(budgetId) {
+    const target = (otherBudgets || []).find((b) => b.id === budgetId);
+    if (!target) return;
+    const msg = [
+      `Turn “${name}” into a spend under ${target.name || 'that budget'}?`,
+      `It will be listed there as ${formatMoney(item.parts ? monthlyOf(item) : Number(item.amount) || 0, currency)} on its date, and leave this group.`,
+      item.budget ? 'Spends already logged under it stay saved and come back if it becomes a budget again.' : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    if (!window.confirm(msg)) return;
+    onClose();
+    await itemToSpend(ledgerId, pk, tabId, itemId, item, budgetId, username);
   }
 
   async function duplicate() {
@@ -153,6 +177,7 @@ export default function ItemSheet(props) {
               currency={currency}
               username={username}
               otherBudgets={(otherBudgets || []).filter((b) => b.id !== itemId)}
+              groups={groups}
             />
           </section>
         )}
@@ -210,9 +235,41 @@ export default function ItemSheet(props) {
 
         <details className="sheet-more" open={fileCount > 0}>
           <summary>
-            More: photos & files{fileCount > 0 ? ` (${fileCount})` : ''}, copy{isGroup ? ', separate' : ''}
+            More: photos & files{fileCount > 0 ? ` (${fileCount})` : ''}, move, copy{isGroup ? ', separate' : ''}
           </summary>
           <Attachments ledgerId={ledgerId} itemPath={`periods/${pk}/items/${tabId}/${itemId}`} files={item.files} username={username} />
+          <div className="move-box">
+            {groups.length > 1 && (
+              <label>
+                <span>Move to group</span>
+                <select value="" onChange={(e) => moveTo(e.target.value)} aria-label="Move to another group">
+                  <option value="">Choose a group…</option>
+                  {groups
+                    .filter((g) => g.id !== tabId)
+                    .map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name || 'Untitled'}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
+            {(otherBudgets || []).some((b) => b.id !== itemId) && (
+              <label>
+                <span>Turn into a spend under</span>
+                <select value="" onChange={(e) => toSpend(e.target.value)} aria-label="Turn into a spend under a budget">
+                  <option value="">Choose a budget…</option>
+                  {(otherBudgets || [])
+                    .filter((b) => b.id !== itemId)
+                    .map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name || 'Untitled'}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
+          </div>
           <div className="sheet-actions start">
             <button className="btn glass sm" onClick={duplicate}>
               Make a copy

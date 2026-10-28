@@ -739,6 +739,11 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             onOpenItem={(id) => setSheet({ type: 'item', tabId: sheet.tabId, itemId: id })}
             tab={period.tabs?.[sheet.tabId]}
             onTrashed={showUndo}
+            groups={tabs.map((t) => ({ id: t.id, name: t.name }))}
+            onMoved={(toTab) => {
+              setSheet({ type: 'item', tabId: toTab, itemId: sheet.itemId });
+              setActiveTab(toTab);
+            }}
             onClose={() => setSheet(null)}
           />
         )}

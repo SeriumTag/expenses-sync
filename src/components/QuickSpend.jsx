@@ -60,6 +60,7 @@ export default function QuickSpend({ ledgerId, pk, period, tabs, spending, curre
               currency={currency}
               username={username}
               otherBudgets={budgets.filter((b) => b.id !== current.id).map((b) => ({ id: b.id, name: b.item.name }))}
+              groups={tabs.map((t) => ({ id: t.id, name: t.name }))}
               showList={false}
               autoFocus
             />

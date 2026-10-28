@@ -1,6 +1,6 @@
 import { get, push, ref, runTransaction, serverTimestamp, set, update } from 'firebase/database';
 import { db } from '../firebase';
-import { currentMonthKey } from './budget';
+import { currentMonthKey, itemCats, monthlyOf } from './budget';
 
 /*
  * Data layout (Firebase Realtime Database)
@@ -369,6 +369,57 @@ export function mergeItems(base, tabId, rows, name, username) {
 }
 
 // Undo a merge: each part becomes an item again.
+// ── Moving things between groups, items and spends ──────────────────
+const withoutId = ({ id, ...rest }) => rest; // eslint-disable-line no-unused-vars
+
+// Move an item to another group (same month). It keeps its id, so its
+// savings log, spends and attachments stay linked.
+export function moveItem(base, fromTab, toTab, itemId, item, order = Date.now()) {
+  if (fromTab === toTab) return Promise.resolve();
+  return update(ref(db, base), {
+    [`items/${fromTab}/${itemId}`]: null,
+    [`items/${toTab}/${itemId}`]: { ...withoutId(item), order },
+  });
+}
+
+// Turn an item into a spend under a budget, e.g. "Mummy" into a Credit Card
+// spend. Its date, amount, categories and attachments come along.
+export function itemToSpend(ledgerId, periodKey, tabId, itemId, item, budgetId, username) {
+  const spendId = newKey(`ledgers/${ledgerId}/spending/${budgetId}`);
+  const amount = item.parts ? Math.round(monthlyOf(item) * 100) / 100 : Number(item.amount) || 0;
+  return update(ref(db, `ledgers/${ledgerId}`), {
+    [`periods/${periodKey}/items/${tabId}/${itemId}`]: null,
+    [`spending/${budgetId}/${spendId}`]: {
+      date: item.date || new Date().toLocaleDateString('en-CA'),
+      note: item.name || null,
+      amount,
+      category: itemCats(item).join(', ') || null,
+      files: item.files || null,
+      by: username || null,
+      at: Date.now(),
+    },
+  });
+}
+
+// Turn a spend into its own item (bill, spending budget or savings) in a
+// group of the month being shown.
+export function spendToItem(ledgerId, periodKey, budgetId, spendId, spend, tabId, kind, username, order = Date.now()) {
+  const itemId = newKey(`ledgers/${ledgerId}/periods/${periodKey}/items/${tabId}`);
+  return update(ref(db, `ledgers/${ledgerId}`), {
+    [`spending/${budgetId}/${spendId}`]: null,
+    [`periods/${periodKey}/items/${tabId}/${itemId}`]: {
+      ...blankItem(username, spend.date || undefined),
+      name: spend.note || '',
+      amount: Number(spend.amount) || 0,
+      category: spend.category || '',
+      files: spend.files || null,
+      budget: kind === 'budget' || null,
+      track: kind === 'savings' || null,
+      order,
+    },
+  }).then(() => itemId);
+}
+
 export function splitItem(base, tabId, itemId, item, username) {
   const patch = { [`items/${tabId}/${itemId}`]: null };
   Object.entries(item.parts || {}).forEach(([pid, p], i) => {
