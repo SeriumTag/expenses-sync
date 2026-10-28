@@ -1442,3 +1442,24 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .s-make-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px; border-radius: 10px; background: var(--surface-2); }
 .s-make-label { flex-basis: 100%; font-size: 11px; font-weight: 800; color: var(--muted); }
 .s-make-item select { flex: 1 1 120px; min-width: 0; padding: 6px 8px; font-size: 13px; }
+
+/* Statement import */
+.stmt-paste { display: flex; flex-direction: column; gap: 10px; }
+.stmt-paste textarea { width: 100%; min-height: 180px; padding: 10px; font: inherit; font-size: 13px; border-radius: 12px; resize: vertical; }
+.stmt-review { display: flex; flex-direction: column; gap: 8px; }
+.stmt-putall { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; background: var(--accent-soft); font-size: 13px; font-weight: 800; }
+.stmt-putall select { flex: 1; min-width: 0; padding: 6px 8px; }
+.stmt-month h4 { margin: 8px 0 4px; font-size: 13px; color: var(--muted); }
+.stmt-row { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; align-items: start; padding: 8px 4px; border-top: 1px dashed var(--line); }
+.stmt-row.off { opacity: 0.5; }
+.stmt-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.stmt-top { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.stmt-top b:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stmt-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.stmt-sub .s-cat { max-width: none; }
+.stmt-dup { color: var(--accent-deep); font-weight: 800; }
+.stmt-main select { width: 100%; padding: 5px 8px; font-size: 13px; }
+.stmt-actions { position: sticky; bottom: 0; display: flex; justify-content: space-between; gap: 8px; padding: 10px 0 4px; background: var(--surface, #fff); }
+.stmt-actions .btn.primary { flex: 1; justify-content: center; }
+.stmt-done { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.stmt-done li { display: flex; justify-content: space-between; gap: 20px; }

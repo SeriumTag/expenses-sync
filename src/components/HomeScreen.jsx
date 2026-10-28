@@ -6,7 +6,7 @@ import { trackedItems } from './SavingsSheet';
 // The first screen: what's left, what's been spent, and a big button to log a spend.
 export default function HomeScreen(props) {
   const { pk, period, tabs, ctx, currency, partner, partnerOnline } = props;
-  const { onLogSpend, onAddBill, onGoto, onOpenPerson, onAddPerson } = props;
+  const { onLogSpend, onAddBill, onGoto, onOpenPerson, onAddPerson, onImport } = props;
   const view = isYearKey(pk) ? 'yearly' : 'monthly';
   const per = view === 'yearly' ? 'this year' : 'this month';
 
@@ -69,9 +69,14 @@ export default function HomeScreen(props) {
         <section className="home-card">
           <div className="home-card-head">
             <h2>Spending</h2>
-            <button className="link-btn" onClick={() => onGoto('spending')}>
-              See all ›
-            </button>
+            <span className="row-gap">
+              <button className="link-btn" onClick={onImport}>
+                📄 Import
+              </button>
+              <button className="link-btn" onClick={() => onGoto('spending')}>
+                See all ›
+              </button>
+            </span>
           </div>
           {budgets.map((b) => {
             const { budget, spent, left: bLeft, noBudget } = b.status;

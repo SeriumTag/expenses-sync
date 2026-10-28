@@ -66,6 +66,7 @@ import BottomNav, { MonthNav } from './BottomNav';
 import HomeScreen from './HomeScreen';
 import QuickSpend from './QuickSpend';
 import Welcome from './Welcome';
+import StatementImport from './StatementImport';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
@@ -467,6 +468,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                 partner={partner}
                 partnerOnline={partnerOnline}
                 onLogSpend={logSpend}
+                onImport={() => setDialog('statement')}
                 onAddBill={() => {
                   setScreen('bills');
                   addExpense('bill');
@@ -662,11 +664,16 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                     <h1 className="screen-title">Spending</h1>
                     <span className="muted small">Log what you spend and see what’s left</span>
                   </div>
-                  {budgetCount > 0 && (
-                    <button className="btn glass sm" onClick={() => addExpense('budget')}>
-                      ＋ New budget
+                  <div className="row-gap">
+                    <button className="btn glass sm" onClick={() => setDialog('statement')}>
+                      📄 Import
                     </button>
-                  )}
+                    {budgetCount > 0 && (
+                      <button className="btn glass sm" onClick={() => addExpense('budget')}>
+                        ＋ New budget
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <BudgetsPanel
                   key={pk}
@@ -785,6 +792,21 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         )}
         {dialog === 'period' && (
           <PeriodSheet ledgerId={ledgerId} periods={periods} current={pk} currency={currency} onSelect={selectPeriod} onClose={() => setDialog(null)} />
+        )}
+        {dialog === 'statement' && (
+          <StatementImport
+            ledgerId={ledgerId}
+            budgets={budgetItems(period, tabs).map((b) => ({ id: b.id, name: b.item.name }))}
+            spending={data.spending}
+            importRules={data.importRules}
+            currency={currency}
+            username={username}
+            onAddBudget={() => {
+              setDialog(null);
+              addExpense('budget');
+            }}
+            onClose={() => setDialog(null)}
+          />
         )}
         {dialog === 'spend' && (
           <QuickSpend
