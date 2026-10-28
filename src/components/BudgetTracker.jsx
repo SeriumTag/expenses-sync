@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { MONTHS, budgetStatus, isYearKey } from '../lib/budget';
+import { MONTHS, allSpendCategories, budgetStatus, isYearKey, spendCategoryTotals, splitCats } from '../lib/budget';
 import { confirmTwice } from '../lib/confirm';
 import { newKey, patchPath, setPath } from '../lib/db';
 import { attachFile } from '../lib/files';
@@ -60,7 +60,7 @@ export function BudgetBar({ status, currency }) {
 export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, currency, username, otherBudgets = [], showList = true, autoFocus = false }) {
   const status = budgetStatus(item, itemId, spending, pk);
   const path = `ledgers/${ledgerId}/spending/${itemId}`;
-  const [form, setForm] = useState(() => ({ date: defaultDate(pk), note: '', amount: '' }));
+  const [form, setForm] = useState(() => ({ date: defaultDate(pk), note: '', category: '', amount: '' }));
   const [listOpen, setListOpen] = useState(showList);
   const [pendingFiles, setPendingFiles] = useState([]); // photos picked before tapping Add
   const [saving, setSaving] = useState(false);
@@ -79,8 +79,15 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
     setSaving(true);
     setError('');
     try {
-      await patchPath(`${path}/${id}`, { date: form.date, note: form.note.trim() || null, amount, by: username || null, at: Date.now() });
-      setForm({ date: form.date, note: '', amount: '' }); // keep the date for logging several in a row
+      await patchPath(`${path}/${id}`, {
+        date: form.date,
+        note: form.note.trim() || null,
+        category: splitCats(form.category).join(', ') || null,
+        amount,
+        by: username || null,
+        at: Date.now(),
+      });
+      setForm({ date: form.date, note: '', category: '', amount: '' }); // keep the date for logging several in a row
       setNotice(`✓ Added ${form.note.trim() || 'spend'} ${formatMoney(amount, currency)}`);
       setTimeout(() => setNotice(''), 3000);
       setPendingFiles([]);
@@ -120,6 +127,11 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
     setPath(`${path}/${s.id}`, null);
   }
 
+  const catList = `spend-cats-${itemId}`;
+  const suggestions = allSpendCategories(spending);
+  const byCat = spendCategoryTotals(status.spends);
+  const maxCat = Math.max(...byCat.map((c) => c.total), 0);
+
   // Keep dates inside the period being shown.
   const range = isYearKey(pk)
     ? { min: `${pk}-01-01`, max: `${pk}-12-31` }
@@ -129,6 +141,28 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
     <div className="budget-tracker">
       <BudgetBar status={status} currency={currency} />
 
+      {byCat.length > 0 && (
+        <details className="spend-cats" open={showList}>
+          <summary>By category</summary>
+          {byCat.map((c) => (
+            <div key={c.label} className="cat-row">
+              <span className="cat-name">
+                {c.label} <span className="muted small">· {c.count}</span>
+              </span>
+              <span className="cat-bar">
+                <span style={{ width: `${maxCat ? (c.total / maxCat) * 100 : 0}%` }} />
+              </span>
+              <span className="cat-amt">{formatMoney(c.total, currency)}</span>
+            </div>
+          ))}
+        </details>
+      )}
+
+      <datalist id={catList}>
+        {suggestions.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
       <form className="spend-form" onSubmit={add}>
         <input
           type="date"
@@ -144,6 +178,13 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
           onChange={(e) => setForm({ ...form, note: e.target.value })}
           placeholder="What? e.g. Chicken rice"
           aria-label="What was it"
+        />
+        <input
+          value={form.category}
+          onChange={(e) => setForm({ ...form, category: e.target.value })}
+          placeholder="Category (optional)"
+          list={catList}
+          aria-label="Category"
         />
         <input
           inputMode="decimal"
@@ -210,6 +251,7 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                         placeholder="No note"
                         aria-label="What was it"
                       />
+                      {s.category && <span className="s-cat">{s.category}</span>}
                       {s.by && s.by !== username && <span className="muted small s-by">{s.by}</span>}
                     </span>
                     <LiveInput
@@ -243,6 +285,17 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                               value={s.date}
                               onChange={(e) => /^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && saveSpend(s, 'date')(e.target.value)}
                               aria-label="Date spent"
+                            />
+                          </label>
+                          <label>
+                            <span>Category</span>
+                            <LiveInput
+                              fieldKey={`spend:${itemId}:${s.id}:category`}
+                              value={s.category || ''}
+                              onSave={(v) => saveSpend(s, 'category')(splitCats(v).join(', ') || null)}
+                              placeholder="e.g. Rice, Dining"
+                              list={catList}
+                              aria-label="Category"
                             />
                           </label>
                           {otherBudgets.length > 0 && (

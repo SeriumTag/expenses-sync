@@ -180,8 +180,19 @@ export function deleteTab(base, tabId) {
   return update(ref(db, base), { [`tabs/${tabId}`]: null, [`items/${tabId}`]: null });
 }
 
-const blankItem = (username) => ({
+// The date an item is recorded with: today, or the 1st of the month (or
+// year) being shown when that isn't now. It's only a record; totals ignore it.
+const todayKey = () => new Date().toLocaleDateString('en-CA');
+export function itemDateFor(base) {
+  const pk = String(base).split('/').pop();
+  const today = todayKey();
+  if (!/^\d{4}(-\d{2})?$/.test(pk) || today.startsWith(pk)) return today;
+  return pk.length === 4 ? `${pk}-01-01` : `${pk}-01`;
+}
+
+const blankItem = (username, date = todayKey()) => ({
   name: '',
+  date,
   amount: 0,
   freq: 'monthly',
   category: '',
@@ -193,7 +204,7 @@ const blankItem = (username) => ({
 
 export function addItem(base, tabId, username, order = Date.now()) {
   const itemRef = push(ref(db, `${base}/items/${tabId}`));
-  set(itemRef, { ...blankItem(username), order }).catch(console.error);
+  set(itemRef, { ...blankItem(username, itemDateFor(base)), order }).catch(console.error);
   return itemRef.key;
 }
 
@@ -241,7 +252,7 @@ export function addItems(base, tabId, username, rows, freq = 'monthly') {
   rows.forEach((row, i) => {
     const key = push(ref(db, `${base}/items/${tabId}`)).key;
     patch[`items/${tabId}/${key}`] = {
-      ...blankItem(username),
+      ...blankItem(username, itemDateFor(base)),
       name: row.name,
       amount: row.amount,
       freq,

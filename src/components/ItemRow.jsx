@@ -1,4 +1,4 @@
-import { FREQS, amountInView, budgetStatus, spentMode, compareItem, itemCats, inView, partCats, partMonthly, sorted } from '../lib/budget';
+import { FREQS, MONTHS, amountInView, budgetStatus, spentMode, compareItem, itemCats, inView, partCats, partMonthly, sorted } from '../lib/budget';
 import { formatMoney } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
 import { ChangeBadge } from './ChangeBadge';
@@ -26,6 +26,7 @@ export default function ItemRow(props) {
 
   // Small second line: the original amount when it's yearly (or monthly in the
   // yearly view), the parts of a combined item, categories.
+  const dateLabel = shortDate(item.date, pk);
   const native =
     !isGroup && !noBudget && freq !== view ? `${formatMoney(Number(item.amount) || 0, currency)}${freq === 'yearly' ? '/yr' : '/mo'}` : null;
 
@@ -56,9 +57,10 @@ export default function ItemRow(props) {
             </span>
           )}
         </span>
-        {(native || isGroup || cats.length > 0 || groupName || editor) && (
+        {(dateLabel || native || isGroup || cats.length > 0 || groupName || editor) && (
           <span className="ep2-sub">
             {editor && <span className="ep2-editing">{editor.user} is editing…</span>}
+            {dateLabel && <span className="ep2-date">{dateLabel}</span>}
             {groupName && <span>{groupName}</span>}
             {isGroup && (
               <button
@@ -140,10 +142,17 @@ export default function ItemRow(props) {
 
 // Used by search: which item matches the words typed.
 export function matchesSearch(item, words) {
-  const text = [item.name, item.note, item.category, ...Object.values(item.parts || {}).flatMap((p) => [p.name, p.category, p.note])]
+  const text = [item.name, item.note, item.category, item.date, shortDate(item.date), ...Object.values(item.parts || {}).flatMap((p) => [p.name, p.category, p.note])]
     .filter(Boolean)
     .join(' ')
     .toLowerCase();
   return words.every((w) => text.includes(w));
 }
 
+
+// "5 Nov" (with the year when it isn't the year being shown).
+export function shortDate(date, pk) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return null;
+  const label = `${Number(date.slice(8, 10))} ${MONTHS[Number(date.slice(5, 7)) - 1]}`;
+  return pk && date.slice(0, 4) !== String(pk).slice(0, 4) ? `${label} ${date.slice(0, 4)}` : label;
+}

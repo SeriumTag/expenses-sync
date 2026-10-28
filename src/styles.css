@@ -1167,7 +1167,17 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .budget-track span { display: block; height: 100%; border-radius: 999px; background: var(--ok); transition: width 0.3s; }
 .budget-bar.near .budget-track span { background: #e6a93a; }
 .budget-bar.over .budget-track span { background: var(--danger); }
-.spend-form { display: grid; grid-template-columns: 128px minmax(0, 1fr) 84px auto auto; gap: 6px; align-items: center; margin-top: 8px; }
+.spend-form {
+  display: grid; gap: 6px; align-items: center; margin-top: 8px;
+  grid-template-columns: 128px minmax(0, 1fr) 120px 84px auto auto;
+  grid-template-areas: 'date what cat amt clip add';
+}
+.spend-form input[type='date'] { grid-area: date; }
+.spend-form input[aria-label='What was it'] { grid-area: what; }
+.spend-form input[aria-label='Category'] { grid-area: cat; }
+.spend-form input[aria-label='Amount spent'] { grid-area: amt; }
+.spend-form .spend-clip { grid-area: clip; }
+.spend-form .btn.primary { grid-area: add; }
 .spend-form input { width: 100%; padding: 7px 8px; font-size: 13.5px; min-width: 0; }
 .spend-toggle { margin-top: 8px; border: none; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; font-weight: 800; color: var(--muted); cursor: pointer; }
 .spend-list { list-style: none; margin: 4px 0 0; padding: 0; }
@@ -1186,9 +1196,7 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .budget-row-top { display: flex; align-items: center; gap: 8px; }
 .budget-last { margin: 2px 0 0; }
 @media (max-width: 640px) {
-  .spend-form { grid-template-columns: 1fr 1fr 44px; }
-  .spend-form input[aria-label="What was it"] { grid-column: 1 / -1; grid-row: 1; }
-  .spend-form .btn.primary { grid-column: 1 / -1; }
+  .spend-form { grid-template-columns: 1fr 1fr 44px; grid-template-areas: 'what what what' 'date amt clip' 'cat add add'; }
 }
 
 /* Receipts on spends */
@@ -1414,3 +1422,15 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .pt-left { margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--line); }
 .pt-left b { font-size: 19px; }
 .pt-hint { margin-top: auto; line-height: 1.35; }
+
+/* Categories on spends */
+.s-cat { flex-shrink: 0; font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--lav, #d9cdf5) 55%, #fff); color: #6b5a9a; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spend-cats { margin: 4px 0 2px; }
+.spend-cats > summary { cursor: pointer; font-size: 12.5px; font-weight: 800; color: var(--muted); padding: 2px 0; }
+.spend-cats .cat-row { grid-template-columns: minmax(0, 1fr) 70px auto; }
+.spend-cats .cat-bar { grid-column: auto; grid-row: auto; }
+/* Item card: name and date side by side */
+.name-date { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 10px; align-items: end; }
+.item-date input { width: 100%; padding: 8px; font-size: 14px; }
+@media (max-width: 420px) { .name-date { grid-template-columns: 1fr; } }
+.ep2-date { font-weight: 700; }

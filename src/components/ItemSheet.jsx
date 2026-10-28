@@ -95,10 +95,22 @@ export default function ItemSheet(props) {
         <p className="sheet-where muted small">
           In <b>{tabName || 'Untitled'}</b>
         </p>
-        <label className="field">
-          <span>Name</span>
-          <LiveInput className="sheet-title" fieldKey={key('name')} value={item.name || ''} onSave={save('name')} placeholder="e.g. Netflix, Food, Car insurance" autoFocusOnMount={!item.name} />
-        </label>
+        <div className="name-date">
+          <label className="field">
+            <span>Name</span>
+            <LiveInput className="sheet-title" fieldKey={key('name')} value={item.name || ''} onSave={save('name')} placeholder="e.g. Netflix, Food, Car insurance" autoFocusOnMount={!item.name} />
+          </label>
+          {/* Just a record of when it's from; past or future both fine. */}
+          <label className="field item-date">
+            <span>Date</span>
+            <input
+              type="date"
+              value={item.date || ''}
+              onChange={(e) => save('date')(/^\d{4}-\d{2}-\d{2}$/.test(e.target.value) ? e.target.value : null)}
+              aria-label="Date"
+            />
+          </label>
+        </div>
 
         <div className="field">
           <span>What is this?</span>

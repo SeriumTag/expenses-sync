@@ -290,3 +290,29 @@ export function budgetStatus(item, itemId, spending, pk) {
   const budget = monthlyOf(item) * (isYearKey(pk) ? 12 : 1);
   return { budget, spent, left: budget - spent, spends };
 }
+
+// ── Categories on spends ────────────────────────────────────────────
+// Totals per category for a list of spends (a spend with two categories
+// counts toward both), biggest first. Spends without one are left out.
+export function spendCategoryTotals(spends) {
+  const map = new Map();
+  for (const s of spends || []) {
+    for (const c of splitCats(s.category)) {
+      const key = c.toLowerCase();
+      const g = map.get(key) || { label: c, total: 0, count: 0 };
+      g.total += Number(s.amount) || 0;
+      g.count += 1;
+      map.set(key, g);
+    }
+  }
+  return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
+// Every category used on any spend, for suggestions while typing.
+export function allSpendCategories(spending) {
+  const seen = new Map();
+  for (const spends of Object.values(spending || {})) {
+    for (const s of Object.values(spends || {})) for (const c of splitCats(s.category)) seen.set(c.toLowerCase(), c);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
