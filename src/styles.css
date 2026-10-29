@@ -1582,3 +1582,50 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .stat-tile b { font-family: var(--display); font-weight: 800; font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .stat-note { color: var(--muted); font-size: 11.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .welcome-mochi { width: 110px; height: 110px; object-fit: cover; border-radius: 50%; border: 5px solid var(--pink-soft); background: #fff; }
+
+/* ── Charts and lists in the design's format ── */
+/* Item rows: an icon square in its own column (pink bill, peach budget, mint savings). */
+.ep2 { grid-template-columns: 38px minmax(0, 1fr) auto 18px; }
+.ep2.editing { grid-template-columns: 24px 38px minmax(0, 1fr) auto 26px; }
+.ep2-ico { width: 38px; height: 38px; border-radius: 13px; display: grid; place-items: center; font-size: 17px; flex-shrink: 0; }
+.ep2-ico.kind-bill { background: var(--pink-soft); }
+.ep2-ico.kind-budget { background: var(--peach-soft); }
+.ep2-ico.kind-savings { background: var(--mint-soft); }
+.ep2 { border-bottom: 1px dashed var(--line); }
+
+/* Donut "Where it went" */
+.donut-sub { margin: 2px 0 0; }
+.donut-wrap { display: flex; gap: 16px; align-items: center; }
+.donut { width: 132px; height: 132px; flex-shrink: 0; }
+.donut circle { transition: stroke-width 0.2s, stroke-opacity 0.2s; }
+.donut-total { font-family: var(--display); font-weight: 800; font-size: 15px; fill: var(--text); }
+.donut-cap { font-size: 9px; font-weight: 800; fill: var(--muted); letter-spacing: 0.06em; }
+.legend { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.legend button {
+  display: flex; justify-content: space-between; gap: 8px; border: none; background: transparent; cursor: pointer;
+  padding: 7px 8px; border-radius: 12px; text-align: left; font: inherit; font-weight: 800; font-size: 13.5px; color: var(--text); font-variant-numeric: tabular-nums;
+}
+.legend button:hover, .legend button.active { background: var(--surface-2); outline: 1.5px solid var(--line); }
+.legend .lft { display: flex; gap: 8px; align-items: center; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.swatch-dot-sm { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
+.cat-note { font-size: 13px; color: var(--muted); font-weight: 700; margin: 10px 0 0; }
+@media (max-width: 520px) { .donut-wrap { flex-direction: column; align-items: stretch; } .donut { align-self: center; } }
+
+/* Recent spends: search, chips, transaction rows */
+.search { width: 100%; border: 1.5px solid var(--line); background: var(--surface-2); border-radius: 14px; padding: 11px 13px; font-weight: 700; margin-bottom: 10px; color: var(--text); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.chip { border: 1.5px solid var(--line); background: var(--surface-2); border-radius: 999px; padding: 7px 12px; font: inherit; font-weight: 900; font-size: 12.5px; cursor: pointer; color: var(--text); }
+.chip.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+@media (prefers-color-scheme: dark) { .chip.active { color: #24151f; background: #ffd6e0; border-color: #ffd6e0; } }
+.tx { display: flex; align-items: center; gap: 12px; width: 100%; padding: 11px 4px; border: none; border-top: 1px dashed var(--line); background: none; font: inherit; color: var(--text); text-align: left; cursor: pointer; border-radius: 12px; }
+.tx:first-of-type { border-top: none; }
+.tx:hover { background: var(--surface-2); }
+.tx-icon { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; font-size: 18px; flex-shrink: 0; }
+.tx-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tx-main b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-main span { color: var(--muted); font-size: 12.5px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tx-amt { font-weight: 900; font-size: 15px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.empty-note { text-align: center; padding: 22px 10px; color: var(--muted); font-weight: 800; margin: 0; }
+.s-cat { display: inline-flex; align-items: center; gap: 4px; }
+.s-cat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.screen > .donut-card, .screen > .recent-card { margin-top: 12px; }

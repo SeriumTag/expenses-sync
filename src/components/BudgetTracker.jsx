@@ -5,6 +5,7 @@ import { newKey, patchPath, setPath, spendToItem } from '../lib/db';
 import { attachFile } from '../lib/files';
 import { formatMoney, parseAmount } from '../lib/format';
 import Attachments from './Attachments';
+import { catStyle } from '../lib/catStyle';
 import LiveInput from './LiveInput';
 
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
@@ -264,7 +265,12 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                         placeholder="No note"
                         aria-label="What was it"
                       />
-                      {s.category && <span className="s-cat">{s.category}</span>}
+                      {s.category && (
+                        <span className="s-cat">
+                          <i className="s-cat-dot" style={{ background: catStyle(s.category).color }} />
+                          {s.category}
+                        </span>
+                      )}
                       {s.by && s.by !== username && <span className="muted small s-by">{s.by}</span>}
                     </span>
                     <LiveInput

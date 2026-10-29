@@ -20,7 +20,9 @@ export default function ItemRow(props) {
   const noBudget = spentMode(item);
   const status = item.budget && ctx?.pk ? budgetStatus(item, item.id, ctx.spending, ctx.pk) : null;
   const amount = amountInView(item, item.id, shownView, ctx);
-  const icon = item.track ? '🐷' : item.budget ? '💸' : null;
+  // Every row gets an icon square, like the design's transactions.
+  const kind = item.track ? 'savings' : item.budget ? 'budget' : 'bill';
+  const icon = { savings: '🐷', budget: '💸', bill: '🧾' }[kind];
   const cats = showCats ? itemCats(item) : [];
   const fileCount = Object.keys(item.files || {}).length;
 
@@ -42,9 +44,11 @@ export default function ItemRow(props) {
       {...(dragItem || {})}
     >
       {editing && <input type="checkbox" className="pick" checked={picked} readOnly tabIndex={-1} aria-hidden="true" />}
+      <span className={`ep2-ico kind-${kind}`} aria-hidden="true">
+        {icon}
+      </span>
       <div className="ep2-main">
         <span className="ep2-name">
-          {icon && <span className="ep2-ico">{icon}</span>}
           <span className={item.name ? '' : 'muted'}>{item.name || 'Untitled'}</span>
           {item.note && (
             <span className="ep2-mark" title={item.note}>

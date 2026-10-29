@@ -67,6 +67,9 @@ import HomeScreen from './HomeScreen';
 import QuickSpend from './QuickSpend';
 import Welcome from './Welcome';
 import StatementImport from './StatementImport';
+import SpendingOverview from './SpendingOverview';
+import Donut from './Donut';
+import { catStyle } from '../lib/catStyle';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
@@ -555,6 +558,26 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
 
                 {!query.trim() && (
                 <>
+                {tabs.length > 1 && grandTotal > 0 && (
+                  <Donut
+                    subtitle="By group · tap one to see its list."
+                    segments={(() => {
+                      const used = new Set();
+                      const spare = ['#ff7d9c', '#ff9a5a', '#5fc9a7', '#9b8cff', '#e9a800', '#4fb3d9', '#e85d7e', '#8cc98a'];
+                      return tabs
+                        .map((t) => ({ key: t.id, label: t.name || 'Untitled', value: tabInView(period.items?.[t.id], view, budgetCtx) }))
+                        .sort((a, b) => b.value - a.value)
+                        .map((g) => {
+                          let color = catStyle(g.label).color;
+                          if (used.has(color)) color = spare.find((c) => !used.has(c)) || color;
+                          used.add(color);
+                          return { ...g, color };
+                        });
+                    })()}
+                    currency={currency}
+                    onPick={(id) => id && setActiveTab(id)}
+                  />
+                )}
                 <section className="row">
                   <h2 className="row-title">Groups</h2>
                   <div className="cards" role="tablist">
@@ -687,6 +710,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                   onOpenItem={openItem}
                   onAddBudget={() => addExpense('budget')}
                 />
+                <SpendingOverview pk={pk} period={period} tabs={tabs} spending={data.spending} currency={currency} onOpenItem={openItem} />
               </>
             )}
 
