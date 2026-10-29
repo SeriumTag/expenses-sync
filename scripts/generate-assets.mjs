@@ -1,6 +1,6 @@
 // Generates the app icons and iPhone launch screens into public/.
 // Run with: npm run assets   (outputs are committed, so Netlify doesn't need to run this)
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
@@ -53,16 +53,41 @@ function iconSvg({ scale = 1, rounded = false } = {}) {
 </svg>`;
 }
 
-function splashSvg(w, h) {
-  const markW = w * 0.28;
-  const k = markW / MARK_BOX.w;
-  const markH = MARK_BOX.h * k;
-  const x = w / 2 - markW / 2;
-  const y = h * 0.45 - markH / 2;
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
-  <defs>${blobs(w, h)}</defs>
-  ${blobRects(w, h)}
-  <g transform="translate(${x} ${y}) scale(${k}) translate(${-MARK_BOX.x} ${-MARK_BOX.y})">${MARK}</g>
+// The mochi cat (public/mochi.webp) as PNG, so the SVG renderer can embed it.
+const MOCHI = (await sharp(await readFile(new URL('mochi.webp', OUT))).png().toBuffer()).toString('base64');
+
+// The design's soft tints for the launch screens (the app icon keeps its own).
+const SPLASH_TINTS = ['#ffe3eb', '#ece8ff', '#ddf5ec', '#ffe8d6'];
+const splashBlobs = (w, h) => {
+  const spots = [
+    [0.12, 0.18, 0.45],
+    [0.92, 0.28, 0.4],
+    [0.25, 1.05, 0.5],
+    [1, 0.95, 0.38],
+  ];
+  return spots
+    .map(
+      ([x, y, r], i) => `<radialGradient id="s${i}" gradientUnits="userSpaceOnUse" cx="${w * x}" cy="${h * y}" r="${Math.max(w, h) * r}">
+      <stop offset="0" stop-color="${SPLASH_TINTS[i]}"/><stop offset="1" stop-color="${SPLASH_TINTS[i]}" stop-opacity="0"/></radialGradient>`,
+    )
+    .join('');
+};
+
+function splashSvg(w, h, ratio) {
+  const d = Math.min((w / ratio) * 0.28, 150) * ratio; // circle size, as in index.html
+  const ring = 5 * ratio;
+  const cx = w / 2;
+  const cy = h * 0.45;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>
+    ${splashBlobs(w, h)}
+    <clipPath id="face"><circle cx="${cx}" cy="${cy}" r="${d / 2 - ring}"/></clipPath>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="${12 * ratio}" stdDeviation="${11 * ratio}" flood-color="#e85d7e" flood-opacity="0.22"/></filter>
+  </defs>
+  <rect width="${w}" height="${h}" fill="#fff7f1"/>
+  ${[0, 1, 2, 3].map((i) => `<rect width="${w}" height="${h}" fill="url(#s${i})"/>`).join('')}
+  <circle cx="${cx}" cy="${cy}" r="${d / 2}" fill="#fff" filter="url(#shadow)"/>
+  <image x="${cx - d / 2 + ring}" y="${cy - d / 2 + ring}" width="${d - 2 * ring}" height="${d - 2 * ring}" clip-path="url(#face)" preserveAspectRatio="xMidYMid slice" href="data:image/png;base64,${MOCHI}" xlink:href="data:image/png;base64,${MOCHI}"/>
 </svg>`;
 }
 
@@ -99,7 +124,7 @@ for (const [cw, ch, r] of IPHONES) {
   const w = cw * r;
   const h = ch * r;
   const name = `splash/iphone-${w}x${h}.png`;
-  await sharp(Buffer.from(splashSvg(w, h))).png({ compressionLevel: 9 }).toFile(out(name));
+  await sharp(Buffer.from(splashSvg(w, h, r))).png({ compressionLevel: 9 }).toFile(out(name));
   links.push(
     `<link rel="apple-touch-startup-image" media="screen and (device-width: ${cw}px) and (device-height: ${ch}px) and (-webkit-device-pixel-ratio: ${r}) and (orientation: portrait)" href="/${name}" />`,
   );

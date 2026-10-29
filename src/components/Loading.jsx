@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { hideSplash } from '../lib/splash';
-import { LogoMark } from './Logo';
 
 const SLOW_MS = 12000;
 
-// Shown while waiting on the server, instead of a blank page. If it takes too
-// long, say what we're waiting for and offer a way out.
+// Shown while waiting on the server, instead of a blank page: the mochi cat,
+// like the splash. If it takes too long, say what we're waiting for and offer
+// a way out.
 export default function Loading({ label = 'Loading…', detail, onSignOut }) {
   const [slow, setSlow] = useState(false);
 
@@ -18,10 +18,17 @@ export default function Loading({ label = 'Loading…', detail, onSignOut }) {
   }, []);
 
   return (
-    <div className="center-screen">
+    <div className="center-screen loading-screen">
       <div className="loading-card">
-        <LogoMark size={54} className="loading-mark" />
+        <img className="loading-mochi" src="/mochi.webp" alt="" width="96" height="96" />
         <p className="loading-label">{slow ? 'This is taking longer than usual…' : label}</p>
+        {!slow && (
+          <span className="loading-dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        )}
         {slow && (
           <>
             <p className="muted small">

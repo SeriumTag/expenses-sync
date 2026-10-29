@@ -1629,3 +1629,28 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .s-cat { display: inline-flex; align-items: center; gap: 4px; }
 .s-cat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .screen > .donut-card, .screen > .recent-card { margin-top: 12px; }
+
+/* Loading screen in the mochi theme (matches the splash) */
+.loading-screen {
+  background:
+    radial-gradient(60vw 60vw at 12% 18%, var(--pink-soft), transparent 70%),
+    radial-gradient(55vw 55vw at 92% 28%, var(--lav-soft), transparent 70%),
+    radial-gradient(70vw 70vw at 25% 105%, var(--mint-soft), transparent 70%),
+    radial-gradient(50vw 50vw at 100% 95%, var(--peach-soft), transparent 70%),
+    var(--bg);
+}
+.loading-card { gap: 12px; }
+.loading-mochi {
+  width: 96px; height: 96px; border-radius: 50%; object-fit: cover; background: #fff;
+  border: 5px solid #fff; box-shadow: 0 12px 26px rgba(232, 93, 126, 0.22);
+  animation: mochi-bob 1.6s ease-in-out infinite;
+}
+.loading-label { font-family: var(--display); font-weight: 800; font-size: 20px; color: var(--text); }
+.loading-dots { display: flex; gap: 8px; }
+.loading-dots i { width: 9px; height: 9px; border-radius: 50%; animation: loading-dot 1s ease-in-out infinite; }
+.loading-dots i:nth-child(1) { background: #ff7d9c; }
+.loading-dots i:nth-child(2) { background: #ffad7a; animation-delay: 0.15s; }
+.loading-dots i:nth-child(3) { background: #5fc9a7; animation-delay: 0.3s; }
+@keyframes loading-dot { 50% { transform: translateY(-7px); } }
+@keyframes mochi-bob { 50% { transform: translateY(-6px) rotate(-3deg); } }
+@media (prefers-reduced-motion: reduce) { .loading-mochi, .loading-dots i { animation: none; } }

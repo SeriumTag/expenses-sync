@@ -41,6 +41,7 @@
     <meta name="color-scheme" content="light dark" />
 
     <!-- Installable app (Android / desktop) -->
+    <link rel="preload" href="/mochi.webp" as="image" type="image/webp" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
@@ -75,22 +76,23 @@
       #splash {
         position: fixed; inset: 0; z-index: 9999; overflow: hidden; transition: opacity 0.45s ease 0.15s;
         background:
-          radial-gradient(60vw 60vw at 12% 18%, #f9cfd9, transparent 70%),
-          radial-gradient(55vw 55vw at 92% 28%, #d9cff8, transparent 70%),
-          radial-gradient(70vw 70vw at 25% 105%, #c7ecdc, transparent 70%),
-          radial-gradient(50vw 50vw at 100% 95%, #fcdcc6, transparent 70%),
+          radial-gradient(60vw 60vw at 12% 18%, #ffe3eb, transparent 70%),
+          radial-gradient(55vw 55vw at 92% 28%, #ece8ff, transparent 70%),
+          radial-gradient(70vw 70vw at 25% 105%, #ddf5ec, transparent 70%),
+          radial-gradient(50vw 50vw at 100% 95%, #ffe8d6, transparent 70%),
           #fff7f1;
       }
       #splash .mark {
-        position: absolute; left: 50%; top: 45%; width: min(28vw, 150px);
+        position: absolute; left: 50%; top: 45%; width: min(28vw, 150px); height: min(28vw, 150px);
+        box-sizing: border-box; border-radius: 50%; border: 5px solid #fff; object-fit: cover; background: #fff;
         transform: translate(-50%, -50%);
         animation: splash-bounce 1.2s cubic-bezier(0.3, 1.4, 0.5, 1) both;
         transition: transform 0.5s cubic-bezier(0.6, 0, 0.8, 0.2), opacity 0.4s ease 0.1s;
-        filter: drop-shadow(0 10px 18px rgba(170, 110, 100, 0.25));
+        box-shadow: 0 12px 26px rgba(232, 93, 126, 0.22);
       }
       #splash .word {
         position: absolute; left: 0; right: 0; text-align: center;
-        top: calc(45% + min(28vw, 150px) * 0.58 + 26px);
+        top: calc(45% + min(28vw, 150px) * 0.5 + 22px);
         font: 800 clamp(28px, 8vw, 40px) / 1 'Baloo 2', 'Nunito', system-ui, sans-serif;
         color: #3b2632;
         animation: splash-word 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s both;
@@ -128,13 +130,7 @@
   </head>
   <body>
     <div id="splash" aria-hidden="true">
-      <svg class="mark" viewBox="12 6 76 88" xmlns="http://www.w3.org/2000/svg">
-        <path d="M37 18c1-7 6-11 13-8 7-3 12 1 13 8Z" fill="#8fd6bb" />
-        <path d="M20 50c0-15 9-23 22-23h16c13 0 22 8 22 23v14c0 16-11 26-27 26h-6c-16 0-27-10-27-26Z" fill="#f29cb2" />
-        <path d="M33 22.5a5 5 0 0 1 5-5h24a5 5 0 0 1 0 10H38a5 5 0 0 1-5-5Z" fill="#a99be6" />
-        <path d="M28 48c1-6 5-10 11-11" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity="0.55" />
-        <path d="M50 26.2c-.5-.4-4.6-3-4.6-5.8 0-1.5 1.2-2.6 2.5-2.6.9 0 1.6.5 2.1 1.1.5-.6 1.2-1.1 2.1-1.1 1.3 0 2.5 1.1 2.5 2.6 0 2.8-4.1 5.4-4.6 5.8Z" fill="#fff"/><ellipse cx="33.5" cy="66" rx="5" ry="3.2" fill="#e2708f" opacity="0.45"/><ellipse cx="66.5" cy="66" rx="5" ry="3.2" fill="#e2708f" opacity="0.45"/><circle cx="40" cy="58.5" r="3.4" fill="#4b3a33"/><circle cx="60" cy="58.5" r="3.4" fill="#4b3a33"/><circle cx="41.2" cy="57.3" r="1.1" fill="#fff"/><circle cx="61.2" cy="57.3" r="1.1" fill="#fff"/><path d="M45.5 64.5q4.5 4.2 9 0" fill="none" stroke="#4b3a33" stroke-width="2.4" stroke-linecap="round" />
-      </svg>
+      <img class="mark" src="/mochi.webp" alt="" width="150" height="150" />
       <div class="word">Expense <b>Sync</b></div>
       <div class="dots"><i></i><i></i><i></i></div>
     </div>
