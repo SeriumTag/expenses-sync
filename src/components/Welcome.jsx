@@ -42,9 +42,13 @@ export default function Welcome({ onDone }) {
   return createPortal(
     <div className="welcome" role="dialog" aria-modal="true" aria-label="How the app works">
       <div className="welcome-card">
-        <div className="welcome-icon" aria-hidden="true">
-          {s.icon}
-        </div>
+        {step === 0 ? (
+          <img className="welcome-mochi" src="/mochi.webp" alt="" />
+        ) : (
+          <div className="welcome-icon" aria-hidden="true">
+            {s.icon}
+          </div>
+        )}
         <h2>{s.title}</h2>
         <p>{s.text}</p>
         <ul>

@@ -316,3 +316,37 @@ export function allSpendCategories(spending) {
   }
   return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
+
+// ── Home stat tiles ─────────────────────────────────────────────────
+// From the spends logged against the given budgets in period `pk`:
+// today's and this week's total (Mon–today; only when `pk` includes today),
+// how many purchases, the biggest one, and an average per day so far.
+export function spendStats(spending, budgetIds, pk, today = new Date().toLocaleDateString('en-CA')) {
+  const all = budgetIds.flatMap((id) => spendsIn(spending, id, pk));
+  const total = all.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const inPeriod = isYearKey(pk) ? today.startsWith(`${pk}-`) : today.startsWith(pk);
+  const d = new Date(`${today}T00:00:00`);
+  const monday = new Date(d);
+  monday.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  const mondayKey = monday.toLocaleDateString('en-CA');
+  const sum = (list) => list.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const biggest = all.reduce((b, x) => (!b || (Number(x.amount) || 0) > (Number(b.amount) || 0) ? x : b), null);
+  // Days so far: up to today in the current period, otherwise the whole period.
+  let days;
+  if (isYearKey(pk)) {
+    const start = new Date(`${pk}-01-01T00:00:00`);
+    const end = inPeriod ? d : new Date(`${pk}-12-31T00:00:00`);
+    days = Math.round((end - start) / 86400000) + 1;
+  } else {
+    days = inPeriod ? d.getDate() : new Date(Number(pk.slice(0, 4)), Number(pk.slice(5, 7)), 0).getDate();
+  }
+  return {
+    total,
+    count: all.length,
+    today: inPeriod ? sum(all.filter((x) => x.date === today)) : null,
+    week: inPeriod ? sum(all.filter((x) => x.date >= mondayKey && x.date <= today)) : null,
+    biggest,
+    perDay: days > 0 ? total / days : 0,
+    inPeriod,
+  };
+}
