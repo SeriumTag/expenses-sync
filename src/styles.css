@@ -1654,3 +1654,4 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 @keyframes loading-dot { 50% { transform: translateY(-7px); } }
 @keyframes mochi-bob { 50% { transform: translateY(-6px) rotate(-3deg); } }
 @media (prefers-reduced-motion: reduce) { .loading-mochi, .loading-dots i { animation: none; } }
+.cat-spends { margin: 12px 0; }

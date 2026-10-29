@@ -109,21 +109,63 @@ export function leaves(items) {
   return out;
 }
 
-// All categories used in a period: [{ key, label, count, total }] (total in `view`)
+// All categories used in a period: [{ key, label, count, spendCount, total }]
+// (total in `view`). Counts the Category box on items and parts, and the
+// categories typed on spends (e.g. Food → Rice), unless the spend's own budget
+// already has that category (then its budget amount is counted, not twice).
 export function categoriesIn(period, view = 'monthly', ctx) {
   const map = new Map();
+  const entry = (label) => {
+    const key = catKey(label);
+    if (!map.has(key)) map.set(key, { key, label, count: 0, spendCount: 0, total: 0 });
+    return map.get(key);
+  };
   for (const items of Object.values(period?.items || {})) {
     for (const leaf of leaves(items)) {
       for (const label of leaf.cats) {
-        const key = catKey(label);
-        const c = map.get(key) || { key, label, count: 0, total: 0 };
+        const c = entry(label);
         c.count += 1;
         c.total += amountInView(leaf.item, leaf.id, view, ctx);
-        map.set(key, c);
+      }
+    }
+  }
+  if (ctx?.pk) {
+    for (const sp of periodSpends(period, ctx.spending, spendKeyFor(ctx.pk, view))) {
+      for (const label of splitCats(sp.category)) {
+        if (sp.budgetCats.some((c) => catKey(c) === catKey(label))) continue;
+        const c = entry(label);
+        c.spendCount += 1;
+        c.total += Number(sp.amount) || 0;
       }
     }
   }
   return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
+// Which spends a view covers: the month shown, or its whole year in the yearly view.
+export const spendKeyFor = (pk, view) => (view === 'yearly' ? String(pk).slice(0, 4) : pk);
+
+// Every spend logged against the spending budgets of a period, with its budget:
+// [{ ...spend, budgetId, budgetName, budgetCats, tabId }]
+export function periodSpends(period, spending, key) {
+  const out = [];
+  for (const [tabId, items] of Object.entries(period?.items || {})) {
+    for (const [id, item] of Object.entries(items || {})) {
+      if (!item?.budget) continue;
+      for (const sp of spendsIn(spending, id, key)) {
+        out.push({ ...sp, budgetId: id, budgetName: item.name || 'Untitled', budgetCats: splitCats(item.category), tabId });
+      }
+    }
+  }
+  return out.sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
+}
+
+// The spends with a given category (left out when their own budget already has
+// it, as in categoriesIn).
+export function spendsInCategory(period, key, spending, spendKey) {
+  return periodSpends(period, spending, spendKey).filter(
+    (sp) => splitCats(sp.category).some((c) => catKey(c) === key) && !sp.budgetCats.some((c) => catKey(c) === key),
+  );
 }
 
 // Everything in a period with a given category, parts of merged items listed

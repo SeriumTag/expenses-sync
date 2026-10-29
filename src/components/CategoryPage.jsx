@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { FREQS, amountInView, catKey, itemsInCategory, savingsMonths, savingsTotal, sorted, yearOf } from '../lib/budget';
+import { FREQS, amountInView, catKey, itemsInCategory, savingsMonths, savingsTotal, sorted, yearOf, MONTHS, spendKeyFor, spendsInCategory } from '../lib/budget';
 import { newKey, patchPath, setPath } from '../lib/db';
 import { formatMoney } from '../lib/format';
+import { catStyle } from '../lib/catStyle';
 import { prefs } from '../lib/session';
 import { reordered, useDragSort } from '../hooks/useDragSort';
 import LiveInput from './LiveInput';
@@ -35,7 +36,12 @@ export function CategoriesSheet({ categories, favs, currency, view, onOpen, onFa
                 <button className="cat-list-row" onClick={() => onOpen(c.key)}>
                   <span className="cat-list-name">{c.label}</span>
                   <span className="muted small">
-                    {c.count} item{c.count === 1 ? '' : 's'}
+                    {[
+                      c.count ? `${c.count} item${c.count === 1 ? '' : 's'}` : '',
+                      c.spendCount ? `${c.spendCount} spend${c.spendCount === 1 ? '' : 's'}` : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
                   </span>
                   <b>
                     {formatMoney(c.total, currency)}
@@ -101,7 +107,10 @@ export function CategoryPage(props) {
 
   const counted = entries.filter((e) => !meta[e.id]?.exclude);
   const amount = (e) => amountInView(e.item, e.id, view, ctx);
-  const total = counted.reduce((s, e) => s + amount(e), 0);
+  // Spends typed with this category (e.g. Food → Rice), this month or year.
+  const catSpends = spendsInCategory(period, catKeyValue, ctx?.spending, spendKeyFor(pk, view));
+  const spendTotal = catSpends.reduce((s, x) => s + (Number(x.amount) || 0), 0);
+  const total = counted.reduce((s, e) => s + amount(e), 0) + spendTotal;
 
   const addSub = () => {
     const name = window.prompt('Subcategory name (e.g. Hubby, Wife, Kids)');
@@ -179,7 +188,9 @@ export function CategoryPage(props) {
             <span className="per-small">{FREQS[view].short}</span>
           </div>
           <span className="muted small">
-            Total of {counted.length} of {entries.length} item{entries.length === 1 ? '' : 's'}
+            {entries.length > 0 && `Total of ${counted.length} of ${entries.length} item${entries.length === 1 ? '' : 's'}`}
+            {entries.length > 0 && catSpends.length > 0 && ' + '}
+            {catSpends.length > 0 && `${catSpends.length} spend${catSpends.length === 1 ? '' : 's'}`}
           </span>
         </div>
         <div className="seg" role="group" aria-label="Show amounts">
@@ -266,7 +277,33 @@ export function CategoryPage(props) {
         </form>
       )}
 
-      {entries.length === 0 && <p className="muted">Nothing uses this category this month.</p>}
+      {entries.length === 0 && catSpends.length === 0 && <p className="muted">Nothing uses this category this month.</p>}
+      {catSpends.length > 0 && (
+        <section className="home-card cat-spends" aria-label="Spends">
+          <div className="home-card-head">
+            <h2>Spends</h2>
+            <b>{formatMoney(spendTotal, currency)}</b>
+          </div>
+          {catSpends.map((sp) => {
+            const st = catStyle(label);
+            return (
+              <button key={`${sp.budgetId}:${sp.id}`} className="tx" onClick={() => onOpenItem(sp.tabId, sp.budgetId)}>
+                <span className="tx-icon" style={{ background: st.bg }}>
+                  {st.icon}
+                </span>
+                <span className="tx-main">
+                  <b>{sp.note || 'Spend'}</b>
+                  <span>
+                    {sp.budgetName} · {Number(sp.date.slice(8, 10))} {MONTHS[Number(sp.date.slice(5, 7)) - 1]}
+                    {sp.files ? ' · 📎' : ''}
+                  </span>
+                </span>
+                <span className="tx-amt">−{formatMoney(Number(sp.amount) || 0, currency)}</span>
+              </button>
+            );
+          })}
+        </section>
+      )}
 
       {groups.map((g) => {
         const subTotal = g.rows.filter((e) => !meta[e.id]?.exclude).reduce((s, e) => s + amount(e), 0);
