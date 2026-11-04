@@ -1,14 +1,14 @@
 // A colour and icon for any category or group name, from the design's palette
-// (Food & Drink pink, Shopping peach, Transport mint, Fun lavender, Home
-// yellow, Health sky). Known words first, otherwise a stable pick by name.
+// (Food & Drink rose, Shopping fox, Transport mint, Fun lavender, Home
+// honey, Health sky). Known words first, otherwise a stable pick by name.
 
 const STYLES = {
-  food: { color: '#ff7d9c', bg: 'var(--pink-soft)', icon: '🍓' },
-  shopping: { color: '#ff9a5a', bg: 'var(--peach-soft)', icon: '🛍️' },
-  transport: { color: '#5fc9a7', bg: 'var(--mint-soft)', icon: '🚌' },
-  fun: { color: '#9b8cff', bg: 'var(--lav-soft)', icon: '🎟️' },
-  home: { color: '#e9a800', bg: 'var(--butter-soft)', icon: '🏠' },
-  health: { color: '#4fb3d9', bg: 'var(--sky-soft)', icon: '💊' },
+  food: { color: '#e08ca4', bg: 'var(--pink-soft)', icon: '🍓' },
+  shopping: { color: '#df9c83', bg: 'var(--peach-soft)', icon: '🛍️' },
+  transport: { color: '#84bda1', bg: 'var(--mint-soft)', icon: '🚌' },
+  fun: { color: '#ac9ed8', bg: 'var(--lav-soft)', icon: '🎟️' },
+  home: { color: '#d9a05f', bg: 'var(--butter-soft)', icon: '🏠' },
+  health: { color: '#93bede', bg: 'var(--sky-soft)', icon: '💊' },
 };
 const ORDER = ['food', 'shopping', 'transport', 'fun', 'home', 'health'];
 

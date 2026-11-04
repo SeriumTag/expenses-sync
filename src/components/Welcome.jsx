@@ -43,7 +43,7 @@ export default function Welcome({ onDone }) {
     <div className="welcome" role="dialog" aria-modal="true" aria-label="How the app works">
       <div className="welcome-card">
         {step === 0 ? (
-          <img className="welcome-mochi" src="/mochi.webp" alt="" />
+          <img className="welcome-banner" src="/banner.webp" alt="" />
         ) : (
           <div className="welcome-icon" aria-hidden="true">
             {s.icon}

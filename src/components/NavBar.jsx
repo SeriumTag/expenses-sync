@@ -15,7 +15,7 @@ export default function NavBar(props) {
   return (
     <header className={`nav ${scrolled ? 'solid' : ''}`}>
       <div className="nav-brand">
-        <LogoMark size={20} />
+        <LogoMark size={30} />
         <Wordmark className="hide-sm" />
       </div>
 

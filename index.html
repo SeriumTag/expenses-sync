@@ -36,14 +36,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
     <title>Expense Sync</title>
     <meta name="description" content="Track expenses together, live." />
-    <meta name="theme-color" content="#fff7f1" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#1c171d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fdf6ec" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#251c17" media="(prefers-color-scheme: dark)" />
     <meta name="color-scheme" content="light dark" />
 
     <!-- Installable app (Android / desktop) -->
-    <link rel="preload" href="/mochi.webp" as="image" type="image/webp" />
+    <link rel="preload" href="/duffy.webp" as="image" type="image/webp" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
 
     <!-- iPhone "Add to Home Screen" -->
@@ -72,38 +71,38 @@
 
     <!-- Splash: starts exactly where the iPhone launch screen leaves off, then animates. -->
     <style>
-      html, body { background: #fff7f1; }
+      html, body { background: #fdf6ec; }
       #splash {
         position: fixed; inset: 0; z-index: 9999; overflow: hidden; transition: opacity 0.45s ease 0.15s;
         background:
-          radial-gradient(60vw 60vw at 12% 18%, #ffe3eb, transparent 70%),
-          radial-gradient(55vw 55vw at 92% 28%, #ece8ff, transparent 70%),
-          radial-gradient(70vw 70vw at 25% 105%, #ddf5ec, transparent 70%),
-          radial-gradient(50vw 50vw at 100% 95%, #ffe8d6, transparent 70%),
-          #fff7f1;
+          radial-gradient(60vw 60vw at 12% 18%, #faeed9, transparent 70%),
+          radial-gradient(55vw 55vw at 92% 28%, #fcebf1, transparent 70%),
+          radial-gradient(70vw 70vw at 25% 105%, #e7f3ec, transparent 70%),
+          radial-gradient(50vw 50vw at 100% 95%, #f0ecfb, transparent 70%),
+          #fdf6ec;
       }
       #splash .mark {
-        position: absolute; left: 50%; top: 45%; width: min(28vw, 150px); height: min(28vw, 150px);
-        box-sizing: border-box; border-radius: 50%; border: 5px solid #fff; object-fit: cover; background: #fff;
+        position: absolute; left: 50%; top: 45%; width: min(40vw, 170px); height: min(40vw, 170px);
+        box-sizing: border-box; border-radius: 50%; border: 6px solid #fffcf7; object-fit: cover; background: #fffcf7;
         transform: translate(-50%, -50%);
         animation: splash-bounce 1.2s cubic-bezier(0.3, 1.4, 0.5, 1) both;
         transition: transform 0.5s cubic-bezier(0.6, 0, 0.8, 0.2), opacity 0.4s ease 0.1s;
-        box-shadow: 0 12px 26px rgba(232, 93, 126, 0.22);
+        box-shadow: 0 10px 24px rgba(150, 98, 44, 0.2);
       }
       #splash .word {
         position: absolute; left: 0; right: 0; text-align: center;
-        top: calc(45% + min(28vw, 150px) * 0.5 + 22px);
+        top: calc(45% + min(40vw, 170px) * 0.5 + 22px);
         font: 800 clamp(28px, 8vw, 40px) / 1 'Baloo 2', 'Nunito', system-ui, sans-serif;
-        color: #3b2632;
+        color: #4a382c;
         animation: splash-word 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s both;
         transition: opacity 0.25s;
       }
-      #splash .word b { color: #e85d7e; font-weight: 800; }
+      #splash .word b { color: #96622c; font-weight: 800; }
       #splash .dots { position: absolute; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 60px); transform: translateX(-50%); display: flex; gap: 8px; }
       #splash .dots i { width: 9px; height: 9px; border-radius: 50%; animation: splash-dot 1s ease-in-out infinite; }
-      #splash .dots i:nth-child(1) { background: #ff7d9c; }
-      #splash .dots i:nth-child(2) { background: #ffad7a; animation-delay: 0.15s; }
-      #splash .dots i:nth-child(3) { background: #5fc9a7; animation-delay: 0.3s; }
+      #splash .dots i:nth-child(1) { background: #e08ca4; }
+      #splash .dots i:nth-child(2) { background: #e7bd55; animation-delay: 0.15s; }
+      #splash .dots i:nth-child(3) { background: #84bda1; animation-delay: 0.3s; }
       #splash.hide { opacity: 0; pointer-events: none; }
       #splash.hide .mark { transform: translate(-50%, -50%) scale(1.8); opacity: 0; }
       #splash.hide .word, #splash.hide .dots { opacity: 0; }
@@ -117,11 +116,11 @@
       @keyframes splash-dot { 50% { transform: translateY(-7px); } }
       #splash .stuck {
         position: absolute; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 110px);
-        text-align: center; font: 700 15px/1.5 'Nunito', system-ui, sans-serif; color: #8d786d;
+        text-align: center; font: 700 15px/1.5 'Nunito', system-ui, sans-serif; color: #9a8471;
       }
       #splash .stuck button {
         margin-top: 10px; font: 800 15px 'Nunito', system-ui, sans-serif; color: #fff;
-        background: #ff7d9c; border: none; border-radius: 999px; padding: 10px 22px;
+        background: #96622c; border: none; border-radius: 999px; padding: 10px 22px;
       }
       @media (prefers-reduced-motion: reduce) {
         #splash *, #splash .dots i { animation: none !important; transition: none !important; }
@@ -130,7 +129,7 @@
   </head>
   <body>
     <div id="splash" aria-hidden="true">
-      <img class="mark" src="/mochi.webp" alt="" width="150" height="150" />
+      <img class="mark" src="/duffy.webp" alt="" width="150" height="150" />
       <div class="word">Expense <b>Sync</b></div>
       <div class="dots"><i></i><i></i><i></i></div>
     </div>

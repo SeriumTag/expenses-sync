@@ -27,8 +27,9 @@ export default function HomeScreen(props) {
 
   return (
     <div className="home">
-      {/* 1. What's left: the design's gradient hero, with the mochi cat */}
+      {/* 1. What's left: the design's gradient hero, with Duffy the bear */}
       <section className="hero-card" aria-label="This month">
+        <span className="bunting" aria-hidden="true" />
         <div className="hero-text">
           {income > 0 ? (
             <>
@@ -61,8 +62,8 @@ export default function HomeScreen(props) {
           )}
         </div>
         <div className="hero-mascot" aria-hidden="true">
-          <img src="/mochi.webp" alt="" width="120" height="120" />
-          <span className="mascot-tag">Hi! 🐱</span>
+          <img src="/duffy.webp" alt="" width="120" height="120" />
+          <span className="mascot-tag">Hi! 🐻</span>
         </div>
       </section>
 

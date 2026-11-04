@@ -1,37 +1,48 @@
-// The design's palette (Cute Expenses App): pink first, then its friends.
+// The "Family Expenses" palette: Duffy's honey-brown first, then his friends.
 export const THEMES = [
-  { name: 'Pink', value: '#ff7d9c' },
-  { name: 'Peach', value: '#ffad7a' },
-  { name: 'Mint', value: '#5fc9a7' },
-  { name: 'Lavender', value: '#b8a9ff' },
-  { name: 'Sky', value: '#6ec6e8' },
-  { name: 'Yellow', value: '#ffc93c' },
-  { name: 'Rose', value: '#e85d7e' },
-  { name: 'Sage', value: '#8cc98a' },
+  { name: 'Honey', value: '#96622c' },
+  { name: 'Rose', value: '#e08ca4' },
+  { name: 'Mint', value: '#84bda1' },
+  { name: 'Lavender', value: '#ac9ed8' },
+  { name: 'Butter', value: '#e7bd55' },
+  { name: 'Seafoam', value: '#84c4b5' },
+  { name: 'Fox', value: '#df9c83' },
+  { name: 'Sky', value: '#93bede' },
 ];
 
 export const DEFAULT_THEME = THEMES[0].value;
 
-// Colours saved before (the first bold set, then the soft pastels) move to
-// their place in the new palette, so everyone's choice carries over.
+// Colours saved before (the bold set, the soft pastels, then the pink "Cute
+// Expenses" set) move to their place in this palette, so choices carry over.
+// The old default pink becomes Honey, the new default.
 const LEGACY = {
-  '#e50914': '#ff7d9c',
-  '#2f80ed': '#6ec6e8',
-  '#10b981': '#5fc9a7',
-  '#8b5cf6': '#b8a9ff',
-  '#f97316': '#ffad7a',
-  '#ec4899': '#e85d7e',
-  '#eab308': '#ffc93c',
-  '#14b8a6': '#5fc9a7',
-  '#f29cb2': '#ff7d9c',
-  '#a99be6': '#b8a9ff',
-  '#7fcfb2': '#5fc9a7',
-  '#f6b28c': '#ffad7a',
-  '#8ec3ea': '#6ec6e8',
-  '#efc16a': '#ffc93c',
-  '#e88fa2': '#e85d7e',
-  '#a6c59c': '#8cc98a',
-  '#86d3cf': '#5fc9a7',
+  // Cute Expenses set
+  '#ff7d9c': '#96622c',
+  '#ffad7a': '#df9c83',
+  '#5fc9a7': '#84bda1',
+  '#b8a9ff': '#ac9ed8',
+  '#6ec6e8': '#93bede',
+  '#ffc93c': '#e7bd55',
+  '#e85d7e': '#e08ca4',
+  '#8cc98a': '#84c4b5',
+  // earlier sets
+  '#e50914': '#96622c',
+  '#2f80ed': '#93bede',
+  '#10b981': '#84bda1',
+  '#8b5cf6': '#ac9ed8',
+  '#f97316': '#df9c83',
+  '#ec4899': '#e08ca4',
+  '#eab308': '#e7bd55',
+  '#14b8a6': '#84c4b5',
+  '#f29cb2': '#96622c',
+  '#a99be6': '#ac9ed8',
+  '#7fcfb2': '#84bda1',
+  '#f6b28c': '#df9c83',
+  '#8ec3ea': '#93bede',
+  '#efc16a': '#e7bd55',
+  '#e88fa2': '#e08ca4',
+  '#a6c59c': '#84c4b5',
+  '#86d3cf': '#84c4b5',
 };
 
 export const isHex = (v) => /^#[0-9a-f]{6}$/i.test(v || '');
@@ -49,10 +60,10 @@ function luminance(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-// White text on the palette's colours (like the design's pink buttons); ink
-// only on very light ones such as yellow.
-export const INK = '#3b2632';
-export const textOn = (hex) => (luminance(normalizeTheme(hex)) > 0.56 ? INK : '#ffffff');
+// White text on the darker colours (like the design's honey buttons); cocoa
+// ink on the light pastels.
+export const INK = '#4a382c';
+export const textOn = (hex) => (luminance(normalizeTheme(hex)) > 0.3 ? INK : '#ffffff');
 
 export function applyTheme(hex) {
   const color = normalizeTheme(hex);

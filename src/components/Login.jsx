@@ -44,7 +44,7 @@ export default function Login({ onLogin, ready, pendingJoin }) {
     <div className="login-screen">
       <div className="login-bg" aria-hidden="true" />
       <header className="login-top">
-        <LogoMark size={26} />
+        <LogoMark size={34} />
         <Wordmark />
       </header>
 

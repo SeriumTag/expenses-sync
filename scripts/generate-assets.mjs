@@ -1,93 +1,65 @@
 // Generates the app icons and iPhone launch screens into public/.
 // Run with: npm run assets   (outputs are committed, so Netlify doesn't need to run this)
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+// Duffy (public/duffy.webp) comes from scripts/extract-duffy.mjs.
+import { mkdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 const OUT = new URL('../public/', import.meta.url);
 const out = (name) => fileURLToPath(new URL(name, OUT));
 
-// The coin-pouch mark (same shapes as src/components/Logo.jsx), in a 100 grid.
-const MARK = `
-  <path d="M37 18c1-7 6-11 13-8 7-3 12 1 13 8Z" fill="#8fd6bb"/>
-  <path d="M20 50c0-15 9-23 22-23h16c13 0 22 8 22 23v14c0 16-11 26-27 26h-6c-16 0-27-10-27-26Z" fill="#f29cb2"/>
-  <path d="M33 22.5a5 5 0 0 1 5-5h24a5 5 0 0 1 0 10H38a5 5 0 0 1-5-5Z" fill="#a99be6"/>
-  <path d="M28 48c1-6 5-10 11-11" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity="0.55"/>
-  <path d="M50 26.2c-.5-.4-4.6-3-4.6-5.8 0-1.5 1.2-2.6 2.5-2.6.9 0 1.6.5 2.1 1.1.5-.6 1.2-1.1 2.1-1.1 1.3 0 2.5 1.1 2.5 2.6 0 2.8-4.1 5.4-4.6 5.8Z" fill="#fff"/><ellipse cx="33.5" cy="66" rx="5" ry="3.2" fill="#e2708f" opacity="0.45"/><ellipse cx="66.5" cy="66" rx="5" ry="3.2" fill="#e2708f" opacity="0.45"/><circle cx="40" cy="58.5" r="3.4" fill="#4b3a33"/><circle cx="60" cy="58.5" r="3.4" fill="#4b3a33"/><circle cx="41.2" cy="57.3" r="1.1" fill="#fff"/><circle cx="61.2" cy="57.3" r="1.1" fill="#fff"/><path d="M45.5 64.5q4.5 4.2 9 0" fill="none" stroke="#4b3a33" stroke-width="2.4" stroke-linecap="round"/>`;
+// Duffy as PNG, so the SVG renderer can embed it.
+const DUFFY = (await sharp(await readFile(new URL('duffy.webp', OUT))).png().toBuffer()).toString('base64');
+const duffyImage = (x, y, size, clip) =>
+  `<image x="${x}" y="${y}" width="${size}" height="${size}"${clip ? ` clip-path="url(#${clip})"` : ''} preserveAspectRatio="xMidYMid slice" href="data:image/png;base64,${DUFFY}" xlink:href="data:image/png;base64,${DUFFY}"/>`;
 
-// Crop box around the mark (the in-app splash in index.html uses the same viewBox).
-export const MARK_BOX = { x: 12, y: 6, w: 76, h: 88 };
+// The design's cream paper with soft honey / rose / mint / lavender spots.
+const CREAM = '#fdf6ec';
+const TINTS = ['#faeed9', '#fcebf1', '#e7f3ec', '#f0ecfb'];
+const SPOTS = [
+  [0.12, 0.18, 0.45],
+  [0.92, 0.28, 0.4],
+  [0.25, 1.05, 0.5],
+  [1, 0.95, 0.38],
+];
+const blobDefs = (w, h) =>
+  SPOTS.map(
+    ([x, y, r], i) => `<radialGradient id="s${i}" gradientUnits="userSpaceOnUse" cx="${w * x}" cy="${h * y}" r="${Math.max(w, h) * r}">
+      <stop offset="0" stop-color="${TINTS[i]}"/><stop offset="1" stop-color="${TINTS[i]}" stop-opacity="0"/></radialGradient>`,
+  ).join('');
+const blobRects = (w, h) => `<rect width="${w}" height="${h}" fill="${CREAM}"/>` + SPOTS.map((_, i) => `<rect width="${w}" height="${h}" fill="url(#s${i})"/>`).join('');
 
-// Soft pastel blobs on cream, sized to a w × h canvas.
-const blobs = (w, h, id = 'b') => `
-    <radialGradient id="${id}1" gradientUnits="userSpaceOnUse" cx="${w * 0.12}" cy="${h * 0.18}" r="${Math.max(w, h) * 0.45}">
-      <stop offset="0" stop-color="#f9cfd9"/><stop offset="1" stop-color="#f9cfd9" stop-opacity="0"/></radialGradient>
-    <radialGradient id="${id}2" gradientUnits="userSpaceOnUse" cx="${w * 0.92}" cy="${h * 0.28}" r="${Math.max(w, h) * 0.4}">
-      <stop offset="0" stop-color="#d9cff8"/><stop offset="1" stop-color="#d9cff8" stop-opacity="0"/></radialGradient>
-    <radialGradient id="${id}3" gradientUnits="userSpaceOnUse" cx="${w * 0.25}" cy="${h * 1.05}" r="${Math.max(w, h) * 0.5}">
-      <stop offset="0" stop-color="#c7ecdc"/><stop offset="1" stop-color="#c7ecdc" stop-opacity="0"/></radialGradient>
-    <radialGradient id="${id}4" gradientUnits="userSpaceOnUse" cx="${w}" cy="${h * 0.95}" r="${Math.max(w, h) * 0.38}">
-      <stop offset="0" stop-color="#fcdcc6"/><stop offset="1" stop-color="#fcdcc6" stop-opacity="0"/></radialGradient>`;
-const blobRects = (w, h, id = 'b') =>
-  `<rect width="${w}" height="${h}" fill="#fff7f1"/>` +
-  [1, 2, 3, 4].map((n) => `<rect width="${w}" height="${h}" fill="url(#${id}${n})"/>`).join('');
-
+// App icon: Duffy filling the tile on plain cream, which matches his own background
+// (the maskable one leaves room for the phone's mask).
 function iconSvg({ scale = 1, rounded = false } = {}) {
-  const k = 6.6 * scale;
-  const cx = 512;
-  const cy = 525;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  const size = 1024 * scale;
+  const off = (1024 - size) / 2;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024">
   <defs>
-    ${blobs(1024, 1024)}
-    <filter id="soft" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><feGaussianBlur stdDeviation="22"/></filter>
     <clipPath id="clip"><rect width="1024" height="1024" rx="${rounded ? 224 : 0}"/></clipPath>
   </defs>
   <g clip-path="url(#clip)">
-    ${blobRects(1024, 1024)}
-    <circle cx="150" cy="820" r="26" fill="#fff" opacity="0.8"/>
-    <circle cx="860" cy="190" r="18" fill="#fff" opacity="0.8"/>
-    <circle cx="880" cy="760" r="12" fill="#fff" opacity="0.7"/>
-    <ellipse cx="${cx}" cy="${cy + 300 * scale}" rx="${230 * scale}" ry="${40 * scale}" fill="#c98b8b" opacity="0.28" filter="url(#soft)"/>
-    <g transform="translate(${cx - 50 * k} ${cy - 50 * k}) scale(${k})">${MARK}</g>
+    <rect width="1024" height="1024" fill="${CREAM}"/>
+    ${duffyImage(off, off, size)}
   </g>
 </svg>`;
 }
 
-// The mochi cat (public/mochi.webp) as PNG, so the SVG renderer can embed it.
-const MOCHI = (await sharp(await readFile(new URL('mochi.webp', OUT))).png().toBuffer()).toString('base64');
-
-// The design's soft tints for the launch screens (the app icon keeps its own).
-const SPLASH_TINTS = ['#ffe3eb', '#ece8ff', '#ddf5ec', '#ffe8d6'];
-const splashBlobs = (w, h) => {
-  const spots = [
-    [0.12, 0.18, 0.45],
-    [0.92, 0.28, 0.4],
-    [0.25, 1.05, 0.5],
-    [1, 0.95, 0.38],
-  ];
-  return spots
-    .map(
-      ([x, y, r], i) => `<radialGradient id="s${i}" gradientUnits="userSpaceOnUse" cx="${w * x}" cy="${h * y}" r="${Math.max(w, h) * r}">
-      <stop offset="0" stop-color="${SPLASH_TINTS[i]}"/><stop offset="1" stop-color="${SPLASH_TINTS[i]}" stop-opacity="0"/></radialGradient>`,
-    )
-    .join('');
-};
-
+// Launch screen: Duffy in a white circle, as the splash in index.html.
 function splashSvg(w, h, ratio) {
-  const d = Math.min((w / ratio) * 0.28, 150) * ratio; // circle size, as in index.html
-  const ring = 5 * ratio;
+  const d = Math.min((w / ratio) * 0.4, 170) * ratio; // circle size, as in index.html
+  const ring = 6 * ratio;
   const cx = w / 2;
   const cy = h * 0.45;
   return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
   <defs>
-    ${splashBlobs(w, h)}
+    ${blobDefs(w, h)}
     <clipPath id="face"><circle cx="${cx}" cy="${cy}" r="${d / 2 - ring}"/></clipPath>
-    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="${12 * ratio}" stdDeviation="${11 * ratio}" flood-color="#e85d7e" flood-opacity="0.22"/></filter>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="${10 * ratio}" stdDeviation="${12 * ratio}" flood-color="#96622c" flood-opacity="0.2"/></filter>
   </defs>
-  <rect width="${w}" height="${h}" fill="#fff7f1"/>
-  ${[0, 1, 2, 3].map((i) => `<rect width="${w}" height="${h}" fill="url(#s${i})"/>`).join('')}
-  <circle cx="${cx}" cy="${cy}" r="${d / 2}" fill="#fff" filter="url(#shadow)"/>
-  <image x="${cx - d / 2 + ring}" y="${cy - d / 2 + ring}" width="${d - 2 * ring}" height="${d - 2 * ring}" clip-path="url(#face)" preserveAspectRatio="xMidYMid slice" href="data:image/png;base64,${MOCHI}" xlink:href="data:image/png;base64,${MOCHI}"/>
+  ${blobRects(w, h)}
+  <circle cx="${cx}" cy="${cy}" r="${d / 2}" fill="#fffcf7" filter="url(#shadow)"/>
+  ${duffyImage(cx - d / 2 + ring, cy - d / 2 + ring, d - 2 * ring, 'face')}
 </svg>`;
 }
 
@@ -111,24 +83,17 @@ const png = (svg, size) => sharp(Buffer.from(svg), { density: 300 }).resize(size
 
 await mkdir(new URL('splash/', OUT), { recursive: true });
 
-await writeFile(new URL('icon.svg', OUT), iconSvg({ rounded: true }));
 await png(iconSvg(), 180).toFile(out('apple-touch-icon.png'));
 await png(iconSvg(), 192).toFile(out('icon-192.png'));
 await png(iconSvg(), 512).toFile(out('icon-512.png'));
-await png(iconSvg({ scale: 0.78 }), 512).toFile(out('icon-maskable-512.png'));
+await png(iconSvg({ scale: 0.8 }), 512).toFile(out('icon-maskable-512.png'));
 await png(iconSvg({ rounded: true }), 32).toFile(out('favicon-32.png'));
 await png(iconSvg({ rounded: true }), 1024).toFile(out('icon-preview.png'));
 
-const links = [];
 for (const [cw, ch, r] of IPHONES) {
   const w = cw * r;
   const h = ch * r;
-  const name = `splash/iphone-${w}x${h}.png`;
-  await sharp(Buffer.from(splashSvg(w, h, r))).png({ compressionLevel: 9 }).toFile(out(name));
-  links.push(
-    `<link rel="apple-touch-startup-image" media="screen and (device-width: ${cw}px) and (device-height: ${ch}px) and (-webkit-device-pixel-ratio: ${r}) and (orientation: portrait)" href="/${name}" />`,
-  );
+  await sharp(Buffer.from(splashSvg(w, h, r))).png({ compressionLevel: 9 }).toFile(out(`splash/iphone-${w}x${h}.png`));
 }
 
-console.log(`Generated icons and ${IPHONES.length} launch screens.\n\nLaunch screen <link> tags:\n`);
-console.log(links.join('\n'));
+console.log(`Generated icons and ${IPHONES.length} launch screens.`);

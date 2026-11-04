@@ -605,7 +605,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                     subtitle="By group · tap one to see its list."
                     segments={(() => {
                       const used = new Set();
-                      const spare = ['#ff7d9c', '#ff9a5a', '#5fc9a7', '#9b8cff', '#e9a800', '#4fb3d9', '#e85d7e', '#8cc98a'];
+                      const spare = ['#e08ca4', '#d9a05f', '#84bda1', '#ac9ed8', '#e7bd55', '#84c4b5', '#df9c83', '#93bede'];
                       return tabs
                         .map((t) => ({ key: t.id, label: t.name || 'Untitled', value: tabInView(period.items?.[t.id], view, budgetCtx) }))
                         .sort((a, b) => b.value - a.value)

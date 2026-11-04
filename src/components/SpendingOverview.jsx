@@ -6,7 +6,7 @@ import { budgetItems } from './BudgetsSheet';
 import Donut from './Donut';
 
 const dayName = (d) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`;
-const PALETTE = ['#ff7d9c', '#ff9a5a', '#5fc9a7', '#9b8cff', '#e9a800', '#4fb3d9', '#e85d7e', '#8cc98a'];
+const PALETTE = ['#e08ca4', '#d9a05f', '#84bda1', '#ac9ed8', '#e7bd55', '#84c4b5', '#df9c83', '#93bede'];
 
 // Every spend this month across budgets: a donut by category ("Where it went")
 // and a searchable, filterable list ("Recent spends"). Tapping a slice or a

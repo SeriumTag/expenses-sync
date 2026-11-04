@@ -161,7 +161,7 @@ export default function InstallPrompt() {
           ✕
         </button>
         <div className="install-desk-head">
-          <img src="/mochi.webp" className="install-mochi" alt="" />
+          <img src="/duffy.webp" className="install-mascot" alt="" />
           <div>
             <b>Install Expense Sync on this computer</b>
             <span>Opens in its own window like a normal app, with a shortcut on your desktop.</span>
