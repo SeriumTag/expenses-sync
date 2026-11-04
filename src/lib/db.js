@@ -513,6 +513,29 @@ const monthKeysOf = (periods) => Object.keys(periods || {}).filter((k) => !isYea
 const laterMonths = (periods, pk) => (isYearKey(pk) ? [] : monthKeysOf(periods).filter((k) => k > pk));
 const tabOf = (period, itemId) => Object.entries(period?.items || {}).find(([, list]) => list?.[itemId])?.[0];
 
+// The same day of the month, in month `key` (the 31st becomes the 30th, 28th…).
+export function dateIn(date, key) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || isYearKey(key)) return date || null;
+  const last = new Date(Number(key.slice(0, 4)), Number(key.slice(5, 7)), 0).getDate();
+  return `${key}-${String(Math.min(Number(date.slice(8, 10)), last)).padStart(2, '0')}`;
+}
+// An item as it appears in month `key`: its date moved to that month.
+const itemIn = (it, key) => (it?.date ? { ...it, date: dateIn(it.date, key) } : it);
+
+// Apply a { 'a/b': value } patch to a copy of an object (null removes).
+function applyPatch(obj, patch) {
+  const out = JSON.parse(JSON.stringify(obj || {}));
+  for (const [path, value] of Object.entries(patch)) {
+    const keys = path.split('/');
+    let node = out;
+    keys.slice(0, -1).forEach((k) => (node = node[k] && typeof node[k] === 'object' ? node[k] : (node[k] = {})));
+    const last = keys[keys.length - 1];
+    if (value === null || value === undefined) delete node[last];
+    else node[last] = value;
+  }
+  return out;
+}
+
 // A new month, built from the latest earlier month: its groups and income, every
 // item that carries on into it, and yearly items from the same month in earlier
 // years. One-time and ended items stay behind. Returns null when there's no
@@ -527,7 +550,7 @@ export function buildPeriod(periods, key) {
   const items = {};
   const put = (tid, id, it) => ((items[tid] = items[tid] || {})[id] = it);
   for (const [tid, list] of Object.entries(from.items || {})) {
-    for (const [id, it] of Object.entries(list || {})) if (continuesInto(it, fromKey, key)) put(tid, id, it);
+    for (const [id, it] of Object.entries(list || {})) if (continuesInto(it, fromKey, key)) put(tid, id, itemIn(it, key));
   }
   // Yearly items live only in their own month: look back at earlier years.
   for (const k of earlier) {
@@ -535,7 +558,7 @@ export function buildPeriod(periods, key) {
     for (const [tid, list] of Object.entries(periods[k]?.items || {})) {
       for (const [id, it] of Object.entries(list || {})) {
         if (recurOf(it) !== 'yearly' || !continuesInto(it, k, key)) continue;
-        put(tid, id, it);
+        put(tid, id, itemIn(it, key));
         if (!tabs[tid]) tabs[tid] = periods[k].tabs?.[tid] || { name: 'Yearly', order: Date.now() };
       }
     }
@@ -554,20 +577,32 @@ export async function ensurePeriod(ledgerId, periods, key) {
 }
 
 // Save fields of an item in this month and, if it recurs, in every later month
-// that already has it (earlier months keep their values as history).
+// it belongs in (earlier months keep their values as history). Later months
+// that already exist but don't have it yet get it too — so an item added (or
+// made recurring) in November also shows in a December that's already set up.
+// A date keeps its day and moves into each month (repeats on the 14th, etc.).
 // patch: { field: value } — nested fields like 'parts/abc/amount' work too.
 export function saveItemForward(ledgerId, periods, pk, tabId, itemId, patch, username) {
   const out = {};
   const add = (k, t) => {
-    for (const [field, value] of Object.entries(patch)) out[`periods/${k}/items/${t}/${itemId}/${field}`] = value;
+    for (const [field, value] of Object.entries(patch)) {
+      out[`periods/${k}/items/${t}/${itemId}/${field}`] = field === 'date' && k !== pk ? dateIn(value, k) : value;
+    }
     out[`periods/${k}/items/${t}/${itemId}/updatedBy`] = username || null;
   };
   add(pk, tabId);
-  const item = periods?.[pk]?.items?.[tabId]?.[itemId];
-  if (item && recurOf(item) !== 'once') {
+  const current = periods?.[pk]?.items?.[tabId]?.[itemId];
+  if (!current || isYearKey(pk)) return update(ref(db, `ledgers/${ledgerId}`), out);
+  const next = applyPatch(current, patch); // the item as it will be after this change
+  if (recurOf(next) !== 'once') {
     for (const k of laterMonths(periods, pk)) {
       const t = tabOf(periods[k], itemId);
       if (t) add(k, t);
+      else if (continuesInto(next, pk, k)) {
+        // Not there yet: add the whole item (in the same group, made if missing).
+        if (!periods[k].tabs?.[tabId]) out[`periods/${k}/tabs/${tabId}`] = periods[pk].tabs?.[tabId] || { name: 'General', order: Date.now() };
+        out[`periods/${k}/items/${tabId}/${itemId}`] = { ...itemIn(next, k), updatedBy: username || null };
+      }
     }
   }
   return update(ref(db, `ledgers/${ledgerId}`), out);

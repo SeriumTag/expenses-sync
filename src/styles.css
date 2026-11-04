@@ -1675,3 +1675,4 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .bring-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 4px; border-top: 1px dashed var(--line); cursor: pointer; }
 .bring-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .bring-row b { font-variant-numeric: tabular-nums; }
+.day-input { width: 70px !important; text-align: center; }

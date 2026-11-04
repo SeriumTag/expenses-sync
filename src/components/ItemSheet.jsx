@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FREQS, MONTHS, RECURS, amountInView, compareItem, isPaused, isYearKey, nextOccurrences, recurOf, spentMode, findItem, inView, monthlyOf, setAsideOf, yearOf, yearlyOf } from '../lib/budget';
-import { copyItemsToMonth, duplicateItems, itemToSpend, laterCopies, moveItem, ordersAfter, removeFromLater, saveItemForward, setEndMonth, splitItem, trashItem } from '../lib/db';
+import { copyItemsToMonth, dateIn, duplicateItems, itemToSpend, laterCopies, moveItem, ordersAfter, removeFromLater, saveItemForward, setEndMonth, splitItem, trashItem } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import CatField from './CatField';
 import { ChangeBadge } from './ChangeBadge';
@@ -80,6 +80,15 @@ export default function ItemSheet(props) {
   }
 
   const togglePause = (k) => saveMany({ [`pauses/${k}`]: isPaused(item, k) ? null : true });
+
+  // The day it repeats on comes from its date (14 Jan → the 14th of each month).
+  const day = Number(String(item.date || '').slice(8, 10)) || '';
+  const ordinal = (n) => `${n}${[11, 12, 13].includes(n % 100) ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'}`;
+  function setDay(value) {
+    const d = Math.max(1, Math.min(31, Math.round(Number(value) || 0)));
+    if (!value || !d) return;
+    save('date')(dateIn(`${pk}-${String(d).padStart(2, '0')}`, pk));
+  }
 
   // ── Copy or move to another month ──
   const nextMonthKey = (() => {
@@ -225,8 +234,10 @@ export default function ItemSheet(props) {
               {recur === 'once'
                 ? `Only in ${monthName(pk)}.`
                 : recur === 'yearly'
-                  ? `Appears every ${MONTHS[Number(pk.slice(5, 7)) - 1]}, counted in full that month.`
-                  : 'Carries on into the following months.'}
+                  ? `Appears every ${day ? `${day} ` : ''}${MONTHS[Number(pk.slice(5, 7)) - 1]}, counted in full that month.`
+                  : day
+                    ? `Repeats on the ${ordinal(day)} of every month.`
+                    : 'Carries on into the following months.'}
               {item.endMonth ? ` Ends after ${monthName(item.endMonth)}.` : recur !== 'once' ? ' Keeps going until you stop it.' : ''}
             </span>
           </div>
@@ -298,6 +309,33 @@ export default function ItemSheet(props) {
           <section className="sheet-section recur-box">
             <h3>Repeats</h3>
             <div className="recur-row">
+              {recur === 'yearly' ? (
+                <label>
+                  <span>On</span>
+                  <input
+                    type="date"
+                    value={item.date && item.date.startsWith(pk) ? item.date : ''}
+                    min={`${pk}-01`}
+                    max={dateIn(`${pk}-31`, pk)}
+                    onChange={(e) => /^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && save('date')(e.target.value)}
+                    aria-label="Repeats on date"
+                  />
+                </label>
+              ) : (
+                <label>
+                  <span>On day</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max="31"
+                    value={day}
+                    onChange={(e) => setDay(e.target.value)}
+                    aria-label="Repeats on day of the month"
+                    className="day-input"
+                  />
+                </label>
+              )}
               <label>
                 <span>Ends after</span>
                 <input type="month" value={item.endMonth || ''} min={pk} onChange={(e) => setEnd(e.target.value)} aria-label="Ends after month" />
