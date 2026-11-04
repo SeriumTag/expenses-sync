@@ -1655,3 +1655,18 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 @keyframes mochi-bob { 50% { transform: translateY(-6px) rotate(-3deg); } }
 @media (prefers-reduced-motion: reduce) { .loading-mochi, .loading-dots i { animation: none; } }
 .cat-spends { margin: 12px 0; }
+.part-inherit { font-size: 11px; font-weight: 800; color: var(--muted); margin-right: 4px; white-space: nowrap; }
+/* Recurring items */
+.recur-badge { font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: var(--lav-soft); color: var(--lav-ink); white-space: nowrap; }
+.ep2.paused .ep2-amount b { text-decoration: line-through; opacity: 0.55; }
+.recur-pick { grid-template-columns: repeat(3, 1fr); }
+.recur-pick .kind-opt { padding: 10px 6px; }
+.recur-box { display: flex; flex-direction: column; gap: 8px; }
+.recur-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
+.recur-row label { display: flex; flex-direction: column; gap: 3px; }
+.recur-row label > span { font-size: 11.5px; font-weight: 800; color: var(--muted); }
+.recur-row input { width: auto; padding: 7px 9px; }
+.pause-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pause-chips .chip { padding: 5px 10px; font-size: 12px; }
+.stop-btn { align-self: flex-start; margin-top: 4px; }
+.month-move { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; padding: 10px; border-radius: 14px; background: var(--surface-2); }

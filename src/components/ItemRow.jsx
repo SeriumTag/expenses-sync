@@ -1,4 +1,4 @@
-import { FREQS, MONTHS, amountInView, budgetStatus, spentMode, compareItem, itemCats, inView, partCats, partMonthly, sorted } from '../lib/budget';
+import { FREQS, MONTHS, amountInView, isPaused, recurOf, budgetStatus, spentMode, compareItem, itemCats, inView, partCats, partMonthly, sorted } from '../lib/budget';
 import { formatMoney } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
 import { ChangeBadge } from './ChangeBadge';
@@ -29,12 +29,21 @@ export default function ItemRow(props) {
   // Small second line: the original amount when it's yearly (or monthly in the
   // yearly view), the parts of a combined item, categories.
   const dateLabel = shortDate(item.date, pk);
+  // How it repeats, in a few words (monthly is the usual, so it gets no badge).
+  const recur = recurOf(item);
+  const paused = isPaused(item, pk);
+  const badges = [
+    recur === 'once' && 'One-time',
+    recur === 'yearly' && `Yearly · ${MONTHS[Number(String(item.startMonth || pk).slice(5, 7)) - 1] || ''}`,
+    paused && '⏸ Paused',
+    item.endMonth && recur !== 'once' && `Ends ${MONTHS[Number(item.endMonth.slice(5, 7)) - 1]}${item.endMonth.slice(0, 4) !== String(pk).slice(0, 4) ? ` ${item.endMonth.slice(0, 4)}` : ''}`,
+  ].filter(Boolean);
   const native =
     !isGroup && !noBudget && freq !== view ? `${formatMoney(Number(item.amount) || 0, currency)}${freq === 'yearly' ? '/yr' : '/mo'}` : null;
 
   return (
     <div
-      className={`ep2 ${editor ? 'remote' : ''} ${change ? 'changed' : ''} ${picked ? 'picked' : ''} ${editing ? 'editing' : ''}`}
+      className={`ep2 ${paused ? 'paused' : ''} ${editor ? 'remote' : ''} ${change ? 'changed' : ''} ${picked ? 'picked' : ''} ${editing ? 'editing' : ''}`}
       style={editor ? { '--c': colorFor(editor.user) } : undefined}
       role="button"
       tabIndex={0}
@@ -61,10 +70,15 @@ export default function ItemRow(props) {
             </span>
           )}
         </span>
-        {(dateLabel || native || isGroup || cats.length > 0 || groupName || editor) && (
+        {(dateLabel || badges.length > 0 || native || isGroup || cats.length > 0 || groupName || editor) && (
           <span className="ep2-sub">
             {editor && <span className="ep2-editing">{editor.user} is editing…</span>}
             {dateLabel && <span className="ep2-date">{dateLabel}</span>}
+            {badges.map((b) => (
+              <span key={b} className="recur-badge">
+                {b}
+              </span>
+            ))}
             {groupName && <span>{groupName}</span>}
             {isGroup && (
               <button

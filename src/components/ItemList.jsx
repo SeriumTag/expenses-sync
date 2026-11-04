@@ -76,7 +76,8 @@ export default function ItemList(props) {
     const chosen = rows.filter((r) => picked.has(r.id));
     const name = window.prompt('Name for the combined item', chosen.map((r) => r.name).join(' + '));
     if (!name?.trim()) return;
-    const id = await mergeItems(base, tabId, chosen, name.trim(), username);
+    // Combining monthly items also combines them in the months after this one.
+    const id = await mergeItems(base, tabId, chosen, name.trim(), username, { ledgerId: base.split('/')[1], periods: ctx?.periods, pk });
     switchMode('normal');
     onOpenItem(tabId, id);
   }

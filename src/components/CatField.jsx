@@ -3,7 +3,7 @@ import { splitCats } from '../lib/budget';
 import LiveInput from './LiveInput';
 
 // An item's categories as chips. Tap to edit them as text: "Insurance, Kids".
-export default function CatField({ fieldKey, value, onSave, listId, disabled, className = '' }) {
+export default function CatField({ fieldKey, value, onSave, listId, disabled, className = '', placeholder = 'Category' }) {
   const [editing, setEditing] = useState(false);
   const cats = splitCats(value);
 
@@ -14,7 +14,7 @@ export default function CatField({ fieldKey, value, onSave, listId, disabled, cl
         fieldKey={fieldKey}
         value={value || ''}
         onSave={onSave}
-        placeholder="Category"
+        placeholder={placeholder}
         title="Separate several categories with commas, e.g. Insurance, Kids"
         list={listId}
         maxLength={80}
