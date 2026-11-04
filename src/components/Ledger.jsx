@@ -33,6 +33,7 @@ import {
   trashTab,
   migrateToPeriod,
   startEmptyPeriod,
+  ensurePeriod,
   moveLedgerToBin,
   periodPath,
   renameTab,
@@ -203,6 +204,20 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
 
   const { setTab } = presence;
   useEffect(() => setTab(pk && tabId ? `${pk}:${tabId}` : null), [pk, tabId, setTab]);
+
+  // A month that isn't set up yet builds itself from the months before it:
+  // recurring items, groups and income carry on; one-time items stay behind.
+  const canBuild = Boolean(data) && !periodExists && !isYearKey(pk) && Boolean(prevKey);
+  const building = useRef(null);
+  useEffect(() => {
+    if (!canBuild || building.current === pk) return;
+    building.current = pk;
+    ensurePeriod(ledgerId, periods, pk)
+      .catch(console.error)
+      .finally(() => {
+        if (building.current === pk) building.current = null;
+      });
+  }, [canBuild, pk, ledgerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const noAccess = Boolean(data) && !data.members?.[username];
   useEffect(() => {
@@ -440,7 +455,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
               onToday={() => selectPeriod(nowKey)}
             />
 
-            {!periodExists && (
+            {canBuild && <p className="muted center-text">Setting up {periodLabel(pk)}…</p>}
+            {!periodExists && !canBuild && (
               <section className="new-month">
                 <div className="new-month-icon" aria-hidden="true">
                   🗓️

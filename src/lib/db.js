@@ -1,6 +1,6 @@
 import { get, push, ref, runTransaction, serverTimestamp, set, update } from 'firebase/database';
 import { db } from '../firebase';
-import { currentMonthKey, itemCats, monthlyOf } from './budget';
+import { continuesInto, currentMonthKey, isYearKey, itemCats, monthlyOf, recurOf } from './budget';
 
 /*
  * Data layout (Firebase Realtime Database)
@@ -204,7 +204,8 @@ const blankItem = (username, date = todayKey()) => ({
 
 export function addItem(base, tabId, username, order = Date.now()) {
   const itemRef = push(ref(db, `${base}/items/${tabId}`));
-  set(itemRef, { ...blankItem(username, itemDateFor(base)), order }).catch(console.error);
+  const startMonth = String(base).split('/').pop();
+  set(itemRef, { ...blankItem(username, itemDateFor(base)), recur: 'monthly', startMonth, order }).catch(console.error);
   return itemRef.key;
 }
 
@@ -331,7 +332,7 @@ export function purgeTrashed(ledgerId, trashIds) {
 // Merge several items into one item whose parts are the originals.
 // Each part keeps its own categories, so category pages can still list it on
 // its own; the merged item shows the shared category or "Mixed".
-export function mergeItems(base, tabId, rows, name, username) {
+export function mergeItems(base, tabId, rows, name, username, forward) {
   const key = push(ref(db, `${base}/items/${tabId}`)).key;
   const parts = {};
   rows.forEach((r, i) => {
@@ -365,7 +366,9 @@ export function mergeItems(base, tabId, rows, name, username) {
     },
   };
   rows.forEach((r) => (patch[`items/${tabId}/${r.id}`] = null));
-  return update(ref(db, base), patch).then(() => key);
+  return update(ref(db, base), patch)
+    .then(() => forward && mergeForward(forward, rows, key, patch[`items/${tabId}/${key}`]))
+    .then(() => key);
 }
 
 // Undo a merge: each part becomes an item again.
@@ -500,4 +503,160 @@ export function migrateToPeriod(ledgerId, data, periodKey) {
     tabs: null,
     items: null,
   });
+}
+
+// ── Recurring items across months ────────────────────────────────────
+// Every month is stored on its own; an item keeps the same id in each month it
+// appears in, which is what links a recurring item from month to month.
+
+const monthKeysOf = (periods) => Object.keys(periods || {}).filter((k) => !isYearKey(k)).sort();
+const laterMonths = (periods, pk) => (isYearKey(pk) ? [] : monthKeysOf(periods).filter((k) => k > pk));
+const tabOf = (period, itemId) => Object.entries(period?.items || {}).find(([, list]) => list?.[itemId])?.[0];
+
+// A new month, built from the latest earlier month: its groups and income, every
+// item that carries on into it, and yearly items from the same month in earlier
+// years. One-time and ended items stay behind. Returns null when there's no
+// earlier month to build from.
+export function buildPeriod(periods, key) {
+  if (isYearKey(key)) return null;
+  const earlier = monthKeysOf(periods).filter((k) => k < key);
+  const fromKey = earlier[earlier.length - 1];
+  if (!fromKey) return null;
+  const from = periods[fromKey];
+  const tabs = { ...(from.tabs || {}) };
+  const items = {};
+  const put = (tid, id, it) => ((items[tid] = items[tid] || {})[id] = it);
+  for (const [tid, list] of Object.entries(from.items || {})) {
+    for (const [id, it] of Object.entries(list || {})) if (continuesInto(it, fromKey, key)) put(tid, id, it);
+  }
+  // Yearly items live only in their own month: look back at earlier years.
+  for (const k of earlier) {
+    if (k.slice(5, 7) !== key.slice(5, 7)) continue;
+    for (const [tid, list] of Object.entries(periods[k]?.items || {})) {
+      for (const [id, it] of Object.entries(list || {})) {
+        if (recurOf(it) !== 'yearly' || !continuesInto(it, k, key)) continue;
+        put(tid, id, it);
+        if (!tabs[tid]) tabs[tid] = periods[k].tabs?.[tid] || { name: 'Yearly', order: Date.now() };
+      }
+    }
+  }
+  return { tabs, items, people: from.people || null, createdAt: Date.now(), builtFrom: fromKey };
+}
+
+// Create a month that doesn't exist yet from the months before it. A
+// transaction, so two phones opening the same new month don't both write it.
+export async function ensurePeriod(ledgerId, periods, key) {
+  if (periods?.[key]) return true;
+  const data = buildPeriod(periods, key);
+  if (!data) return false;
+  await runTransaction(ref(db, `ledgers/${ledgerId}/periods/${key}`), (current) => (current === null ? data : undefined));
+  return true;
+}
+
+// Save fields of an item in this month and, if it recurs, in every later month
+// that already has it (earlier months keep their values as history).
+// patch: { field: value } — nested fields like 'parts/abc/amount' work too.
+export function saveItemForward(ledgerId, periods, pk, tabId, itemId, patch, username) {
+  const out = {};
+  const add = (k, t) => {
+    for (const [field, value] of Object.entries(patch)) out[`periods/${k}/items/${t}/${itemId}/${field}`] = value;
+    out[`periods/${k}/items/${t}/${itemId}/updatedBy`] = username || null;
+  };
+  add(pk, tabId);
+  const item = periods?.[pk]?.items?.[tabId]?.[itemId];
+  if (item && recurOf(item) !== 'once') {
+    for (const k of laterMonths(periods, pk)) {
+      const t = tabOf(periods[k], itemId);
+      if (t) add(k, t);
+    }
+  }
+  return update(ref(db, `ledgers/${ledgerId}`), out);
+}
+
+// The months after `pk` that already have this item.
+export const laterCopies = (periods, pk, itemId) => laterMonths(periods, pk).filter((k) => tabOf(periods[k], itemId));
+
+// Remove an item from the months after `pk` (it stays in `pk` and earlier).
+export function removeFromLater(ledgerId, periods, pk, itemId) {
+  const out = {};
+  for (const k of laterMonths(periods, pk)) {
+    const t = tabOf(periods[k], itemId);
+    if (t) out[`periods/${k}/items/${t}/${itemId}`] = null;
+  }
+  return Object.keys(out).length ? update(ref(db, `ledgers/${ledgerId}`), out) : Promise.resolve();
+}
+
+// Set (or clear, with null) the last month an item appears in. Copies after
+// that month are removed; the others remember the end so it isn't rebuilt.
+export function setEndMonth(ledgerId, periods, itemId, endMonth) {
+  const out = {};
+  for (const k of monthKeysOf(periods)) {
+    const t = tabOf(periods[k], itemId);
+    if (!t) continue;
+    if (endMonth && k > endMonth) out[`periods/${k}/items/${t}/${itemId}`] = null;
+    else out[`periods/${k}/items/${t}/${itemId}/endMonth`] = endMonth || null;
+  }
+  return update(ref(db, `ledgers/${ledgerId}`), out);
+}
+
+// Combining carries forward: in each later month that still has the items
+// being combined (all monthly), they're replaced by the combined item, made of
+// that month's own versions of them.
+function mergeForward({ ledgerId, periods, pk }, rows, key, head) {
+  if (!periods || rows.some((r) => recurOf(r) !== 'monthly')) return null;
+  const out = {};
+  for (const k of laterMonths(periods, pk)) {
+    const found = rows.map((r) => ({ r, t: tabOf(periods[k], r.id) })).filter((x) => x.t);
+    if (!found.length) continue;
+    const parts = {};
+    found.forEach(({ r, t }, i) => {
+      const it = periods[k].items[t][r.id];
+      if (it.parts) Object.entries(it.parts).forEach(([pid, p], j) => (parts[pid] = { ...p, order: i + j / 100 }));
+      else
+        parts[r.id] = {
+          name: it.name || '',
+          amount: Number(it.amount) || 0,
+          freq: it.freq || 'monthly',
+          note: it.note || '',
+          category: it.category || '',
+          order: i,
+          ...(it.files ? { files: it.files } : {}),
+        };
+      out[`periods/${k}/items/${t}/${r.id}`] = null;
+    });
+    out[`periods/${k}/items/${found[0].t}/${key}`] = { ...head, parts };
+  }
+  return Object.keys(out).length ? update(ref(db, `ledgers/${ledgerId}`), out) : null;
+}
+
+// Copy (or move) items from one month into another month's group. Copies are
+// new, independent items. Moving removes them from the first month only.
+// entries: [{ tabId, itemId }]; toTabId: a group in the target month, or null
+// to use the group with the same name there (created if missing).
+export async function copyItemsToMonth(ledgerId, periods, fromKey, entries, toKey, toTabId, { move = false, username } = {}) {
+  if (!periods?.[toKey]) await ensurePeriod(ledgerId, periods, toKey);
+  const target = (await get(ref(db, `ledgers/${ledgerId}/periods/${toKey}`))).val() || {};
+  const out = {};
+  const tabsByName = new Map(Object.entries(target.tabs || {}).map(([id, t]) => [String(t.name || '').toLowerCase(), id]));
+  const newTabs = new Map();
+  let order = Date.now();
+  for (const { tabId, itemId } of entries) {
+    const it = periods?.[fromKey]?.items?.[tabId]?.[itemId];
+    if (!it) continue;
+    let tid = toTabId;
+    if (!tid) {
+      const name = periods[fromKey].tabs?.[tabId]?.name || 'General';
+      tid = tabsByName.get(name.toLowerCase()) || newTabs.get(name.toLowerCase());
+      if (!tid) {
+        tid = newKey(`ledgers/${ledgerId}/periods/${toKey}/tabs`);
+        newTabs.set(name.toLowerCase(), tid);
+        out[`periods/${toKey}/tabs/${tid}`] = { name, order: Date.now() };
+      }
+    }
+    const id = newKey(`ledgers/${ledgerId}/periods/${toKey}/items/${tid}`);
+    const { pauses, endMonth, ...rest } = it; // eslint-disable-line no-unused-vars
+    out[`periods/${toKey}/items/${tid}/${id}`] = { ...rest, startMonth: toKey, order: order++, updatedBy: username || null };
+    if (move) out[`periods/${fromKey}/items/${tabId}/${itemId}`] = null;
+  }
+  return update(ref(db, `ledgers/${ledgerId}`), out);
 }

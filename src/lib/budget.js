@@ -32,6 +32,61 @@ export function previousPeriod(k, existing) {
   );
 }
 
+// ── Recurrence ───────────────────────────────────────────────────────
+// item.recur: 'once' (only its month) | 'monthly' (every month until it ends) |
+// 'yearly' (same month every year). Missing = monthly, like items always were.
+// item.endMonth: last month it appears ('YYYY-MM'); item.pauses: { 'YYYY-MM': true }.
+export const RECURS = {
+  once: { label: 'One time', short: 'One-time' },
+  monthly: { label: 'Every month', short: 'Monthly' },
+  yearly: { label: 'Every year', short: 'Yearly' },
+};
+export const recurOf = (item) => (RECURS[item?.recur] ? item.recur : 'monthly');
+export const isPaused = (item, pk) => Boolean(pk && item?.pauses?.[pk]);
+export const endedBy = (item, key) => Boolean(item?.endMonth && key > item.endMonth);
+
+// Whether an item in month `fromKey` carries on into a later month `toKey`.
+export function continuesInto(item, fromKey, toKey) {
+  if (isYearKey(fromKey) || isYearKey(toKey) || toKey <= fromKey || endedBy(item, toKey)) return false;
+  const r = recurOf(item);
+  if (r === 'monthly') return true;
+  if (r === 'yearly') return toKey.slice(5, 7) === fromKey.slice(5, 7);
+  return false;
+}
+
+// Months a recurring item will appear in, from `fromKey` on (for the pause chips).
+export function nextOccurrences(item, fromKey, count = 12) {
+  if (isYearKey(fromKey)) return [];
+  const r = recurOf(item);
+  if (r === 'once') return [];
+  const out = [];
+  let y = Number(fromKey.slice(0, 4));
+  let m = Number(fromKey.slice(5, 7)) - 1;
+  while (out.length < count) {
+    const key = monthKey(y, m);
+    if (endedBy(item, key)) break;
+    out.push(key);
+    if (r === 'yearly') y += 1;
+    else if (++m > 11) (m = 0), (y += 1);
+  }
+  return out;
+}
+
+// What to put aside each month for yearly-recurring bills (amount ÷ 12), from
+// any month of the year (each item counted once).
+export function yearlyRecurringSetAside(periods, year) {
+  const seen = new Map();
+  for (const [key, p] of Object.entries(periods || {})) {
+    if (isYearKey(key) || !key.startsWith(`${year}-`)) continue;
+    for (const items of Object.values(p?.items || {})) {
+      for (const [id, it] of Object.entries(items || {})) {
+        if (recurOf(it) === 'yearly' && !seen.has(id)) seen.set(id, monthlyOf(it) / 12);
+      }
+    }
+  }
+  return [...seen.values()].reduce((a, b) => a + b, 0);
+}
+
 // ── Amounts ──────────────────────────────────────────────────────────
 // An item (or a part of a merged item) has an amount and how often it's paid.
 // Everything is compared and totalled as a monthly equivalent.
@@ -83,8 +138,9 @@ export function splitCats(value) {
   return out;
 }
 
-// A part of a merged item has its own categories (older merges: the parent's).
-export const partCats = (part, parent) => splitCats(part?.category ?? parent?.category);
+// A part of a combined item gets the head item's categories (e.g. Car) plus any
+// extra ones of its own.
+export const partCats = (part, parent) => splitCats([parent?.category, part?.category].filter(Boolean).join(','));
 
 export function itemCats(item) {
   if (!item?.parts) return splitCats(item?.category);
@@ -276,10 +332,19 @@ export function withdrawnByMonth(track, year) {
 // counts what was actually put in month by month that year, not monthly × 12.
 export function yearlyOf(item, id, ctx) {
   if (item?.track && ctx) return savingsTotal(savingsMonths(ctx.year, id, ctx.tracks?.[id]?.log, ctx.periods));
+  // A one-time or once-a-year payment happens once in a year, not 12 times.
+  if (recurOf(item) !== 'monthly') return monthlyOf(item);
   return monthlyOf(item) * 12;
 }
+// A paused item counts nothing in that month.
 export const amountInView = (item, id, view, ctx) =>
-  spentMode(item) ? spentInView(id, view, ctx) : view === 'yearly' ? yearlyOf(item, id, ctx) : monthlyOf(item);
+  isPaused(item, ctx?.pk)
+    ? 0
+    : spentMode(item)
+      ? spentInView(id, view, ctx)
+      : view === 'yearly'
+        ? yearlyOf(item, id, ctx)
+        : monthlyOf(item);
 export const tabInView = (items, view, ctx) =>
   Object.entries(items || {}).reduce((s, [id, item]) => s + amountInView(item, id, view, ctx), 0);
 
@@ -329,7 +394,7 @@ export function budgetStatus(item, itemId, spending, pk) {
   const spends = spendsIn(spending, itemId, pk);
   const spent = sumSpends(spends);
   if (spentMode(item)) return { budget: spent, spent, left: 0, spends, noBudget: true };
-  const budget = monthlyOf(item) * (isYearKey(pk) ? 12 : 1);
+  const budget = isPaused(item, pk) ? 0 : monthlyOf(item) * (isYearKey(pk) ? 12 : 1);
   return { budget, spent, left: budget - spent, spends };
 }
 
