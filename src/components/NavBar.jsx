@@ -86,7 +86,7 @@ export default function NavBar(props) {
                 </button>
                 {!isStandalone() && (
                   <button role="menuitem" onClick={run(showInstallPrompt)}>
-                    <span className="menu-ico">⬇</span> Add to Home Screen
+                    <span className="menu-ico">⬇</span> Install the app
                   </button>
                 )}
                 <button role="menuitem" onClick={run(onOpenBin)}>
