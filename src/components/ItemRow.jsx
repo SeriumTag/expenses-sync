@@ -89,7 +89,7 @@ export default function ItemRow(props) {
                 }}
                 aria-expanded={expanded}
               >
-                {Object.keys(item.parts).length} parts {expanded ? '▾' : '▸'}
+                {Object.keys(item.parts).length} part{Object.keys(item.parts).length === 1 ? '' : 's'} {expanded ? '▾' : '▸'}
               </button>
             )}
             {native && <span>{native}</span>}
