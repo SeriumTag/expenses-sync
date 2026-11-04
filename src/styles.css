@@ -1694,3 +1694,40 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .kbd { display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 5px; border-radius: 6px; border: 1.5px solid var(--line); background: var(--surface); font-size: 12px; font-weight: 900; }
 .install-desk > .btn.glass { align-self: flex-end; }
 @media (max-width: 899px) { .install-desk { bottom: calc(90px + var(--safe-bottom, 0px)); } }
+
+/* Compact item card */
+.compact-sheet { gap: 10px; }
+.compact-sheet .sheet-title input { font-size: 19px; padding: 10px 12px; }
+.cs-amount { display: flex; align-items: center; gap: 8px; }
+.cs-amount .big-amount { flex: 1; min-width: 0; }
+.cs-amount .big-amount input { font-size: 22px; font-weight: 800; padding: 10px 12px; }
+.cs-amount .small-seg { flex-shrink: 0; }
+.cs-extra { margin: -4px 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.cs-pills { display: flex; flex-direction: column; gap: 6px; }
+.pill-seg { display: flex; gap: 4px; padding: 3px; border-radius: 999px; background: var(--surface-2); border: 1.5px solid var(--line); }
+.pill-seg button {
+  flex: 1; border: none; background: none; border-radius: 999px; padding: 7px 6px; font: inherit; font-size: 13px; font-weight: 800;
+  color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.pill-seg button.on { background: var(--accent); color: var(--on-accent); box-shadow: 0 4px 10px color-mix(in srgb, var(--accent) 30%, transparent); }
+.cs-repeat { display: flex; align-items: center; gap: 8px; }
+.cs-repeat .pill-seg { flex: 1; min-width: 0; }
+.inline-day { display: flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 800; color: var(--muted); white-space: nowrap; }
+.inline-day .day-input { width: 54px !important; padding: 6px 4px; }
+.inline-date { width: auto !important; padding: 6px 8px; font-size: 13px; }
+.cs-hint { padding-left: 4px; }
+.cs-row { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 10px; align-items: end; }
+.cs-row .item-date input { padding: 8px; font-size: 14px; }
+@media (max-width: 360px) { .cs-row { grid-template-columns: 1fr; } }
+.cs-add-note { align-self: flex-start; font-size: 13px; text-decoration: none; }
+.compact-sheet .sheet-more { margin-top: 0; padding-top: 8px; }
+.compact-sheet .sheet-section { padding-top: 10px; }
+.delete-line { align-self: center; margin-top: 6px; border: none; background: none; font: inherit; font-size: 13px; font-weight: 800; color: var(--danger); padding: 8px 14px; border-radius: 999px; cursor: pointer; }
+.delete-line:hover { background: var(--danger-soft); }
+@media (max-width: 330px) { .cs-repeat { flex-wrap: wrap; } .cs-repeat .pill-seg { flex-basis: 100%; } }
+
+.cs-amount > .live { flex: 1; min-width: 0; }
+.cs-amount .big-amount input { width: 100%; }
+.cs-repeat .pill-seg button { padding: 7px 4px; font-size: 12.5px; }
+.inline-day { gap: 4px; }
+.inline-day .day-input { width: 46px !important; }

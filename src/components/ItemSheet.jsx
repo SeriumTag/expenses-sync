@@ -154,48 +154,145 @@ export default function ItemSheet(props) {
     await splitItem(base, tabId, itemId, item, username);
   }
 
-  const amountBox = (label) => (
-    <div className="field">
-      <span>{label}</span>
-      <div className="amt-line">
-        <LiveInput
-          className="ep-amount big-amount"
-          inputMode="decimal"
-          fieldKey={key('amount')}
-          value={item.amount}
-          format={(v) => (v ? String(v) : '')}
-          parse={parseAmount}
-          display={(v) => formatMoney(v, currency)}
-          onSave={save('amount')}
-          placeholder="0.00"
-          aria-label={label}
-        />
-        {recur === 'monthly' && (
-        <div className="seg small-seg" role="group" aria-label="Amount per">
-          <button className={freq === 'monthly' ? 'on' : ''} onClick={() => save('freq')('monthly')}>
-            per month
-          </button>
-          <button className={freq === 'yearly' ? 'on' : ''} onClick={() => save('freq')('yearly')}>
-            per year
-          </button>
-        </div>
-        )}
-      </div>
-    </div>
-  );
+  // ── Compact layout bits ──
+  const [noteOpen, setNoteOpen] = useState(false);
+  const showNote = noteOpen || Boolean(item.note);
+  const change = compareItem(item, itemId, prevPeriod);
+  const pausedCount = Object.keys(item.pauses || {}).filter((k) => k >= pk).length;
+  const repeatSummary = [item.endMonth && `ends ${monthName(item.endMonth)}`, pausedCount && `${pausedCount} paused`].filter(Boolean).join(' · ');
+  const amountLabel = kind === 'budget' ? 'Budget' : kind === 'savings' ? 'Put aside' : 'Amount';
+  const SHORT = { bill: 'Bill', budget: 'Budget', savings: 'Savings' };
+  const REPEAT_SHORT = { once: 'Once', monthly: 'Monthly', yearly: 'Yearly' };
+  // One short line under the amount, only when it adds something.
+  const extras = [
+    !isGroup && recur === 'monthly' && freq === 'yearly' && `= ${formatMoney(monthlyOf(item), currency)}/mo`,
+    !isGroup && recur === 'yearly' && Number(item.amount) > 0 && `save ${formatMoney(Number(item.amount) / 12, currency)}/mo for it`,
+    setAsideOf(item) > 0 && recur === 'monthly' && `save ${formatMoney(setAsideOf(item), currency)}/mo for it`,
+    noBudget && `${formatMoney(amountInView(item, itemId, 'monthly', ctx), currency)} spent so far`,
+    kind === 'savings' && `${formatMoney(yearlyOf(item, itemId, ctx), currency)} saved in ${yearOf(pk)}`,
+    isGroup && `${formatMoney(monthlyOf(item), currency)}/mo in total`,
+  ].filter(Boolean);
+  const repeatHint =
+    recur === 'once'
+      ? `Only in ${monthName(pk)}`
+      : recur === 'yearly'
+        ? `Every year in ${MONTHS[Number(pk.slice(5, 7)) - 1]}, counted in full`
+        : day
+          ? `On the ${ordinal(day)} of every month`
+          : 'Every month';
 
   return (
-    <Modal title={item.name || 'New item'} onClose={onClose}>
-      <div className="sheet">
-        <p className="sheet-where muted small">
-          In <b>{tabName || 'Untitled'}</b>
-        </p>
-        <div className="name-date">
-          <label className="field">
-            <span>Name</span>
-            <LiveInput className="sheet-title" fieldKey={key('name')} value={item.name || ''} onSave={save('name')} placeholder="e.g. Netflix, Food, Car insurance" autoFocusOnMount={!item.name} />
+    <Modal title={`${item.name || 'New item'} · ${tabName || 'Untitled'}`} onClose={onClose}>
+      <div className="sheet compact-sheet">
+        <LiveInput
+          className="sheet-title"
+          fieldKey={key('name')}
+          value={item.name || ''}
+          onSave={save('name')}
+          placeholder="What is it? e.g. Netflix, Food"
+          autoFocusOnMount={!item.name}
+          aria-label="Name"
+        />
+
+        {/* Amount (with per month / per year for monthly items) */}
+        {!isGroup && !noBudget && (
+          <div className="cs-amount">
+            <LiveInput
+              className="ep-amount big-amount"
+              inputMode="decimal"
+              fieldKey={key('amount')}
+              value={item.amount}
+              format={(v) => (v ? String(v) : '')}
+              parse={parseAmount}
+              display={(v) => formatMoney(v, currency)}
+              onSave={save('amount')}
+              placeholder={`${amountLabel} 0.00`}
+              aria-label={amountLabel}
+            />
+            {recur === 'monthly' && (
+              <div className="seg small-seg" role="group" aria-label="Amount per">
+                <button className={freq === 'monthly' ? 'on' : ''} onClick={() => save('freq')('monthly')}>
+                  /mo
+                </button>
+                <button className={freq === 'yearly' ? 'on' : ''} onClick={() => save('freq')('yearly')}>
+                  /yr
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {(extras.length > 0 || change) && (
+          <p className="cs-extra muted small">
+            {extras.join(' · ')}
+            {change && (
+              <>
+                {extras.length > 0 && ' · '}
+                <ChangeBadge change={change} prevLabel={prevLabel} currency={currency} view={view} />
+              </>
+            )}
+          </p>
+        )}
+
+        {/* Type and repeat, as two compact pill rows */}
+        <div className="cs-pills">
+          <div className="pill-seg" role="radiogroup" aria-label="What is this?">
+            {Object.entries(KINDS).map(([k, v]) => (
+              <button key={k} role="radio" aria-checked={kind === k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)} title={v.hint}>
+                {v.icon} {SHORT[k]}
+              </button>
+            ))}
+          </div>
+          {monthOnly && (
+            <div className="cs-repeat">
+              <div className="pill-seg" role="radiogroup" aria-label="Repeats">
+                {Object.keys(RECURS).map((r) => (
+                  <button key={r} role="radio" aria-checked={recur === r} className={recur === r ? 'on' : ''} onClick={() => setRecur(r)}>
+                    {REPEAT_SHORT[r]}
+                  </button>
+                ))}
+              </div>
+              {recur === 'monthly' && (
+                <label className="inline-day">
+                  on
+                  <input type="number" inputMode="numeric" min="1" max="31" value={day} onChange={(e) => setDay(e.target.value)} aria-label="Repeats on day of the month" className="day-input" />
+                  {day ? ordinal(day).replace(String(day), '') : ''}
+                </label>
+              )}
+              {recur === 'yearly' && (
+                <input
+                  type="date"
+                  className="inline-date"
+                  value={item.date && item.date.startsWith(pk) ? item.date : ''}
+                  min={`${pk}-01`}
+                  max={dateIn(`${pk}-31`, pk)}
+                  onChange={(e) => /^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && save('date')(e.target.value)}
+                  aria-label="Repeats on date"
+                />
+              )}
+            </div>
+          )}
+          <span className="cs-hint muted small">
+            {KINDS[kind].label}
+            {monthOnly ? ` · ${repeatHint}` : ''}
+            {item.endMonth && recur !== 'once' ? ` · ends ${monthName(item.endMonth)}` : ''}
+          </span>
+        </div>
+
+        {kind === 'budget' && !isGroup && (
+          <label className="switch-row compact-switch">
+            <input type="checkbox" checked={noBudget} onChange={(e) => save('budgetMode')(e.target.checked ? 'spent' : null)} />
+            <span>
+              No fixed budget <span className="muted small">— what’s spent counts as the amount</span>
+            </span>
           </label>
-          {/* Just a record of when it's from; past or future both fine. */}
+        )}
+
+        {/* Category and date side by side */}
+        <div className="cs-row">
+          <div className="field">
+            <span>Category</span>
+            <CatField fieldKey={key('category')} value={item.category} onSave={save('category')} listId="sheet-categories" className="sheet-cat" placeholder={isGroup ? 'Head category' : 'Optional'} />
+          </div>
           <label className="field item-date">
             <span>Date</span>
             <input
@@ -206,59 +303,22 @@ export default function ItemSheet(props) {
             />
           </label>
         </div>
+        {isGroup && <span className="muted small cs-note-hint">Its parts get this category too; add extra ones on each part below.</span>}
+        <datalist id="sheet-categories">
+          {categories.map((c) => (
+            <option key={c} value={c} />
+          ))}
+        </datalist>
 
-        <div className="field">
-          <span>What is this?</span>
-          <div className="kind-pick" role="radiogroup" aria-label="What is this?">
-            {Object.entries(KINDS).map(([k, v]) => (
-              <button key={k} role="radio" aria-checked={kind === k} className={`kind-opt ${kind === k ? 'on' : ''}`} onClick={() => setKind(k)}>
-                <span className="kind-ico">{v.icon}</span>
-                <span className="kind-label">{v.label}</span>
-              </button>
-            ))}
-          </div>
-          <span className="muted small">{KINDS[kind].hint}</span>
-        </div>
-
-        {monthOnly && (
-          <div className="field">
-            <span>How often?</span>
-            <div className="kind-pick recur-pick" role="radiogroup" aria-label="How often?">
-              {Object.entries(RECURS).map(([r, v]) => (
-                <button key={r} role="radio" aria-checked={recur === r} className={`kind-opt ${recur === r ? 'on' : ''}`} onClick={() => setRecur(r)}>
-                  <span className="kind-label">{v.label}</span>
-                </button>
-              ))}
-            </div>
-            <span className="muted small">
-              {recur === 'once'
-                ? `Only in ${monthName(pk)}.`
-                : recur === 'yearly'
-                  ? `Appears every ${day ? `${day} ` : ''}${MONTHS[Number(pk.slice(5, 7)) - 1]}, counted in full that month.`
-                  : day
-                    ? `Repeats on the ${ordinal(day)} of every month.`
-                    : 'Carries on into the following months.'}
-              {item.endMonth ? ` Ends after ${monthName(item.endMonth)}.` : recur !== 'once' ? ' Keeps going until you stop it.' : ''}
-            </span>
-          </div>
+        {showNote ? (
+          <LiveInput className="sheet-note" fieldKey={key('note')} value={item.note || ''} onSave={save('note')} placeholder="Note" multiline autoFocusOnMount={noteOpen && !item.note} aria-label="Note" />
+        ) : (
+          <button className="link-btn cs-add-note" onClick={() => setNoteOpen(true)}>
+            ＋ Add a note
+          </button>
         )}
 
-        {/* Amount, worded for what this is. */}
-        {!isGroup && kind === 'bill' && amountBox('Amount')}
-        {!isGroup && kind === 'savings' && amountBox('Put aside')}
-        {!isGroup && kind === 'budget' && (
-          <>
-            {!noBudget && amountBox('Budget')}
-            <label className="switch-row compact-switch">
-              <input type="checkbox" checked={noBudget} onChange={(e) => save('budgetMode')(e.target.checked ? 'spent' : null)} />
-              <span>
-                No fixed budget <span className="muted small">— just log spends; what’s spent counts as the amount</span>
-              </span>
-            </label>
-          </>
-        )}
-
-        {/* The everyday part for budgets and savings comes right after the amount. */}
+        {/* The everyday part for budgets, savings and combined items */}
         {kind === 'budget' && (
           <section className="sheet-section">
             <h3>Spends this month</h3>
@@ -281,119 +341,52 @@ export default function ItemSheet(props) {
             <SavingsTracker ledgerId={ledgerId} itemId={itemId} year={yearOf(pk)} log={tracks?.[itemId]?.log} periods={periods} currency={currency} name={item.name} />
           </section>
         )}
-
-        <div className="sheet-summary">
-          <span>
-            <b>{formatMoney(noBudget ? amountInView(item, itemId, 'monthly', ctx) : monthlyOf(item), currency)}</b>
-            <span className="muted small">/mo</span>
-          </span>
-          <span>
-            <b>{formatMoney(noBudget ? amountInView(item, itemId, 'yearly', ctx) : yearlyOf(item, itemId, ctx), currency)}</b>
-            <span className="muted small">{item.track ? ` saved in ${yearOf(pk)}` : '/yr'}</span>
-          </span>
-          {setAsideOf(item) > 0 && (
-            <span className="set-aside-chip" title="This yearly bill spread over 12 months">
-              Save {formatMoney(setAsideOf(item), currency)}/mo for it
-            </span>
-          )}
-          {before && (
-            <span className="muted small">
-              {prevLabel}: {formatMoney(inView(monthlyOf(before.item), view), currency)}
-              {FREQS[view].short}
-            </span>
-          )}
-          <ChangeBadge change={compareItem(item, itemId, prevPeriod)} prevLabel={prevLabel} currency={currency} view={view} />
-        </div>
-
-        {monthOnly && recur !== 'once' && (
-          <section className="sheet-section recur-box">
-            <h3>Repeats</h3>
-            <div className="recur-row">
-              {recur === 'yearly' ? (
-                <label>
-                  <span>On</span>
-                  <input
-                    type="date"
-                    value={item.date && item.date.startsWith(pk) ? item.date : ''}
-                    min={`${pk}-01`}
-                    max={dateIn(`${pk}-31`, pk)}
-                    onChange={(e) => /^\d{4}-\d{2}-\d{2}$/.test(e.target.value) && save('date')(e.target.value)}
-                    aria-label="Repeats on date"
-                  />
-                </label>
-              ) : (
-                <label>
-                  <span>On day</span>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    max="31"
-                    value={day}
-                    onChange={(e) => setDay(e.target.value)}
-                    aria-label="Repeats on day of the month"
-                    className="day-input"
-                  />
-                </label>
-              )}
-              <label>
-                <span>Ends after</span>
-                <input type="month" value={item.endMonth || ''} min={pk} onChange={(e) => setEnd(e.target.value)} aria-label="Ends after month" />
-              </label>
-              {item.endMonth ? (
-                <button className="btn ghost sm" onClick={() => setEnd(null)}>
-                  Keep going
-                </button>
-              ) : (
-                <span className="muted small">Keeps going</span>
-              )}
-            </div>
-            {occurrences.length > 0 && (
-              <>
-                <span className="field-label">Pause in</span>
-                <div className="pause-chips">
-                  {occurrences.map((k) => (
-                    <button key={k} className={`chip ${isPaused(item, k) ? 'active' : ''}`} onClick={() => togglePause(k)} aria-pressed={isPaused(item, k)}>
-                      {isPaused(item, k) ? '⏸ ' : ''}
-                      {MONTHS[Number(k.slice(5, 7)) - 1]}
-                      {k.slice(0, 4) !== pk.slice(0, 4) ? ` ${k.slice(2, 4)}` : ''}
-                    </button>
-                  ))}
-                </div>
-                <span className="muted small">A paused month counts $0. Tap again to resume.</span>
-              </>
-            )}
-            <button className="btn danger-outline stop-btn" onClick={stopRecurring}>
-              ⏹ Stop after {monthName(pk)}
-            </button>
-          </section>
-        )}
-
-        <div className="field">
-          <span>Categories</span>
-          <CatField fieldKey={key('category')} value={item.category} onSave={save('category')} listId="sheet-categories" className="sheet-cat" />
-          <span className="muted small">
-            {isGroup ? 'Its parts get this category too; add extra ones on each part below.' : 'Optional. For more than one, use commas: Insurance, Kids'}
-          </span>
-          <datalist id="sheet-categories">
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
-        </div>
-
-        <label className="field">
-          <span>Notes</span>
-          <LiveInput className="sheet-note" fieldKey={key('note')} value={item.note || ''} onSave={save('note')} placeholder="Optional" multiline />
-        </label>
-
         {isGroup && (
           <PartsList path={path} lockPrefix={`${pk}:part:${itemId}`} item={item} currency={currency} globalView={view} listId="sheet-categories" saveForward={saveMany} />
         )}
 
+        {/* Rarely needed: folded away */}
+        {monthOnly && recur !== 'once' && (
+          <details className="sheet-more" open={Boolean(repeatSummary)}>
+            <summary>Repeat options{repeatSummary ? ` · ${repeatSummary}` : ''}</summary>
+            <div className="recur-box">
+              <div className="recur-row">
+                <label>
+                  <span>Ends after</span>
+                  <input type="month" value={item.endMonth || ''} min={pk} onChange={(e) => setEnd(e.target.value)} aria-label="Ends after month" />
+                </label>
+                {item.endMonth ? (
+                  <button className="btn ghost sm" onClick={() => setEnd(null)}>
+                    Keep going
+                  </button>
+                ) : (
+                  <span className="muted small">Keeps going</span>
+                )}
+              </div>
+              {occurrences.length > 0 && (
+                <>
+                  <span className="field-label">Pause in (counts $0 that month)</span>
+                  <div className="pause-chips">
+                    {occurrences.map((k) => (
+                      <button key={k} className={`chip ${isPaused(item, k) ? 'active' : ''}`} onClick={() => togglePause(k)} aria-pressed={isPaused(item, k)}>
+                        {isPaused(item, k) ? '⏸ ' : ''}
+                        {MONTHS[Number(k.slice(5, 7)) - 1]}
+                        {k.slice(0, 4) !== pk.slice(0, 4) ? ` ${k.slice(2, 4)}` : ''}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+              <button className="btn danger-outline stop-btn" onClick={stopRecurring}>
+                ⏹ Stop after {monthName(pk)}
+              </button>
+            </div>
+          </details>
+        )}
+
         <details className="sheet-more" open={fileCount > 0}>
           <summary>
-            More: photos & files{fileCount > 0 ? ` (${fileCount})` : ''}, move, copy to another month{isGroup ? ', separate' : ''}
+            More{fileCount > 0 ? ` · ${fileCount} file${fileCount === 1 ? '' : 's'}` : ''} · photos, copy, move
           </summary>
           <Attachments ledgerId={ledgerId} itemPath={`periods/${pk}/items/${tabId}/${itemId}`} files={item.files} username={username} />
           {monthOnly && (
@@ -472,12 +465,9 @@ export default function ItemSheet(props) {
         </details>
 
         {/* Kept apart and spelled out, so it's never mistaken for deleting something else. */}
-        <div className="danger-zone">
-          <button className="btn danger-outline" onClick={remove}>
-            🗑 Delete “{item.name || 'this item'}”
-          </button>
-          <span className="muted small">Only this one. It stays in the bin for 7 days.</span>
-        </div>
+        <button className="delete-line" onClick={remove} title="Only this one. It stays in the bin for 7 days.">
+          🗑 Delete “{item.name || 'this item'}”
+        </button>
       </div>
     </Modal>
   );
