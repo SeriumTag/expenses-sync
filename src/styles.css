@@ -1670,3 +1670,8 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .pause-chips .chip { padding: 5px 10px; font-size: 12px; }
 .stop-btn { align-self: flex-start; margin-top: 4px; }
 .month-move { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; padding: 10px; border-radius: 14px; background: var(--surface-2); }
+/* Bring items from another month */
+.bring-group h4 { margin: 10px 0 4px; font-size: 13px; color: var(--muted); }
+.bring-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 7px 4px; border-top: 1px dashed var(--line); cursor: pointer; }
+.bring-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.bring-row b { font-variant-numeric: tabular-nums; }

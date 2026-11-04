@@ -68,6 +68,7 @@ import HomeScreen from './HomeScreen';
 import QuickSpend from './QuickSpend';
 import Welcome from './Welcome';
 import StatementImport from './StatementImport';
+import BringItemsDialog from './BringItemsDialog';
 import SpendingOverview from './SpendingOverview';
 import Donut from './Donut';
 import { catStyle } from '../lib/catStyle';
@@ -657,6 +658,15 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                               <button role="menuitem" onClick={renameGroup}>
                                 <span className="menu-ico">✏️</span> Rename this group
                               </button>
+                              <button
+                                role="menuitem"
+                                onClick={() => {
+                                  setGroupMenu(false);
+                                  setDialog('bring');
+                                }}
+                              >
+                                <span className="menu-ico">📥</span> Bring items from another month…
+                              </button>
                               <button role="menuitem" className="danger" onClick={handleDeleteTab}>
                                 <span className="menu-ico">🗑</span> Delete the whole group “{currentTab.name || 'Untitled'}”
                               </button>
@@ -832,6 +842,18 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         )}
         {dialog === 'period' && (
           <PeriodSheet ledgerId={ledgerId} periods={periods} current={pk} currency={currency} onSelect={selectPeriod} onClose={() => setDialog(null)} />
+        )}
+        {dialog === 'bring' && currentTab && (
+          <BringItemsDialog
+            ledgerId={ledgerId}
+            periods={periods}
+            pk={pk}
+            tabId={tabId}
+            tabName={currentTab.name}
+            currency={currency}
+            username={username}
+            onClose={() => setDialog(null)}
+          />
         )}
         {dialog === 'statement' && (
           <StatementImport
