@@ -1731,3 +1731,15 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .cs-repeat .pill-seg button { padding: 7px 4px; font-size: 12.5px; }
 .inline-day { gap: 4px; }
 .inline-day .day-input { width: 46px !important; }
+
+/* Category picker (for someone who can only choose existing categories) */
+.cat-picker { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cp-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cp-list {
+  display: flex; flex-direction: column; gap: 2px; padding: 8px; max-height: 240px; overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-sm); box-shadow: var(--shadow-sm);
+}
+.cp-list > .btn { align-self: flex-end; margin-top: 4px; }
+.cp-opt { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+.cp-opt.on { background: var(--accent-soft); }
+.cp-opt input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }

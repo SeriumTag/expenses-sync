@@ -42,7 +42,8 @@ export default function ItemSheet(props) {
 
   function setKind(k) {
     if (k === kind) return;
-    saveMany({ track: k === 'savings' || null, budget: k === 'budget' || null });
+    // A new budget starts as "No fixed budget" (just log spends).
+    saveMany({ track: k === 'savings' || null, budget: k === 'budget' || null, ...(k === 'budget' ? { budgetMode: 'spent' } : {}) });
   }
 
   // ── How often ──

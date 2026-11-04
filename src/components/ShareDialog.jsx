@@ -149,6 +149,17 @@ export default function ShareDialog({ ledgerId, meta, members, username, onJoin,
             maxLength={4}
           />
         </label>
+        {meta.owner &&
+          (isOwner ? (
+            <label className="switch-row">
+              <input type="checkbox" checked={meta.anyoneCategories !== true} onChange={(e) => updateMeta(ledgerId, { anyoneCategories: e.target.checked ? null : true })} />
+              <span>
+                Only {meta.owner} can create or rename categories <span className="muted small">— others pick from the existing ones</span>
+              </span>
+            </label>
+          ) : (
+            meta.anyoneCategories !== true && <p className="muted small">Only {meta.owner} can add or rename categories. You can pick any existing one.</p>
+          ))}
         <button className="btn danger sm" onClick={onDelete}>
           Delete this account…
         </button>

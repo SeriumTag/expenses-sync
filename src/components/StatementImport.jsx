@@ -4,6 +4,7 @@ import { newKey, patchPath } from '../lib/db';
 import { formatMoney } from '../lib/format';
 import { parseStatement } from '../lib/statement';
 import Modal from './Modal';
+import { matchKnown, useCatPerm } from '../lib/catPerm';
 
 const dayName = (d) => (d ? `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}` : 'No date');
 const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
@@ -18,6 +19,7 @@ export default function StatementImport({ ledgerId, budgets, spending, importRul
   const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
   const fileInput = useRef(null);
+  const perm = useCatPerm();
   const budgetName = (id) => budgets.find((b) => b.id === id)?.name || 'Untitled';
 
   // Already logged in that budget: same date, amount and merchant.
@@ -37,7 +39,9 @@ export default function StatementImport({ ledgerId, budgets, spending, importRul
       found.map((r) => {
         const remembered = importRules?.[catKey(r.category)];
         const budget = budgets.some((b) => b.id === remembered) ? remembered : fallback;
-        return { ...r, budget, include: !r.credit && Boolean(r.date) && !isDup(r, budget) };
+        // Someone who can't create categories only keeps the bank's category when it already exists.
+        const cat = perm.canEdit ? r.category || null : matchKnown(r.category, perm.known);
+        return { ...r, cat, budget, include: !r.credit && Boolean(r.date) && !isDup(r, budget) };
       }),
     );
     setStep('review');
@@ -74,7 +78,7 @@ export default function StatementImport({ ledgerId, budgets, spending, importRul
       patch[`spending/${r.budget}/${key}`] = {
         date: r.date,
         note: r.merchant,
-        category: r.category || null,
+        category: r.cat || null,
         amount: r.amount,
         by: username || null,
         at: now + i,
@@ -187,7 +191,7 @@ export default function StatementImport({ ledgerId, budgets, spending, importRul
                       </span>
                       <span className="stmt-sub muted small">
                         {dayName(r.date)}
-                        {r.category && <span className="s-cat">{r.category}</span>}
+                        {r.cat && <span className="s-cat">{r.cat}</span>}
                         {r.credit && <span>payment / refund</span>}
                         {dup && <span className="stmt-dup">already added</span>}
                       </span>

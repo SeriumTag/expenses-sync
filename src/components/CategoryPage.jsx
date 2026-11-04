@@ -6,9 +6,11 @@ import { catStyle } from '../lib/catStyle';
 import { prefs } from '../lib/session';
 import { reordered, useDragSort } from '../hooks/useDragSort';
 import LiveInput from './LiveInput';
+import { amountSuffix } from './ItemRow';
 import PotIcon from './PotIcon';
 import Modal from './Modal';
 import { confirmTwice } from '../lib/confirm';
+import { useCatPerm } from '../lib/catPerm';
 
 const DAY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // A keyed field value as plain text, e.g. a date as "12 Oct 2026".
@@ -103,6 +105,9 @@ export function CategoryPage(props) {
     prefs.set('catCompact', v);
   };
   const editing = !locked && !compact;
+  // Creating, renaming and removing subcategories and fields is for whoever may name categories.
+  const { canEdit: canName } = useCatPerm();
+  const naming = !locked && canName;
   const keyed = (m) => fields.filter((f) => m.values?.[f.id] !== undefined && m.values?.[f.id] !== null && m.values?.[f.id] !== '');
 
   const counted = entries.filter((e) => !meta[e.id]?.exclude);
@@ -217,16 +222,20 @@ export function CategoryPage(props) {
       </div>
       {!locked && (
         <div className="cat-tools">
-          <button className="btn glass sm" onClick={addSub}>
-            ＋ Subcategory
-          </button>
-          <button className="btn glass sm" onClick={() => setNewField({ name: '', type: 'text' })}>
-            ＋ Field
-          </button>
+          {naming && (
+            <>
+              <button className="btn glass sm" onClick={addSub}>
+                ＋ Subcategory
+              </button>
+              <button className="btn glass sm" onClick={() => setNewField({ name: '', type: 'text' })}>
+                ＋ Field
+              </button>
+            </>
+          )}
           {(entries.length > 1 || subs.length > 0) && <span className="mode-hint">Drag ⠿ to move or regroup</span>}
         </div>
       )}
-      {!locked && fields.length > 0 && (
+      {naming && fields.length > 0 && (
         <div className="field-chips" aria-label="Fields" {...fieldDrag.groupProps()}>
           {fields.map((f) => (
             <span key={f.id} className="field-chip" {...fieldDrag.itemProps(f.id)}>
@@ -249,7 +258,7 @@ export function CategoryPage(props) {
           ))}
         </div>
       )}
-      {newField && !locked && (
+      {newField && naming && (
         <form
           className="new-field"
           onSubmit={(e) => {
@@ -311,7 +320,7 @@ export function CategoryPage(props) {
         return (
           <div key={groupKey} className="sub-group" {...drag.groupProps(groupKey)}>
             <div className="sub-head">
-              {g.sub && locked ? (
+              {g.sub && !naming ? (
                 <span className="sub-name">{g.sub.name || 'Untitled'}</span>
               ) : g.sub ? (
                 <LiveInput
@@ -325,7 +334,7 @@ export function CategoryPage(props) {
                 <span className="sub-name muted">{subs.length ? 'No subcategory' : 'Items'}</span>
               )}
               <span className="sub-total">{formatMoney(subTotal, currency)}</span>
-              {g.sub && !locked && (
+              {g.sub && naming && (
                 <button className="icon-btn" aria-label={`Remove ${g.sub.name}`} onClick={() => removeSub(g.sub)}>
                   ✕
                 </button>
@@ -374,7 +383,7 @@ export function CategoryPage(props) {
                     </div>
                     <b className="cat-entry-amt">
                       {formatMoney(amount(e), currency)}
-                      <span className="per-small">{FREQS[view].short}</span>
+                      <span className="per-small">{amountSuffix(e.item, view, false)}</span>
                     </b>
                   </div>
                   {!compact && e.item.note && <p className="cat-entry-note">{e.item.note}</p>}

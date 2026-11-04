@@ -7,6 +7,7 @@ import { formatMoney, parseAmount } from '../lib/format';
 import Attachments from './Attachments';
 import { catStyle } from '../lib/catStyle';
 import LiveInput from './LiveInput';
+import { useCatPerm } from '../lib/catPerm';
 
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
 const dayName = (d) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`;
@@ -68,6 +69,7 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
   const [error, setError] = useState('');
   const [detail, setDetail] = useState(null); // spend whose details (date, move, receipts) are open
   const [notice, setNotice] = useState('');
+  const perm = useCatPerm();
   const [makeItem, setMakeItem] = useState({ tab: '', kind: 'bill' }); // for "Make it its own item"
   const fileInput = useRef(null);
   const amount = parseAmount(form.amount);
@@ -193,13 +195,17 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
           placeholder="What? e.g. Chicken rice"
           aria-label="What was it"
         />
-        <input
-          value={form.category}
-          onChange={(e) => setForm({ ...form, category: e.target.value })}
-          placeholder="Category (optional)"
-          list={catList}
-          aria-label="Category"
-        />
+        {perm.canEdit ? (
+          <input
+            value={form.category}
+            onChange={(e) => setForm({ ...form, category: e.target.value })}
+            placeholder="Category (optional)"
+            list={catList}
+            aria-label="Category"
+          />
+        ) : (
+          <CatSelect value={form.category} options={perm.known} onChange={(v) => setForm({ ...form, category: v })} />
+        )}
         <input
           inputMode="decimal"
           value={form.amount}
@@ -308,14 +314,18 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                           </label>
                           <label>
                             <span>Category</span>
-                            <LiveInput
-                              fieldKey={`spend:${itemId}:${s.id}:category`}
-                              value={s.category || ''}
-                              onSave={(v) => saveSpend(s, 'category')(splitCats(v).join(', ') || null)}
-                              placeholder="e.g. Rice, Dining"
-                              list={catList}
-                              aria-label="Category"
-                            />
+                            {perm.canEdit ? (
+                              <LiveInput
+                                fieldKey={`spend:${itemId}:${s.id}:category`}
+                                value={s.category || ''}
+                                onSave={(v) => saveSpend(s, 'category')(splitCats(v).join(', ') || null)}
+                                placeholder="e.g. Rice, Dining"
+                                list={catList}
+                                aria-label="Category"
+                              />
+                            ) : (
+                              <CatSelect value={s.category || ''} options={perm.known} onChange={(v) => saveSpend(s, 'category')(v || null)} />
+                            )}
                           </label>
                           {otherBudgets.length > 0 && (
                             <label>
@@ -378,5 +388,21 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
         </>
       )}
     </div>
+  );
+}
+
+// A category chosen from the existing ones (for someone who can't create new ones).
+// A spend that already has a category outside the list keeps it as an option.
+function CatSelect({ value, options, onChange }) {
+  const all = value && !options.some((o) => o.toLowerCase() === value.toLowerCase()) ? [value, ...options] : options;
+  return (
+    <select value={value || ''} onChange={(e) => onChange(e.target.value)} aria-label="Category">
+      <option value="">No category</option>
+      {all.map((c) => (
+        <option key={c} value={c}>
+          {c}
+        </option>
+      ))}
+    </select>
   );
 }

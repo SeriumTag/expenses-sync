@@ -102,7 +102,7 @@ export default function ItemRow(props) {
         <span className="ep2-amount">
           <ChangeBadge change={change} prevLabel={prevLabel} currency={currency} view={view} />
           <b>{formatMoney(amount, currency)}</b>
-          <span className="per-small">{noBudget ? ' spent' : item.track && shownView === 'yearly' ? ' saved' : FREQS[shownView].short}</span>
+          <span className="per-small">{amountSuffix(item, shownView, noBudget)}</span>
         </span>
         {status && !noBudget && (
           <span className={`ep2-left ${status.left < 0 ? 'neg' : 'pos'}`}>
@@ -173,4 +173,15 @@ export function shortDate(date, pk) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '')) return null;
   const label = `${Number(date.slice(8, 10))} ${MONTHS[Number(date.slice(5, 7)) - 1]}`;
   return pk && date.slice(0, 4) !== String(pk).slice(0, 4) ? `${label} ${date.slice(0, 4)}` : label;
+}
+
+// What follows an amount: nothing for a one-time item (it's just that amount),
+// /yr for a yearly one, otherwise /mo or /yr for the view (or spent / saved).
+export function amountSuffix(item, view, noBudget) {
+  if (noBudget) return ' spent';
+  if (item?.track && view === 'yearly') return ' saved';
+  const r = recurOf(item);
+  if (r === 'once') return '';
+  if (r === 'yearly') return FREQS.yearly.short;
+  return FREQS[view].short;
 }

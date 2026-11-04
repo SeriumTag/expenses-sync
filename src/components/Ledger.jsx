@@ -6,7 +6,9 @@ import { PresenceContext, usePresence } from '../hooks/usePresence';
 import {
   FREQS,
   amountInView,
+  allSpendCategories,
   categoriesIn,
+  splitCats,
   tabInView,
   yearOf,
   currentMonthKey,
@@ -72,6 +74,7 @@ import BringItemsDialog from './BringItemsDialog';
 import SpendingOverview from './SpendingOverview';
 import Donut from './Donut';
 import { catStyle } from '../lib/catStyle';
+import { CatPermContext, canEditCategories } from '../lib/catPerm';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import ThemeDialog from './ThemeDialog';
@@ -247,6 +250,24 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const budgetCtx = { year: yearOf(pk), tracks: data.tracks, periods, spending: data.spending, pk };
   const categoryList = categoriesIn(period, view, budgetCtx);
   const categoryNames = categoryList.map((c) => c.label);
+  // Every category that exists anywhere (for people who can only pick one).
+  const knownCats = (() => {
+    const seen = new Map();
+    const add = (name) => name && !seen.has(name.toLowerCase()) && seen.set(name.toLowerCase(), name);
+    categoryNames.forEach(add);
+    Object.values(periods).forEach((p) =>
+      Object.values(p?.items || {}).forEach((tab) =>
+        Object.values(tab || {}).forEach((it) => {
+          splitCats(it?.category).forEach(add);
+          Object.values(it?.parts || {}).forEach((pt) => splitCats(pt?.category).forEach(add));
+        }),
+      ),
+    );
+    allSpendCategories(data.spending).forEach(add);
+    Object.values(data.categories || {}).forEach((c) => add(c?.label));
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  })();
+  const catPerm = { canEdit: canEditCategories(meta, username), known: knownCats, owner: meta.owner };
   const grandTotal = tabs.reduce((sum, t) => sum + tabInView(period.items?.[t.id], view, budgetCtx), 0);
   const itemCount = tabs.reduce((n, t) => n + Object.keys(period.items?.[t.id] || {}).length, 0);
   const totalSetAside = tabs.reduce((sum, t) => sum + setAsideTab(period.items?.[t.id]), 0);
@@ -311,7 +332,10 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     setCatView(null);
     // New items go to the top of the list.
     const id = addItem(base, tid, username, topOrder(period.items?.[tid]));
-    if (kind === 'budget') updateItemField(base, tid, id, 'budget', true, username);
+    if (kind === 'budget') {
+      updateItemField(base, tid, id, 'budget', true, username);
+      updateItemField(base, tid, id, 'budgetMode', 'spent', username); // starts as "No fixed budget"
+    }
     if (kind === 'savings') updateItemField(base, tid, id, 'track', true, username);
     openItem(tid, id);
   }
@@ -399,6 +423,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
 
   return (
     <PresenceContext.Provider value={presence}>
+      <CatPermContext.Provider value={catPerm}>
       <div className="app">
         <NavBar
           scrolled={scrolled}
@@ -939,6 +964,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         {welcome && <Welcome onDone={closeWelcome} />}
         {dialog === 'theme' && <ThemeDialog theme={theme} onChange={onThemeChange} onClose={() => setDialog(null)} />}
       </div>
+      </CatPermContext.Provider>
     </PresenceContext.Provider>
   );
 }

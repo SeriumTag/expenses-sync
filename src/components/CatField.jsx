@@ -1,10 +1,15 @@
 import { useState } from 'react';
 import { splitCats } from '../lib/budget';
 import LiveInput from './LiveInput';
+import CatPicker from './CatPicker';
+import { useCatPerm } from '../lib/catPerm';
 
 // An item's categories as chips. Tap to edit them as text: "Insurance, Kids".
+// Someone who can't create categories picks from the existing ones instead.
 export default function CatField({ fieldKey, value, onSave, listId, disabled, className = '', placeholder = 'Category' }) {
   const [editing, setEditing] = useState(false);
+  const perm = useCatPerm();
+  if (!perm.canEdit) return <CatPicker value={value} options={perm.known} onSave={onSave} disabled={disabled} className={className} />;
   const cats = splitCats(value);
 
   if (editing || !cats.length) {
