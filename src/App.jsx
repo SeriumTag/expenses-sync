@@ -6,13 +6,15 @@ import InstallPrompt from './components/InstallPrompt';
 import Ledger from './components/Ledger';
 import Loading from './components/Loading';
 import Login from './components/Login';
+import MascotPicker from './components/MascotPicker';
 import Modal from './components/Modal';
 import SetupNotice from './components/SetupNotice';
 import { db, ensureAuth, isConfigured } from './firebase';
 import { binExpired, createLedger, joinWithCode, loginUser, purgeLedger, unlinkLedger } from './lib/db';
-import { cachedTheme, clearSession, loadSession, prefs, rememberProfile, saveSession } from './lib/session';
+import { cachedMascot, cachedTheme, clearSession, loadSession, prefs, rememberProfile, saveSession } from './lib/session';
 import { hideSplash } from './lib/splash';
 import { DEFAULT_THEME, applyTheme, isHex } from './lib/theme';
+import { DEFAULT_MASCOT, MascotContext, friendOf, isMascot } from './lib/mascot';
 
 // A scanned QR / shared link opens the app as /?join=CODE. Take the code and
 // tidy the address bar.
@@ -31,6 +33,8 @@ export default function App() {
   const [fatal, setFatal] = useState('');
   const [username, setUsername] = useState(loadSession);
   const [theme, setTheme] = useState(() => (username && cachedTheme(username)) || DEFAULT_THEME);
+  const [mascot, setMascot] = useState(() => (username && cachedMascot(username)) || DEFAULT_MASCOT);
+  const [mascotOpen, setMascotOpen] = useState(false);
   const [ledgerIds, setLedgerIds] = useState(null);
   const [metas, setMetas] = useState({}); // ledgerId → meta (null if the account no longer exists)
   const [binOpen, setBinOpen] = useState(false);
@@ -72,6 +76,16 @@ export default function App() {
       if (!isHex(snap.val())) return;
       setTheme(snap.val());
       rememberProfile(username, { theme: snap.val() });
+    });
+  }, [authReady, username]);
+
+  // So is their character.
+  useEffect(() => {
+    if (!authReady || !username) return;
+    return onValue(ref(db, `users/${username}/mascot`), (snap) => {
+      if (!isMascot(snap.val())) return;
+      setMascot(snap.val());
+      rememberProfile(username, { mascot: snap.val() });
     });
   }, [authReady, username]);
 
@@ -143,12 +157,19 @@ export default function App() {
     setBinOpen(false);
     setActiveId(null);
     setTheme(DEFAULT_THEME);
+    setMascot(DEFAULT_MASCOT);
   };
 
   const handleThemeChange = (hex) => {
     setTheme(hex);
     rememberProfile(username, { theme: hex });
     set(ref(db, `users/${username}/theme`), hex).catch(() => {});
+  };
+
+  const handleMascotChange = (key) => {
+    setMascot(key);
+    rememberProfile(username, { mascot: key });
+    set(ref(db, `users/${username}/mascot`), key).catch(() => {});
   };
 
   const handleJoin = useCallback(
@@ -235,8 +256,10 @@ export default function App() {
     );
 
   return (
-    <>
+    <MascotContext.Provider value={{ friend: friendOf(mascot), onPick: username ? () => setMascotOpen(true) : null }}>
       {screen}
+
+      {mascotOpen && username && <MascotPicker current={mascot} onChoose={handleMascotChange} onClose={() => setMascotOpen(false)} />}
 
       {pendingJoin && username && currentId && (
         <Modal title="Join shared account" onClose={() => setPendingJoin(null)}>
@@ -294,6 +317,6 @@ export default function App() {
       )}
 
       <InstallPrompt />
-    </>
+    </MascotContext.Provider>
   );
 }

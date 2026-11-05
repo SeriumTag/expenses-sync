@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { prefs } from '../lib/session';
-import { budgetStatus } from '../lib/budget';
+import { budgetItems, budgetStatus } from '../lib/budget';
 import { formatMoney } from '../lib/format';
 import BudgetTracker from './BudgetTracker';
-import { budgetItems } from './BudgetsSheet';
 import Modal from './Modal';
 
 // "Log a spend" from Home: pick the budget, then amount / what / photo.

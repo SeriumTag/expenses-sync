@@ -1,6 +1,9 @@
-// The app's mark: Duffy the bear in a little round frame.
+import { useMascot } from '../lib/mascot';
+
+// The app's mark: your chosen plush friend (Duffy until signed in) in a little round frame.
 export function LogoMark({ size = 24, className = '' }) {
-  return <img className={`logo-mark ${className}`} src="/duffy.webp" width={size} height={size} alt="" aria-hidden="true" />;
+  const { friend } = useMascot();
+  return <img className={`logo-mark ${className}`} src={friend.src} width={size} height={size} alt="" aria-hidden="true" />;
 }
 
 export function Wordmark({ className = '' }) {

@@ -71,6 +71,10 @@ export function cachedTheme(name) {
   return loadProfiles().find((p) => p.name === name)?.theme || null;
 }
 
+export function cachedMascot(name) {
+  return loadProfiles().find((p) => p.name === name)?.mascot || null;
+}
+
 // Small per-device UI memories (e.g. the dismissed install hint).
 export const prefs = {
   get: (key) => read(`expense-sync:${key}`),

@@ -111,7 +111,9 @@ export default function ItemRow(props) {
         )}
       </div>
 
+      {/* The grip only shows where dragging works (no dragHandle: nothing). */}
       {editing ? (
+        dragHandle && (
         <span
           className="grip ep2-grip drag-handle"
           title="Drag to move"
@@ -121,6 +123,7 @@ export default function ItemRow(props) {
         >
           ⠿
         </span>
+        )
       ) : (
         <span className="ep2-chev" aria-hidden="true">
           ›

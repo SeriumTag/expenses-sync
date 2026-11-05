@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { isStandalone, showInstallPrompt } from './InstallPrompt';
 import { LogoMark, Wordmark } from './Logo';
+import { useMascot } from '../lib/mascot';
 
 // Top bar: brand, account switcher, partner presence and the profile menu.
 export default function NavBar(props) {
   const { scrolled, ledgers, ledgerId, onSwitch, partner, partnerOnline, username, connected, binCount } = props;
   const { onTheme, onShare, onNewAccount, onManageAccounts, onOpenBin, onDeleteAccount, onLogout, onHelp, accountName } = props;
   const [open, setOpen] = useState(false);
+  const { friend, onPick: onPickMascot } = useMascot();
   const run = (fn) => () => {
     setOpen(false);
     fn();
@@ -75,6 +77,11 @@ export default function NavBar(props) {
                 <button role="menuitem" onClick={run(onShare)}>
                   <span className="menu-ico">⇄</span> Share with your partner
                 </button>
+                {onPickMascot && (
+                  <button role="menuitem" onClick={run(onPickMascot)}>
+                    <img className="menu-friend" src={friend.src} alt="" /> Character
+                  </button>
+                )}
                 <button role="menuitem" onClick={run(onTheme)}>
                   <span className="menu-swatch" /> Theme colour
                 </button>

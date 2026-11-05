@@ -8,7 +8,6 @@ import { reordered, useDragSort } from '../hooks/useDragSort';
 import LiveInput from './LiveInput';
 import { amountSuffix } from './ItemRow';
 import PotIcon from './PotIcon';
-import Modal from './Modal';
 import { confirmTwice } from '../lib/confirm';
 import { useCatPerm } from '../lib/catPerm';
 
@@ -22,45 +21,7 @@ function fieldText(f, v) {
 const FIELD_TYPES = { text: 'Text', date: 'Date', number: 'Number' };
 const TYPE_ICONS = { text: 'T', date: '📅', number: '#' };
 
-// List of every category used in this period.
-export function CategoriesSheet({ categories, favs, currency, view, onOpen, onFav, onClose }) {
-  return (
-    <Modal title="Categories" onClose={onClose}>
-      {categories.length === 0 ? (
-        <p className="muted">No categories yet. Type one in an item’s Category box, e.g. “Insurance”.</p>
-      ) : (
-        <>
-          <p className="muted small">Tap ☆ to add a category to your favourites.</p>
-          <div className="cat-list">
-            {categories.map((c) => (
-              <div key={c.key} className="cat-list-item">
-                <FavButton fav={favs?.[c.key]} label={c.label} onClick={() => onFav(c.key, c.label)} />
-                <button className="cat-list-row" onClick={() => onOpen(c.key)}>
-                  <span className="cat-list-name">{c.label}</span>
-                  <span className="muted small">
-                    {[
-                      c.count ? `${c.count} item${c.count === 1 ? '' : 's'}` : '',
-                      c.spendCount ? `${c.spendCount} spend${c.spendCount === 1 ? '' : 's'}` : '',
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </span>
-                  <b>
-                    {formatMoney(c.total, currency)}
-                    <span className="muted small">{FREQS[view].short}</span>
-                  </b>
-                  <span className="chev">›</span>
-                </button>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </Modal>
-  );
-}
-
-// ☆ when not a favourite; its chosen icon when it is. Either way, tap to change.
+// Star button: add a category to favourites (or change its icon).
 export function FavButton({ fav, label, onClick }) {
   return (
     <button
@@ -178,9 +139,12 @@ export function CategoryPage(props) {
 
   return (
     <section className="cat-page">
-      <button className="btn ghost sm back" onClick={onBack}>
-        ‹ {backLabel || 'Back'}
-      </button>
+      {/* No Back when shown inside the Category tab */}
+      {onBack && (
+        <button className="btn ghost sm back" onClick={onBack}>
+          ‹ {backLabel || 'Back'}
+        </button>
+      )}
       <div className="kicker">Category</div>
       <div className="cat-title-row">
         <h1 className="hero-title cat-title">{label}</h1>

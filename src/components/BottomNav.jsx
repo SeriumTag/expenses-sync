@@ -1,9 +1,8 @@
-// The four main screens, as tabs along the bottom like a normal phone app.
+// The three main screens, as tabs along the bottom like a normal phone app.
 export const SCREENS = [
   { key: 'home', icon: '🏠', label: 'Home' },
-  { key: 'bills', icon: '📋', label: 'Expenses' },
-  { key: 'spending', icon: '💸', label: 'Spending' },
-  { key: 'savings', icon: '🐷', label: 'Savings' },
+  { key: 'bills', icon: '📋', label: 'Bills' },
+  { key: 'category', icon: '🏷️', label: 'Category' },
 ];
 
 export default function BottomNav({ screen, onChange }) {

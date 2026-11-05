@@ -457,3 +457,21 @@ export function spendStats(spending, budgetIds, pk, today = new Date().toLocaleD
     inPeriod,
   };
 }
+
+// Every budget ("Track spending") item in the period being shown.
+export function budgetItems(period, tabs) {
+  return tabs.flatMap((t) =>
+    sorted(period?.items?.[t.id])
+      .filter((item) => item.budget)
+      .map((item) => ({ id: item.id, item, tabId: t.id, tabName: t.name })),
+  );
+}
+
+// Every savings pot ("Track as savings pot") item in the period being shown.
+export function trackedItems(period, tabs) {
+  return tabs.flatMap((t) =>
+    sorted(period?.items?.[t.id])
+      .filter((item) => item.track)
+      .map((item) => ({ id: item.id, item, tabId: t.id, tabName: t.name })),
+  );
+}

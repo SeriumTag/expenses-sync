@@ -5,21 +5,17 @@ import { useConnected } from '../hooks/useConnected';
 import { PresenceContext, usePresence } from '../hooks/usePresence';
 import {
   FREQS,
-  amountInView,
   allSpendCategories,
+  budgetItems,
   categoriesIn,
   splitCats,
-  tabInView,
   yearOf,
   currentMonthKey,
-  inView,
   isYearKey,
   periodLabel,
   previousPeriod,
   shortPeriodLabel,
   sorted,
-  setAsideTab,
-  sumTab,
   monthKey,
 } from '../lib/budget';
 import {
@@ -46,34 +42,26 @@ import {
 } from '../lib/db';
 import { removeFav, saveFav, setFavIcon, suggestIcon } from '../lib/favs';
 import { cleanUpFiles } from '../lib/files';
-import { formatMoney } from '../lib/format';
 import { prefs } from '../lib/session';
 import { hideSplash } from '../lib/splash';
-import { hueFor, partnerColor } from '../lib/theme';
-import { CategoriesSheet, CategoryPage } from './CategoryPage';
+import { partnerColor } from '../lib/theme';
+import { CategoryPage } from './CategoryPage';
 import ImportDialog from './ImportDialog';
 import ItemBin from './ItemBin';
-import ItemList from './ItemList';
-import ItemRow, { matchesSearch } from './ItemRow';
 import Loading from './Loading';
 import IconPicker from './IconPicker';
 import ItemSheet from './ItemSheet';
-import LiveInput from './LiveInput';
 import { LogoMark } from './Logo';
 import NavBar from './NavBar';
 import PeriodSheet from './PeriodSheet';
-import PotIcon from './PotIcon';
-import { SavingsPanel, trackedItems } from './SavingsSheet';
-import { BudgetsPanel, budgetItems } from './BudgetsSheet';
-import BottomNav, { MonthNav } from './BottomNav';
+import BottomNav, { MonthNav, SCREENS } from './BottomNav';
 import HomeScreen from './HomeScreen';
+import BillsScreen from './BillsScreen';
+import CategoriesScreen from './CategoriesScreen';
 import QuickSpend from './QuickSpend';
 import Welcome from './Welcome';
 import StatementImport from './StatementImport';
 import BringItemsDialog from './BringItemsDialog';
-import SpendingOverview from './SpendingOverview';
-import Donut from './Donut';
-import { catStyle } from '../lib/catStyle';
 import { CatPermContext, canEditCategories } from '../lib/catPerm';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
@@ -92,15 +80,19 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   const undoTimer = useRef(null);
   const purgingTrash = useRef(false);
   const [focusItemId, setFocusItemId] = useState(null);
-  const [dialog, setDialog] = useState(null); // 'share' | 'theme' | 'import' | 'period' | 'categories'
+  const [dialog, setDialog] = useState(null); // 'share' | 'theme' | 'import' | 'period' | 'statement' | 'bring' | 'spend'
   const [sheet, setSheet] = useState(null); // { type: 'item', tabId, itemId } | { type: 'person', id }
-  const [catView, setCatView] = useState(null); // category key being viewed
-  const [catTrail, setCatTrail] = useState([]); // categories hopped through, for Back
+  const [catView, setCatView] = useState(() => prefs.get('catTab')); // category picked on the Category tab (remembered)
   // Which bottom tab is showing (remembered on this device).
-  const [screen, setScreenState] = useState(() => prefs.get('screen') || 'home');
+  // Older versions had Spending and Savings tabs; they're part of Bills now.
+  const [screen, setScreenState] = useState(() => {
+    const s = prefs.get('screen');
+    return s === 'spending' || s === 'savings' ? 'bills' : SCREENS.some((x) => x.key === s) ? s : 'home';
+  });
+  const [billsGroup, setBillsGroup] = useState('all'); // group filter on Bills
+  const [billsScroll, setBillsScroll] = useState(null); // { key } section to scroll to on Bills
   const [spendOpen, setSpendOpen] = useState(null); // budget to open on the Spending tab
   const [groupMenu, setGroupMenu] = useState(false);
-  const [query, setQuery] = useState(''); // search on the Expenses tab
   // The short tour: once per device, and from the menu.
   const [welcome, setWelcome] = useState(() => !prefs.get('welcomed'));
   const closeWelcome = () => {
@@ -268,13 +260,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     return [...seen.values()].sort((a, b) => a.localeCompare(b));
   })();
   const catPerm = { canEdit: canEditCategories(meta, username), known: knownCats, owner: meta.owner };
-  const grandTotal = tabs.reduce((sum, t) => sum + tabInView(period.items?.[t.id], view, budgetCtx), 0);
-  const itemCount = tabs.reduce((n, t) => n + Object.keys(period.items?.[t.id] || {}).length, 0);
-  const totalSetAside = tabs.reduce((sum, t) => sum + setAsideTab(period.items?.[t.id]), 0);
   const partnerOnline = partner ? Boolean(presence.others[partner]) : false;
   const prevLabel = prevKey ? shortPeriodLabel(prevKey) : '';
-  const potCount = trackedItems(period, tabs).length;
-  const budgetCount = budgetItems(period, tabs).length;
 
   const changeView = (v) => {
     setView(v);
@@ -282,15 +269,23 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   };
   const selectPeriod = (k) => {
     setPeriodSel(k === nowKey ? null : k);
-    setCatView(null);
   };
   const openItem = (tid, iid) => setSheet({ type: 'item', tabId: tid, itemId: iid });
   const setScreen = (k) => {
     setScreenState(k);
     prefs.set('screen', k);
-    setCatView(null);
     setGroupMenu(false);
     window.scrollTo(0, 0);
+  };
+  // Home's cards jump to a section of Bills.
+  const gotoScreen = (k, section) => {
+    setScreen(k);
+    if (section) setBillsScroll({ key: section });
+  };
+  const pickGroup = (id) => {
+    setBillsGroup(id);
+    setGroupMenu(false);
+    if (id !== 'all') setActiveTab(id);
   };
   // ‹ › step one month (or one year when a whole year is shown).
   const stepPeriod = (dir) => {
@@ -320,16 +315,17 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     if (!name?.trim()) return;
     const id = addTab(base, name.trim());
     setActiveTab(id);
+    return id;
   }
 
   // New things open straight in their card, ready to fill in.
-  function addExpense(kind = 'bill') {
-    let tid = tabId;
+  // opts.tabId: the group to add to (default: the current one); opts.recur: 'once' for a one-time bill.
+  function addExpense(kind = 'bill', opts = {}) {
+    let tid = (opts.tabId && tabs.some((t) => t.id === opts.tabId) && opts.tabId) || tabId;
     if (!tid) {
       tid = addTab(base, 'General');
       setActiveTab(tid);
     }
-    setCatView(null);
     // New items go to the top of the list.
     const id = addItem(base, tid, username, topOrder(period.items?.[tid]));
     if (kind === 'budget') {
@@ -337,6 +333,10 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
       updateItemField(base, tid, id, 'budgetMode', 'spent', username); // starts as "No fixed budget"
     }
     if (kind === 'savings') updateItemField(base, tid, id, 'track', true, username);
+    if (opts.recur === 'once') {
+      updateItemField(base, tid, id, 'recur', 'once', username);
+      updateItemField(base, tid, id, 'startMonth', pk, username);
+    }
     openItem(tid, id);
   }
 
@@ -401,25 +401,22 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
 
   const sheetItem = sheet?.type === 'item' ? period.items?.[sheet.tabId]?.[sheet.itemId] : null;
   const sheetPerson = sheet?.type === 'person' ? period.people?.[sheet.id] : null;
+  // The Category tab shows one category at a time; links on its page switch it.
   const openCategory = (key) => {
-    setDialog(null);
-    setCatTrail([]);
     setCatView(key);
-    window.scrollTo(0, 0);
-  };
-  // From one category page to another (an item's other category): Back returns here.
-  const hopCategory = (key) => {
-    setCatTrail((t) => [...t, catView]);
-    setCatView(key);
-    window.scrollTo(0, 0);
-  };
-  const catBack = () => {
-    setCatView(catTrail[catTrail.length - 1] ?? null);
-    setCatTrail((t) => t.slice(0, -1));
-    window.scrollTo(0, 0);
+    prefs.set('catTab', key);
+    if (screen !== 'category') setScreen('category');
+    else window.scrollTo(0, 0);
   };
   const labelOfCat = (key) => favs?.[key]?.label || categoryList.find((c) => c.key === key)?.label || data.categories?.[key]?.label || key;
-  const catLabel = catView ? labelOfCat(catView) : null;
+  // Every category: those used this month, plus category pages with nothing in them now.
+  const allCats = [...categoryList];
+  Object.entries(data.categories || {}).forEach(([key, c]) => {
+    if (c?.label && !allCats.some((x) => x.key === key)) allCats.push({ key, label: c.label, count: 0, spendCount: 0, total: 0 });
+  });
+  const shownCat = allCats.some((c) => c.key === catView) ? catView : allCats[0]?.key || null;
+  const catLabel = shownCat ? labelOfCat(shownCat) : null;
+  const currentGroup = tabs.find((t) => t.id === billsGroup) || null;
 
   return (
     <PresenceContext.Provider value={presence}>
@@ -448,29 +445,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
 
         {!connected && <div className="banner">You’re offline. Changes are saved and will sync when you reconnect.</div>}
 
-        {catView ? (
-          <CategoryPage
-            ledgerId={ledgerId}
-            pk={pk}
-            period={period}
-            periods={periods}
-            catKeyValue={catView}
-            label={catLabel}
-            catData={data.categories?.[catView]}
-            tracks={data.tracks}
-            currency={currency}
-            view={view}
-            onViewChange={changeView}
-            ctx={budgetCtx}
-            key={catView}
-            onBack={catBack}
-            backLabel={catTrail.length ? labelOfCat(catTrail[catTrail.length - 1]) : null}
-            onOpenCategory={hopCategory}
-            fav={favs?.[catView]}
-            onFav={() => setIconPick({ key: catView, label: catLabel })}
-            onOpenItem={openItem}
-          />
-        ) : (
+        {(
           <main className="screen">
             <MonthNav
               label={periodLabel(pk)}
@@ -510,292 +485,113 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                 tabs={tabs}
                 ctx={budgetCtx}
                 currency={currency}
-                partner={partner}
-                partnerOnline={partnerOnline}
+                username={username}
                 onLogSpend={logSpend}
-                onImport={() => setDialog('statement')}
                 onAddBill={() => {
                   setScreen('bills');
                   addExpense('bill');
                 }}
-                onGoto={setScreen}
+                onGoto={gotoScreen}
                 onOpenPerson={(id) => setSheet({ type: 'person', id })}
                 onAddPerson={addPerson}
               />
             )}
 
             {periodExists && screen === 'bills' && (
-              <>
-                <div className="screen-head">
-                  <div>
-                    <h1 className="screen-title">Expenses</h1>
-                    <span className="muted small">
-                      {formatMoney(grandTotal, currency)}
-                      {FREQS[view].short} · {itemCount} item{itemCount === 1 ? '' : 's'}
-                    </span>
-                  </div>
-                  {categoryList.length > 0 && (
-                    <button className="btn glass sm" onClick={() => setDialog('categories')}>
-                      Categories
-                    </button>
-                  )}
-                </div>
-                {favs && Object.keys(favs).length > 0 && (
-                  <div className="fav-row" aria-label="Favourite categories">
-                    {sorted(favs).map((f) => (
-                      <button key={f.id} className="fav-pill" onClick={() => openCategory(f.id)} aria-label={`Open ${f.label}`}>
-                        <span className="fav-icon">{f.icon}</span>
-                        {f.label}
+              <BillsScreen
+                base={base}
+                pk={pk}
+                period={period}
+                tabs={tabs}
+                prevPeriod={prevPeriod}
+                prevLabel={prevLabel}
+                currency={currency}
+                username={username}
+                view={view}
+                onViewChange={changeView}
+                ctx={budgetCtx}
+                group={currentGroup ? billsGroup : 'all'}
+                onGroup={pickGroup}
+                scrollTo={billsScroll}
+                onOpenItem={openItem}
+                onAdd={addExpense}
+                onImport={() => setDialog('statement')}
+                onAddTab={() => {
+                  const id = handleAddTab();
+                  if (id) pickGroup(id);
+                }}
+                groupMenu={
+                  currentGroup && (
+                    <span className="list-menu-wrap">
+                      <button className="chip" onClick={() => setGroupMenu((o) => !o)} aria-expanded={groupMenu} aria-label={`Options for the group ${currentGroup.name || 'Untitled'}`}>
+                        ⋯
                       </button>
-                    ))}
-                  </div>
-                )}
-
-                <div className="search-box">
-                  <span aria-hidden="true">🔍</span>
-                  <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search all expenses" aria-label="Search all expenses" />
-                  {query && (
-                    <button className="icon-btn" onClick={() => setQuery('')} aria-label="Clear search">
-                      ✕
-                    </button>
-                  )}
-                </div>
-
-                {query.trim() && (
-                  <section className="detail search-results">
-                    {(() => {
-                      const words = query.trim().toLowerCase().split(/\s+/);
-                      const found = tabs.flatMap((t) =>
-                        sorted(period.items?.[t.id])
-                          .filter((it) => matchesSearch(it, words))
-                          .map((it) => ({ it, t })),
-                      );
-                      if (!found.length) return <p className="muted center-text">Nothing matches “{query.trim()}”.</p>;
-                      return (
+                      {groupMenu && (
                         <>
-                          <p className="muted small">
-                            {found.length} found · {formatMoney(found.reduce((sum, { it }) => sum + amountInView(it, it.id, view, budgetCtx), 0), currency)}
-                            {FREQS[view].short}
-                          </p>
-                          {found.map(({ it, t }) => (
-                            <ItemRow
-                              key={it.id}
-                              item={it}
-                              pk={pk}
-                              prevPeriod={prevPeriod}
-                              prevLabel={prevLabel}
-                              currency={currency}
-                              view={view}
-                              ctx={budgetCtx}
-                              groupName={t.name || 'Untitled'}
-                              onOpen={() => openItem(t.id, it.id)}
-                              onToggle={() => openItem(t.id, it.id)}
-                            />
-                          ))}
+                          <div className="menu-scrim" onClick={() => setGroupMenu(false)} />
+                          <div className="list-menu" role="menu">
+                            <button role="menuitem" onClick={renameGroup}>
+                              <span className="menu-ico">✏️</span> Rename “{currentGroup.name || 'Untitled'}”
+                            </button>
+                            <button
+                              role="menuitem"
+                              onClick={() => {
+                                setGroupMenu(false);
+                                setDialog('bring');
+                              }}
+                            >
+                              <span className="menu-ico">📥</span> Bring items from another month…
+                            </button>
+                            <button
+                              role="menuitem"
+                              onClick={() => {
+                                setGroupMenu(false);
+                                setDialog('import');
+                              }}
+                            >
+                              <span className="menu-ico">📋</span> Paste from a spreadsheet
+                            </button>
+                            <button role="menuitem" className="danger" onClick={handleDeleteTab}>
+                              <span className="menu-ico">🗑</span> Delete the whole group “{currentGroup.name || 'Untitled'}”
+                            </button>
+                          </div>
                         </>
-                      );
-                    })()}
-                  </section>
-                )}
+                      )}
+                    </span>
+                  )
+                }
+              />
+            )}
 
-                {!query.trim() && (
-                <>
-                {tabs.length > 1 && grandTotal > 0 && (
-                  <Donut
-                    subtitle="By group · tap one to see its list."
-                    segments={(() => {
-                      const used = new Set();
-                      const spare = ['#e08ca4', '#d9a05f', '#84bda1', '#ac9ed8', '#e7bd55', '#84c4b5', '#df9c83', '#93bede'];
-                      return tabs
-                        .map((t) => ({ key: t.id, label: t.name || 'Untitled', value: tabInView(period.items?.[t.id], view, budgetCtx) }))
-                        .sort((a, b) => b.value - a.value)
-                        .map((g) => {
-                          let color = catStyle(g.label).color;
-                          if (used.has(color)) color = spare.find((c) => !used.has(c)) || color;
-                          used.add(color);
-                          return { ...g, color };
-                        });
-                    })()}
+            {periodExists && screen === 'category' && (
+              <CategoriesScreen categories={allCats} favs={favs} selected={shownCat} onSelect={openCategory}>
+                {shownCat && (
+                  <CategoryPage
+                    ledgerId={ledgerId}
+                    pk={pk}
+                    period={period}
+                    periods={periods}
+                    catKeyValue={shownCat}
+                    label={catLabel}
+                    catData={data.categories?.[shownCat]}
+                    tracks={data.tracks}
                     currency={currency}
-                    onPick={(id) => id && setActiveTab(id)}
+                    view={view}
+                    onViewChange={changeView}
+                    ctx={budgetCtx}
+                    key={shownCat}
+                    onOpenCategory={openCategory}
+                    fav={favs?.[shownCat]}
+                    onFav={() => setIconPick({ key: shownCat, label: catLabel })}
+                    onOpenItem={openItem}
                   />
                 )}
-                <section className="row">
-                  <h2 className="row-title">Groups</h2>
-                  <div className="cards" role="tablist">
-                    {tabs.map((t) => {
-                      const viewers = Object.entries(presence.others)
-                        .filter(([, o]) => o.tab === `${pk}:${t.id}`)
-                        .map(([u]) => u);
-                      const count = Object.keys(period.items?.[t.id] || {}).length;
-                      return (
-                        <button
-                          key={t.id}
-                          role="tab"
-                          aria-selected={t.id === tabId}
-                          className={`card-tab ${t.id === tabId ? 'active' : ''}`}
-                          style={{ '--h': hueFor(t.id) }}
-                          onClick={() => {
-                            setActiveTab(t.id);
-                            setGroupMenu(false);
-                          }}
-                        >
-                          <span className="card-count">
-                            {count} item{count === 1 ? '' : 's'}
-                          </span>
-                          {viewers.map((u) => (
-                            <span key={u} className="card-viewer" title={`${u} is here`}>
-                              {u[0].toUpperCase()}
-                            </span>
-                          ))}
-                          <span className="card-name">{t.name || 'Untitled'}</span>
-                          <span className="card-total">
-                            {formatMoney(tabInView(period.items?.[t.id], view, budgetCtx), currency)}
-                            <span className="card-per">{FREQS[view].short}</span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                    <button className="card-tab new" onClick={handleAddTab}>
-                      <span className="plus">＋</span>
-                      <span>New group</span>
-                    </button>
-                  </div>
-                </section>
-
-                {currentTab && (
-                  <section className="detail">
-                    <div className="detail-head">
-                      <h2 className="detail-title-text">{currentTab.name || 'Untitled'}</h2>
-                      <span className="list-menu-wrap">
-                        <button
-                          className="btn ghost sm"
-                          onClick={() => setGroupMenu((o) => !o)}
-                          aria-expanded={groupMenu}
-                          aria-label={`Options for the group ${currentTab.name || 'Untitled'}`}
-                        >
-                          ⋯ Group
-                        </button>
-                        {groupMenu && (
-                          <>
-                            <div className="menu-scrim" onClick={() => setGroupMenu(false)} />
-                            <div className="list-menu right" role="menu">
-                              <button role="menuitem" onClick={renameGroup}>
-                                <span className="menu-ico">✏️</span> Rename this group
-                              </button>
-                              <button
-                                role="menuitem"
-                                onClick={() => {
-                                  setGroupMenu(false);
-                                  setDialog('bring');
-                                }}
-                              >
-                                <span className="menu-ico">📥</span> Bring items from another month…
-                              </button>
-                              <button role="menuitem" className="danger" onClick={handleDeleteTab}>
-                                <span className="menu-ico">🗑</span> Delete the whole group “{currentTab.name || 'Untitled'}”
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </span>
-                    </div>
-                    {prevKey && (
-                      <p className="compare-note muted small">
-                        Changes are highlighted compared with <b>{periodLabel(prevKey)}</b>.
-                      </p>
-                    )}
-                    <ItemList
-                      key={`${pk}:${tabId}`}
-                      base={base}
-                      pk={pk}
-                      tabId={tabId}
-                      items={period.items?.[tabId]}
-                      prevPeriod={prevPeriod}
-                      prevLabel={prevLabel}
-                      categories={categoryNames}
-                      currency={currency}
-                      username={username}
-                      focusId={focusItemId}
-                      view={view}
-                      onViewChange={changeView}
-                      onAdd={() => addExpense('bill')}
-                      onImport={() => setDialog('import')}
-                      onOpenItem={openItem}
-                      ctx={budgetCtx}
-                    />
-                  </section>
-                )}
-                </>
-                )}
-              </>
-            )}
-
-            {periodExists && screen === 'spending' && (
-              <>
-                <div className="screen-head">
-                  <div>
-                    <h1 className="screen-title">Spending</h1>
-                    <span className="muted small">Log what you spend and see what’s left</span>
-                  </div>
-                  <div className="row-gap">
-                    <button className="btn glass sm" onClick={() => setDialog('statement')}>
-                      📄 Import
-                    </button>
-                    {budgetCount > 0 && (
-                      <button className="btn glass sm" onClick={() => addExpense('budget')}>
-                        ＋ New budget
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <BudgetsPanel
-                  key={pk}
-                  ledgerId={ledgerId}
-                  pk={pk}
-                  period={period}
-                  tabs={tabs}
-                  spending={data.spending}
-                  currency={currency}
-                  username={username}
-                  onOpenItem={openItem}
-                  onAddBudget={() => addExpense('budget')}
-                />
-                <SpendingOverview pk={pk} period={period} tabs={tabs} spending={data.spending} currency={currency} onOpenItem={openItem} />
-              </>
-            )}
-
-            {periodExists && screen === 'savings' && (
-              <>
-                <div className="screen-head">
-                  <div>
-                    <h1 className="screen-title">Savings</h1>
-                    <span className="muted small">Money put aside, month by month</span>
-                  </div>
-                  {potCount > 0 && (
-                    <button className="btn glass sm" onClick={() => addExpense('savings')}>
-                      ＋ New savings
-                    </button>
-                  )}
-                </div>
-                <SavingsPanel
-                  ledgerId={ledgerId}
-                  username={username}
-                  pk={pk}
-                  period={period}
-                  tabs={tabs}
-                  tracks={data.tracks}
-                  periods={periods}
-                  currency={currency}
-                  onOpenItem={openItem}
-                  onAddSavings={() => addExpense('savings')}
-                />
-              </>
+              </CategoriesScreen>
             )}
           </main>
         )}
 
-        <BottomNav screen={catView ? 'bills' : screen} onChange={setScreen} />
+        <BottomNav screen={screen} onChange={setScreen} />
 
         {sheetItem && (
           <ItemSheet
@@ -909,17 +705,6 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
               setDialog(null);
               addExpense('budget');
             }}
-            onClose={() => setDialog(null)}
-          />
-        )}
-        {dialog === 'categories' && (
-          <CategoriesSheet
-            categories={categoryList}
-            favs={favs}
-            currency={currency}
-            view={view}
-            onOpen={openCategory}
-            onFav={(key, label) => setIconPick({ key, label })}
             onClose={() => setDialog(null)}
           />
         )}

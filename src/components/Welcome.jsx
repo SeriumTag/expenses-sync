@@ -7,7 +7,7 @@ const STEPS = [
     icon: '👋',
     title: 'Welcome!',
     text: 'This app shows how much money is left each month, after your expenses. You can share it with your partner and both see changes as they happen.',
-    points: ['🏠 Home: what’s left this month, for each of you', '‹ › Arrows at the top switch months'],
+    points: ['🏠 Home: what’s left this month, for each of you', '‹ › Arrows at the top switch months', 'Tap your character to pick a different friend'],
   },
   {
     icon: '💸',
@@ -20,8 +20,8 @@ const STEPS = [
     title: 'Everything has its place',
     text: 'Use the tabs at the bottom:',
     points: [
-      '📋 Expenses: your bills, in groups (like Home, Car, Kids)',
-      '🐷 Savings: money put aside, month by month',
+      '📋 Bills: Spending (one-time), Recurring, Savings and your Expenses List, all on one page',
+      '🏷️ Category: every category; tap one to see what’s in it',
       'Tap anything to see or change it',
       'Deleting always asks twice, and goes to the bin for 7 days',
     ],
