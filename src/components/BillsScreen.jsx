@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FREQS, amountInView, potBalance, recurOf, setAsideTab, sorted, yearOf, yearlyRecurringSetAside } from '../lib/budget';
+import { FREQS, amountInView, potBalance, recurOf, setAsideTab, sorted, tabInView, yearOf, yearlyRecurringSetAside } from '../lib/budget';
 import { prefs } from '../lib/session';
 import { duplicateItems, mergeItems, ordersAfter, reorderItems } from '../lib/db';
 import { reordered, useDragSort } from '../hooks/useDragSort';
@@ -175,14 +175,18 @@ export default function BillsScreen(props) {
         <>
           {/* Group filter */}
           <div className="group-chips" role="tablist" aria-label="Groups">
-            <button role="tab" aria-selected={group === 'all'} className={`chip ${group === 'all' ? 'active' : ''}`} onClick={() => onGroup('all')}>
-              All
-            </button>
-            {tabs.map((t) => (
-              <button key={t.id} role="tab" aria-selected={group === t.id} className={`chip ${group === t.id ? 'active' : ''}`} onClick={() => onGroup(t.id)}>
-                {t.name || 'Untitled'}
-              </button>
-            ))}
+            {/* Each chip carries its group's total, so the summary is visible at a glance. */}
+            {[{ id: 'all', name: 'All', total: tabs.reduce((sum, t) => sum + tabInView(period.items?.[t.id], view, ctx), 0) }]
+              .concat(tabs.map((t) => ({ id: t.id, name: t.name || 'Untitled', total: tabInView(period.items?.[t.id], view, ctx) })))
+              .map((g) => (
+                <button key={g.id} role="tab" aria-selected={group === g.id} className={`chip group-chip ${group === g.id ? 'active' : ''}`} onClick={() => onGroup(g.id)}>
+                  <span className="gc-name">{g.name}</span>
+                  <span className="gc-total">
+                    {formatMoney(g.total, currency)}
+                    {FREQS[view].short}
+                  </span>
+                </button>
+              ))}
             <button className="chip dashed" onClick={onAddTab}>
               ＋ Group
             </button>

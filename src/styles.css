@@ -1768,6 +1768,9 @@ body {
 .bills { display: flex; flex-direction: column; gap: 12px; }
 .group-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .group-chips .chip { font-weight: 800; }
+.group-chip { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 12px; border-radius: 16px; text-align: left; line-height: 1.15; }
+.gc-name { font-size: 13px; font-weight: 900; }
+.gc-total { font-size: 11.5px; font-weight: 800; opacity: 0.75; font-variant-numeric: tabular-nums; }
 .group-chips .chip.dashed { border-style: dashed; color: var(--muted); background: transparent; }
 .bills-tools { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .bills-section { scroll-margin-top: 80px; }
