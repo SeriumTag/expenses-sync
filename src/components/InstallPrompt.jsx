@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { prefs } from '../lib/session';
 
-const DISMISS_DAYS = 14;
-const AUTO_SHOW_MS = 4000;
+const SHOW_AFTER_MS = 1500; // once the splash has gone
+const SESSION_KEY = 'expense-sync:install-dismissed'; // "Not now" lasts for this visit only
 
 // ── Where are we? ────────────────────────────────────────────────────
 const ua = () => navigator.userAgent || '';
@@ -11,7 +11,8 @@ const isAndroid = () => /android/i.test(ua());
 const isMobile = () => isIOS() || isAndroid() || /mobi/i.test(ua());
 function browserName() {
   const u = ua();
-  if (/edg\//i.test(u)) return 'edge';
+  if (/samsungbrowser/i.test(u)) return 'samsung';
+  if (/edg(e|ios|a)?\//i.test(u)) return 'edge';
   if (/firefox|fxios/i.test(u)) return 'firefox';
   if (/chrome|chromium|crios/i.test(u)) return 'chrome';
   if (/safari/i.test(u)) return 'safari';
@@ -28,7 +29,30 @@ export const isStandalone = () =>
 // Anything can open the guide again (e.g. the profile menu) by dispatching this.
 export const showInstallPrompt = () => window.dispatchEvent(new Event('show-install'));
 
-// How to install, step by step, for computers without a one-click Install.
+const dismissedThisVisit = () => {
+  try {
+    return sessionStorage.getItem(SESSION_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+
+function ShareIcon() {
+  return (
+    <svg className="ios-share" viewBox="0 0 24 24" width="18" height="18" aria-label="Share">
+      <path
+        d="M12 3v12M12 3l-4 4M12 3l4 4M7 10H5.5A1.5 1.5 0 0 0 4 11.5v8A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5v-8a1.5 1.5 0 0 0-1.5-1.5H17"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// How to install, step by step, when the browser has no one-click Install.
 const DESKTOP_STEPS = {
   chrome: [
     <>
@@ -61,7 +85,7 @@ const DESKTOP_STEPS = {
     </>,
   ],
   firefox: [
-    <>Firefox can’t install web apps.</>,
+    <>Firefox on a computer can’t install web apps.</>,
     <>
       Open this page in <b>Chrome</b>, <b>Edge</b> or <b>Safari</b>, then install it from there. You stay signed in on each browser for 6 months.
     </>,
@@ -74,23 +98,65 @@ const DESKTOP_STEPS = {
   ],
 };
 
-function ShareIcon() {
-  return (
-    <svg className="ios-share" viewBox="0 0 24 24" width="18" height="18" aria-label="Share">
-      <path
-        d="M12 3v12M12 3l-4 4M12 3l4 4M7 10H5.5A1.5 1.5 0 0 0 4 11.5v8A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5v-8a1.5 1.5 0 0 0-1.5-1.5H17"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
+const PHONE_STEPS = {
+  iosSafari: [
+    <>
+      Tap <ShareIcon /> <b>Share</b> in the bar at the bottom (or top on iPad)
+    </>,
+    <>
+      Scroll down and tap <b>Add to Home Screen</b>, then <b>Add</b>
+    </>,
+  ],
+  iosOther: [
+    <>
+      Tap <ShareIcon /> <b>Share</b> in the address bar
+    </>,
+    <>
+      Tap <b>Add to Home Screen</b>, then <b>Add</b>
+    </>,
+    <>If you don’t see it, open this page in Safari and do the same there.</>,
+  ],
+  chrome: [
+    <>
+      Tap the <b>⋮ menu</b> at the top right
+    </>,
+    <>
+      Tap <b>Add to Home screen</b> (or <b>Install app</b>), then <b>Install</b>
+    </>,
+  ],
+  samsung: [
+    <>
+      Tap the <b>≡ menu</b> at the bottom
+    </>,
+    <>
+      Tap <b>Add page to</b> → <b>Home screen</b>
+    </>,
+  ],
+  firefox: [
+    <>
+      Tap the <b>⋮ menu</b>
+    </>,
+    <>
+      Tap <b>Install</b> (or <b>Add to Home screen</b>)
+    </>,
+  ],
+  other: [
+    <>
+      Open your browser’s menu and look for <b>Add to Home screen</b> or <b>Install app</b>
+    </>,
+    <>If there isn’t one, open this page in Chrome (Android) or Safari (iPhone).</>,
+  ],
+};
+
+function stepsFor(ios, mobile, browser) {
+  if (ios) return browser === 'safari' ? PHONE_STEPS.iosSafari : PHONE_STEPS.iosOther;
+  if (mobile) return PHONE_STEPS[browser === 'edge' ? 'chrome' : browser] || PHONE_STEPS.other;
+  return DESKTOP_STEPS[browser] || DESKTOP_STEPS.other;
 }
 
-// Suggests installing the app — on phones and on computers — until it's
-// installed. Remembers once it is (and when it was last dismissed).
+// Asks to install the app every time the site is opened in a browser (not
+// when it's already running as the installed app). "Not now" lasts for this
+// visit; "I've already installed it" stops it on this browser.
 export default function InstallPrompt() {
   const [deferred, setDeferred] = useState(null); // the browser's own install prompt (Chrome / Edge / Android)
   const [show, setShow] = useState(false);
@@ -99,18 +165,18 @@ export default function InstallPrompt() {
   const browser = browserName();
 
   useEffect(() => {
-    // Opened as the installed app: remember, so the browser tab never asks again.
+    // Opened as the installed app: remember, so this browser stops asking.
     if (isStandalone()) {
       prefs.set('installed', true);
       return undefined;
     }
-    const snoozed = () => prefs.get('installed') || prefs.get('install-dismissed-until') > Date.now();
+    const quiet = () => prefs.get('installed') || dismissedThisVisit();
 
     const onManual = () => setShow(true);
     const onInstallable = (e) => {
       e.preventDefault();
-      setDeferred(e);
-      if (!snoozed()) setShow(true);
+      setDeferred(e); // the guide (if already showing) becomes a one-click Install
+      if (!quiet()) setShow(true);
     };
     const onInstalled = () => {
       prefs.set('installed', true);
@@ -120,13 +186,7 @@ export default function InstallPrompt() {
     window.addEventListener('show-install', onManual);
     window.addEventListener('beforeinstallprompt', onInstallable);
     window.addEventListener('appinstalled', onInstalled);
-
-    // Browsers without a one-click install: show how, once in a while. (Chrome
-    // and Edge announce themselves with beforeinstallprompt; when they don't,
-    // the app is usually installed already, so they aren't nagged.)
-    let timer;
-    const guided = ios || (!mobile && (browser === 'safari' || browser === 'firefox'));
-    if (guided && !snoozed()) timer = setTimeout(() => setShow(true), AUTO_SHOW_MS);
+    const timer = setTimeout(() => !quiet() && setShow(true), SHOW_AFTER_MS);
 
     return () => {
       window.removeEventListener('show-install', onManual);
@@ -134,14 +194,20 @@ export default function InstallPrompt() {
       window.removeEventListener('appinstalled', onInstalled);
       clearTimeout(timer);
     };
-  }, [ios, mobile, browser]);
+  }, []);
 
   if (!show || isStandalone()) return null;
 
-  const dismiss = () => {
-    // Firefox can't install at all, so it's only mentioned once.
-    const days = browser === 'firefox' && !mobile ? 3650 : DISMISS_DAYS;
-    prefs.set('install-dismissed-until', Date.now() + days * 86400000);
+  const notNow = () => {
+    try {
+      sessionStorage.setItem(SESSION_KEY, '1');
+    } catch {
+      /* private mode: it just shows again next time */
+    }
+    setShow(false);
+  };
+  const alreadyInstalled = () => {
+    prefs.set('installed', true);
     setShow(false);
   };
   const install = async () => {
@@ -152,73 +218,40 @@ export default function InstallPrompt() {
     setShow(false);
   };
 
-  // ── Computer ──
-  if (!mobile) {
-    const steps = DESKTOP_STEPS[browser] || DESKTOP_STEPS.other;
-    return (
-      <div className="install-desk" role="dialog" aria-label="Install Expense Sync on this computer">
-        <button className="icon-btn install-x" onClick={dismiss} aria-label="Not now">
-          ✕
-        </button>
-        <div className="install-desk-head">
-          <img src="/duffy.webp" className="install-mascot" alt="" />
-          <div>
-            <b>Install Expense Sync on this computer</b>
-            <span>Opens in its own window like a normal app, with a shortcut on your desktop.</span>
-          </div>
-        </div>
-        {deferred ? (
-          <div className="row-gap">
-            <button className="btn primary" onClick={install}>
-              ⬇ Install
-            </button>
-            <button className="btn ghost sm" onClick={dismiss}>
-              Not now
-            </button>
-          </div>
-        ) : (
-          <>
-            <ol className="install-steps">
-              {steps.map((s, i) => (
-                <li key={i}>{s}</li>
-              ))}
-            </ol>
-            <button className="btn glass sm" onClick={dismiss}>
-              Got it
-            </button>
-          </>
-        )}
-      </div>
-    );
-  }
+  const steps = stepsFor(ios, mobile, browser);
 
-  // ── Phone / tablet ──
   return (
-    <div className="install-sheet" role="dialog" aria-label="Install the app">
-      <img src="/apple-touch-icon.png" className="install-icon" alt="" />
-      <div className="install-text">
-        <b>Get the Expense Sync app</b>
-        {ios ? (
-          <span>
-            Tap <ShareIcon /> <b>Share</b> below, then <b>Add to Home Screen</b>
-          </span>
-        ) : deferred ? (
-          <span>Install it for full-screen, one-tap access.</span>
-        ) : (
-          <span>
-            Open your browser’s <b>⋮ menu</b> → <b>Install app</b> or <b>Add to Home screen</b>.
-          </span>
-        )}
-      </div>
-      {deferred && (
-        <button className="btn primary sm" onClick={install}>
-          Install
-        </button>
-      )}
-      <button className="icon-btn" onClick={dismiss} aria-label="Not now">
+    <div className={`install-card ${mobile ? 'phone' : 'desk'}`} role="dialog" aria-label="Install Expense Sync">
+      <button className="icon-btn install-x" onClick={notNow} aria-label="Not now">
         ✕
       </button>
-      {ios && <span className="install-arrow" aria-hidden="true" />}
+      <div className="install-head">
+        <img src="/duffy.webp" className="install-mascot" alt="" />
+        <div>
+          <b>Get Expense Sync as an app</b>
+          <span>{mobile ? 'One tap from your home screen, full screen and faster.' : 'One click from your desktop, in its own window and faster.'}</span>
+        </div>
+      </div>
+      {deferred ? (
+        <button className="btn primary install-go" onClick={install}>
+          ⬇ Install
+        </button>
+      ) : (
+        <ol className="install-steps">
+          {steps.map((s, i) => (
+            <li key={i}>{s}</li>
+          ))}
+        </ol>
+      )}
+      <div className="install-foot">
+        <button className="link-btn" onClick={alreadyInstalled}>
+          I’ve already installed it
+        </button>
+        <button className="btn glass sm" onClick={notNow}>
+          Not now
+        </button>
+      </div>
+      {ios && browser === 'safari' && !deferred && <span className="install-arrow" aria-hidden="true" />}
     </div>
   );
 }

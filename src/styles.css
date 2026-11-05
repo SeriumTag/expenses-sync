@@ -1083,23 +1083,7 @@ body.dragging-now, body.dragging-now * { cursor: grabbing !important; user-selec
 .error-detail { white-space: pre-wrap; color: var(--danger); font-size: 12px; margin: 0 0 14px; background: var(--danger-soft); }
 
 /* ───────── Install sheet ───────── */
-.install-sheet {
-  position: fixed; left: 12px; right: 12px; z-index: 70;
-  bottom: calc(var(--safe-bottom) + 14px);
-  max-width: 480px; margin: 0 auto;
-  display: flex; align-items: center; gap: 12px;
-  background: color-mix(in srgb, var(--paper) 96%, transparent);
-  backdrop-filter: blur(16px);
-  border-radius: 22px;
-  padding: 12px 10px 12px 12px;
-  box-shadow: var(--shadow-lg);
-  animation: fade-up 0.35s both;
-}
-.install-icon { width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0; }
-.install-text { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--muted); line-height: 1.4; }
-.install-text > b { color: var(--text); font-size: 15px; }
 .ios-share { display: inline-block; vertical-align: -3px; color: #0a84ff; }
-.install-arrow { position: absolute; bottom: -8px; left: 50%; margin-left: -8px; border: 8px solid transparent; border-bottom: none; border-top-color: color-mix(in srgb, var(--paper) 96%, transparent); }
 
 /* ───────── Desktop ───────── */
 @media (min-width: 641px) {
@@ -1652,22 +1636,7 @@ input:focus, select:focus, textarea:focus { border-color: var(--accent); }
 .day-input { width: 70px !important; text-align: center; }
 
 /* Install guide on computers */
-.install-desk {
-  position: fixed; right: 20px; bottom: 20px; z-index: 120; width: min(380px, calc(100vw - 32px));
-  display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 24px;
-  background: var(--surface); border: 1.5px solid var(--line); box-shadow: var(--shadow-lg);
-  animation: fade-in 0.3s both;
-}
-.install-desk-head { display: flex; gap: 12px; align-items: center; padding-right: 24px; }
-.install-desk-head b { display: block; font-family: var(--display); font-weight: 800; font-size: 17px; line-height: 1.2; }
-.install-desk-head span { color: var(--muted); font-size: 13px; font-weight: 700; line-height: 1.4; }
-.install-mascot { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 3px solid var(--honey-soft); background: #fdf6ec; flex-shrink: 0; }
-.install-x { position: absolute; top: 10px; right: 10px; }
-.install-steps { margin: 0; padding: 12px 14px 12px 32px; border-radius: 16px; background: var(--butter-soft); font-size: 13.5px; font-weight: 600; line-height: 1.55; display: flex; flex-direction: column; gap: 6px; }
-.install-steps b { font-weight: 900; }
 .kbd { display: inline-grid; place-items: center; min-width: 22px; height: 20px; padding: 0 5px; border-radius: 6px; border: 1.5px solid var(--line); background: var(--surface); font-size: 12px; font-weight: 900; }
-.install-desk > .btn.glass { align-self: flex-end; }
-@media (max-width: 899px) { .install-desk { bottom: calc(90px + var(--safe-bottom, 0px)); } }
 
 /* Compact item card */
 .compact-sheet { gap: 10px; }
@@ -1915,3 +1884,23 @@ body {
 .drive-form .full { grid-column: 1 / -1; }
 .drive-form .seg { align-self: flex-start; }
 .import-text { width: 100%; font: 12px ui-monospace, Consolas, monospace; border: 1.5px solid var(--line); border-radius: 12px; padding: 8px; background: var(--surface); color: var(--text); }
+
+/* ── Install prompt: one card, bottom sheet on phones, corner card on computers ── */
+.install-card {
+  position: fixed; z-index: 120; display: flex; flex-direction: column; gap: 12px; padding: 18px;
+  border-radius: 24px; background: var(--surface); border: 1.5px solid var(--line); box-shadow: var(--shadow-lg);
+  animation: fade-up 0.35s both;
+}
+.install-card.desk { right: 20px; bottom: 20px; width: min(380px, calc(100vw - 32px)); }
+.install-card.phone { left: 12px; right: 12px; bottom: calc(var(--safe-bottom, 0px) + 84px); max-width: 480px; margin: 0 auto; }
+.install-head { display: flex; gap: 12px; align-items: center; padding-right: 26px; }
+.install-head b { display: block; font-family: var(--display); font-weight: 800; font-size: 17px; line-height: 1.2; }
+.install-head span { color: var(--muted); font-size: 13px; font-weight: 700; line-height: 1.4; }
+.install-mascot { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 3px solid var(--honey-soft); background: #fdf6ec; flex-shrink: 0; }
+.install-x { position: absolute; top: 10px; right: 10px; }
+.install-steps { margin: 0; padding: 12px 14px 12px 32px; border-radius: 16px; background: var(--butter-soft); font-size: 13.5px; font-weight: 600; line-height: 1.55; display: flex; flex-direction: column; gap: 4px; }
+.install-steps b { font-weight: 900; }
+.install-go { justify-content: center; padding: 13px !important; font-size: 16px !important; }
+.install-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.install-foot .link-btn { font-size: 12.5px; color: var(--muted); }
+.install-arrow { position: absolute; bottom: -9px; left: 50%; margin-left: -9px; border: 9px solid transparent; border-bottom: none; border-top-color: var(--surface); }
