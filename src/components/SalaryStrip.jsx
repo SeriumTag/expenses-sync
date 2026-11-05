@@ -5,6 +5,8 @@ import { formatMoney, parseAmount } from '../lib/format';
 import LiveInput from './LiveInput';
 import Modal from './Modal';
 import { confirmTwice } from '../lib/confirm';
+import { cycleForPeriod, grabIncomeFor } from '../lib/drive';
+import GrabBadge from './drive/GrabBadge';
 
 // Summary cards at the top: each person's salary and what's left after the
 // head categories they chose.
@@ -45,15 +47,26 @@ export function SalaryStrip({ base, period, currency, view, ctx, onOpen }) {
   );
 }
 
-export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, ctx, onClose }) {
+export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, ctx, drive, onOpenDrive, onClose }) {
   const path = `${base}/people/${personId}`;
   const { salary, spent, left } = afterExpenses(person, period, view, ctx);
   const chosen = person.tabs || {};
   const incomes = sorted(person.incomes);
   const [newIncome, setNewIncome] = useState(null); // focus the name of a just-added income
+  const [askGrab, setAskGrab] = useState(false); // "Is this earning from Grab?"
+  const hasGrab = incomes.some((x) => x.grab);
+  const cycle = /^\d{4}-\d{2}$/.test(pk) ? cycleForPeriod(pk) : null;
+  const shortD = (s) => new Date(`${s}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-  function addIncome() {
+  // A person has at most one Grab income; until then, ask each time.
+  function addIncome(grab = false) {
+    setAskGrab(false);
     const id = newKey(`${path}/incomes`);
+    if (grab) {
+      // Its amount comes from the Drive page: this month's car-payment cycle, net after petrol.
+      patchPath(`${path}/incomes/${id}`, { name: 'Grab', grab: true, amount: grabIncomeFor(drive, pk), order: Date.now() });
+      return;
+    }
     setNewIncome(id);
     patchPath(`${path}/incomes/${id}`, { name: '', amount: 0, order: Date.now() });
   }
@@ -69,6 +82,7 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
   }
 
   return (
+    <>
     <Modal title="Salary" onClose={onClose}>
       <div className="sheet">
         <div className="sheet-grid">
@@ -103,7 +117,21 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
           {incomes.length === 0 && <p className="muted small">Side jobs, allowances, rental… e.g. Grab $1,200 a month.</p>}
           {incomes.length > 0 && (
             <div className="income-list">
-              {incomes.map((x) => (
+              {incomes.map((x) =>
+                x.grab ? (
+                <div key={x.id} className="income-row grab-income">
+                  <button className="grab-open" onClick={onOpenDrive} title="Open the Drive page">
+                    <GrabBadge />
+                    <span className="grab-open-text">
+                      <b>{formatMoney(x.amount, currency)}</b>
+                      <span className="muted small">{cycle ? `cycle ${shortD(cycle.start)} – ${shortD(cycle.end)}` : 'from the Drive page'} · open ›</span>
+                    </span>
+                  </button>
+                  <button className="icon-btn" aria-label="Remove the Grab income" onClick={() => removeIncome(x)}>
+                    ✕
+                  </button>
+                </div>
+                ) : (
                 <div key={x.id} className="income-row">
                   <LiveInput
                     className="income-name"
@@ -131,11 +159,12 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
                     ✕
                   </button>
                 </div>
-              ))}
+                ),
+              )}
             </div>
           )}
           <div className="sheet-row between">
-            <button className="btn glass sm" onClick={addIncome}>
+            <button className="btn glass sm" onClick={() => (hasGrab ? addIncome(false) : setAskGrab(true))}>
               ＋ Add income
             </button>
             {incomes.length > 0 && (
@@ -185,5 +214,25 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
         </div>
       </div>
     </Modal>
+    {askGrab && (
+      <Modal title="New income" onClose={() => setAskGrab(false)}>
+        <div className="sheet ask-grab">
+          <GrabBadge />
+          <p>
+            <b>Is this earning from Grab?</b>
+          </p>
+          <p className="muted small">If yes, it’s worked out for you from the Drive page: each month is the car-payment cycle (14th to 13th), net after petrol.</p>
+          <div className="row-gap center">
+            <button className="btn ghost" onClick={() => addIncome(false)}>
+              No, another income
+            </button>
+            <button className="btn primary" onClick={() => addIncome(true)}>
+              Yes, it’s Grab
+            </button>
+          </div>
+        </div>
+      </Modal>
+    )}
+    </>
   );
 }

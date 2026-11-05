@@ -1,13 +1,14 @@
 import { afterExpenses, budgetItems, budgetStatus, spendStats, isYearKey, potBalance, setAsideTab, sorted, trackedItems, yearOf, yearlyRecurringSetAside } from '../lib/budget';
 import { formatMoney } from '../lib/format';
 import { useMascot } from '../lib/mascot';
+import GrabBadge from './drive/GrabBadge';
 
 // The first screen, top to bottom: each person (greeted by their plush friend),
 // the two everyday buttons, this month's spend stats, then savings and the
 // monthly set-aside for yearly bills.
 export default function HomeScreen(props) {
   const { pk, period, tabs, ctx, currency, username } = props;
-  const { onLogSpend, onAddBill, onGoto, onOpenPerson, onAddPerson } = props;
+  const { onLogSpend, onAddBill, onGoto, onOpenPerson, onAddPerson, onOpenDrive } = props;
   const { friend, onPick } = useMascot();
   const view = isYearKey(pk) ? 'yearly' : 'monthly';
 
@@ -50,6 +51,27 @@ export default function HomeScreen(props) {
                   <span className="muted small">Income</span>
                   <b>{formatMoney(mine.salary, currency)}</b>
                 </span>
+                {/* A Grab income: its icon opens the Drive page (the tile itself opens the person). */}
+                {Object.values(p.incomes || {}).some((x) => x.grab) && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    className="pt-grab"
+                    title="Open the Drive page"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenDrive(p.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onOpenDrive(p.id);
+                    }}
+                  >
+                    <GrabBadge small /> ›
+                  </span>
+                )}
                 {picked ? (
                   <>
                     <span className="pt-line">

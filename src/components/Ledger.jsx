@@ -67,6 +67,8 @@ import { CatPermContext, canEditCategories } from '../lib/catPerm';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import MascotPicker from './MascotPicker';
+import DriveScreen from './drive/DriveScreen';
+import { grabIncomeFor } from '../lib/drive';
 import ThemeDialog from './ThemeDialog';
 import { confirmTwice } from '../lib/confirm';
 
@@ -93,6 +95,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   });
   const [billsGroup, setBillsGroup] = useState('all'); // group filter on Bills
   const [billsScroll, setBillsScroll] = useState(null); // { key } section to scroll to on Bills
+  const [driveFor, setDriveFor] = useState(null); // person whose Drive (Grab) page is open
   const [spendOpen, setSpendOpen] = useState(null); // budget to open on the Spending tab
   const [groupMenu, setGroupMenu] = useState(false);
   // The short tour: once per device, and from the menu.
@@ -217,6 +220,24 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
       });
   }, [canBuild, pk, ledgerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Grab incomes aren't typed in: each month's is that month's car-payment
+  // cycle from the Drive page (net after petrol). Keep the stored amounts in
+  // step, so every total (and the other phone) sees the same figure.
+  useEffect(() => {
+    if (!data?.periods) return;
+    const patch = {};
+    for (const [key, p] of Object.entries(data.periods)) {
+      for (const [pid, person] of Object.entries(p?.people || {})) {
+        for (const [iid, inc] of Object.entries(person?.incomes || {})) {
+          if (!inc?.grab) continue;
+          const amount = grabIncomeFor(data.drive?.[pid], key);
+          if (Math.abs((Number(inc.amount) || 0) - amount) > 0.005) patch[`periods/${key}/people/${pid}/incomes/${iid}/amount`] = amount;
+        }
+      }
+    }
+    if (Object.keys(patch).length) patchPath(`ledgers/${ledgerId}`, patch);
+  }, [data?.periods, data?.drive, ledgerId]);
+
   const noAccess = Boolean(data) && !data.members?.[username];
   useEffect(() => {
     if (data && (pk || noAccess)) hideSplash();
@@ -294,6 +315,12 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     if (isYearKey(pk)) return selectPeriod(String(Number(pk) + dir));
     const d = new Date(Number(pk.slice(0, 4)), Number(pk.slice(5, 7)) - 1 + dir, 1);
     selectPeriod(monthKey(d.getFullYear(), d.getMonth()));
+  };
+  // The Drive page for a person's Grab income (from their sheet or Home tile).
+  const openDrive = (pid) => {
+    setSheet(null);
+    setDriveFor(pid);
+    window.scrollTo(0, 0);
   };
   // "Log a spend" opens a quick sheet over whatever screen is showing.
   const logSpend = (budgetId) => {
@@ -458,8 +485,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
               onToday={() => selectPeriod(nowKey)}
             />
 
-            {canBuild && <p className="muted center-text">Setting up {periodLabel(pk)}…</p>}
-            {!periodExists && !canBuild && (
+            {!driveFor && canBuild && <p className="muted center-text">Setting up {periodLabel(pk)}…</p>}
+            {!driveFor && !periodExists && !canBuild && (
               <section className="new-month">
                 <div className="new-month-icon" aria-hidden="true">
                   🗓️
@@ -480,7 +507,19 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
               </section>
             )}
 
-            {periodExists && screen === 'home' && (
+            {driveFor && (
+              <DriveScreen
+                ledgerId={ledgerId}
+                pk={pk}
+                personId={driveFor}
+                personName={period?.people?.[driveFor]?.name || Object.values(periods).map((p) => p?.people?.[driveFor]?.name).find(Boolean) || ''}
+                drive={data.drive?.[driveFor]}
+                currency={currency}
+                onBack={() => setDriveFor(null)}
+              />
+            )}
+
+            {periodExists && !driveFor && screen === 'home' && (
               <HomeScreen
                 pk={pk}
                 period={period}
@@ -496,10 +535,11 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                 onGoto={gotoScreen}
                 onOpenPerson={(id) => setSheet({ type: 'person', id })}
                 onAddPerson={addPerson}
+                onOpenDrive={openDrive}
               />
             )}
 
-            {periodExists && screen === 'bills' && (
+            {periodExists && !driveFor && screen === 'bills' && (
               <BillsScreen
                 base={base}
                 pk={pk}
@@ -574,7 +614,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
               />
             )}
 
-            {periodExists && screen === 'category' && (
+            {periodExists && !driveFor && screen === 'category' && (
               <CategoriesScreen categories={allCats} favs={favs} selected={shownCat} onSelect={openCategory}>
                 {shownCat && (
                   <CategoryPage
@@ -602,7 +642,13 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
           </main>
         )}
 
-        <BottomNav screen={screen} onChange={setScreen} />
+        <BottomNav
+          screen={screen}
+          onChange={(k) => {
+            setDriveFor(null);
+            setScreen(k);
+          }}
+        />
 
         {sheetItem && (
           <ItemSheet
@@ -669,6 +715,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             currency={currency}
             view={view}
             ctx={budgetCtx}
+            drive={data.drive?.[sheet.id]}
+            onOpenDrive={() => openDrive(sheet.id)}
             onClose={() => setSheet(null)}
           />
         )}
