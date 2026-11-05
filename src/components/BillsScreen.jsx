@@ -5,6 +5,7 @@ import { duplicateItems, mergeItems, ordersAfter, reorderItems } from '../lib/db
 import { reordered, useDragSort } from '../hooks/useDragSort';
 import { formatMoney } from '../lib/format';
 import ItemRow, { matchesSearch } from './ItemRow';
+import { friendOf } from '../lib/mascot';
 
 // Every bill on one page, sorted by what kind it is (like the design sample),
 // instead of by group. Groups stay as a label on each row and a filter on top.
@@ -177,13 +178,16 @@ export default function BillsScreen(props) {
           <div className="group-chips" role="tablist" aria-label="Groups">
             {/* Each chip carries its group's total, so the summary is visible at a glance. */}
             {[{ id: 'all', name: 'All', total: tabs.reduce((sum, t) => sum + tabInView(period.items?.[t.id], view, ctx), 0) }]
-              .concat(tabs.map((t) => ({ id: t.id, name: t.name || 'Untitled', total: tabInView(period.items?.[t.id], view, ctx) })))
+              .concat(tabs.map((t) => ({ id: t.id, name: t.name || 'Untitled', friend: t.friend, total: tabInView(period.items?.[t.id], view, ctx) })))
               .map((g) => (
-                <button key={g.id} role="tab" aria-selected={group === g.id} className={`chip group-chip ${group === g.id ? 'active' : ''}`} onClick={() => onGroup(g.id)}>
-                  <span className="gc-name">{g.name}</span>
-                  <span className="gc-total">
-                    {formatMoney(g.total, currency)}
-                    {FREQS[view].short}
+                <button key={g.id} role="tab" aria-selected={group === g.id} className={`chip group-chip ${g.friend ? 'has-friend' : ''} ${group === g.id ? 'active' : ''}`} onClick={() => onGroup(g.id)}>
+                  {g.friend && <img className="gc-friend" src={friendOf(g.friend).src} alt="" title={friendOf(g.friend).name} />}
+                  <span className="gc-text">
+                    <span className="gc-name">{g.name}</span>
+                    <span className="gc-total">
+                      {formatMoney(g.total, currency)}
+                      {FREQS[view].short}
+                    </span>
                   </span>
                 </button>
               ))}

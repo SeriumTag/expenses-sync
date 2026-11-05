@@ -35,6 +35,7 @@ import {
   moveLedgerToBin,
   periodPath,
   renameTab,
+  setTabFriend,
   unlinkLedger,
   newKey,
   patchPath,
@@ -65,6 +66,7 @@ import BringItemsDialog from './BringItemsDialog';
 import { CatPermContext, canEditCategories } from '../lib/catPerm';
 import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
+import MascotPicker from './MascotPicker';
 import ThemeDialog from './ThemeDialog';
 import { confirmTwice } from '../lib/confirm';
 
@@ -537,6 +539,15 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                               role="menuitem"
                               onClick={() => {
                                 setGroupMenu(false);
+                                setDialog('groupFriend');
+                              }}
+                            >
+                              <span className="menu-ico">🧸</span> Choose a character…
+                            </button>
+                            <button
+                              role="menuitem"
+                              onClick={() => {
+                                setGroupMenu(false);
                                 setDialog('bring');
                               }}
                             >
@@ -705,6 +716,15 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
               setDialog(null);
               addExpense('budget');
             }}
+            onClose={() => setDialog(null)}
+          />
+        )}
+        {dialog === 'groupFriend' && currentGroup && (
+          <MascotPicker
+            title={`Character for ${currentGroup.name || 'this group'}`}
+            current={currentGroup.friend || null}
+            allowNone
+            onChoose={(key) => setTabFriend(ledgerId, periods, pk, currentGroup.id, key)}
             onClose={() => setDialog(null)}
           />
         )}

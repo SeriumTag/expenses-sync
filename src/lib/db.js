@@ -176,6 +176,16 @@ export function renameTab(base, tabId, name) {
   return update(ref(db, `${base}/tabs/${tabId}`), { name });
 }
 
+// A group's character (a plush friend key, or null for none): this month and
+// the later months that already have the group, so it stays the same going forward.
+export function setTabFriend(ledgerId, periods, pk, tabId, friend) {
+  const patch = {};
+  for (const [key, p] of Object.entries(periods || {})) {
+    if (key >= pk && key.length === pk.length && p?.tabs?.[tabId]) patch[`periods/${key}/tabs/${tabId}/friend`] = friend || null;
+  }
+  return update(ref(db, `ledgers/${ledgerId}`), patch);
+}
+
 export function deleteTab(base, tabId) {
   return update(ref(db, base), { [`tabs/${tabId}`]: null, [`items/${tabId}`]: null });
 }
