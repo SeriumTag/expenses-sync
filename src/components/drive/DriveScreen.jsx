@@ -1,5 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
-import { confirmTwice } from '../../lib/confirm';
+import { useMemo, useState } from 'react';
 import { patchPath } from '../../lib/db';
 import {
   GRAB_NET_RATE,
@@ -19,7 +18,7 @@ import {
 } from '../../lib/drive';
 import { formatMoney, parseAmount } from '../../lib/format';
 import { periodLabel } from '../../lib/budget';
-import Modal from '../Modal';
+import ImportBackup, { countText } from '../extras/ImportBackup';
 import EntrySheet from './EntrySheet';
 import GrabBadge from './GrabBadge';
 import RideSheet from './RideSheet';
@@ -453,7 +452,7 @@ export default function DriveScreen({ ledgerId, pk, personId, personName, drive,
 
       {rideSheet && <RideSheet path={path} ride={rideSheet.ride} date={rideSheet.date} onClose={() => setRideSheet(null)} />}
       {entrySheet && <EntrySheet path={path} item={entrySheet.item} type={entrySheet.type} date={entrySheet.date} currency={currency} onClose={() => setEntrySheet(null)} />}
-      {importing && <ImportBackup path={path} drive={drive} onClose={() => setImporting(false)} />}
+      {importing && <ImportBackup path={path} what="Grab rides, petrol and other car costs" plan={(raw) => planDriveImport(drive, raw)} onClose={() => setImporting(false)} />}
     </div>
   );
 }
@@ -538,67 +537,16 @@ function PriceChart({ entries, money }) {
   );
 }
 
-// Bring Grab rides, petrol and other costs over from a Body Log backup
-// (📤 Export backup there). Merges by id, so importing twice adds nothing.
-function ImportBackup({ path, drive, onClose }) {
-  const [text, setText] = useState('');
-  const [result, setResult] = useState('');
-  const [error, setError] = useState('');
-  const fileRef = useRef(null);
-
-  async function run(raw) {
-    setError('');
-    setResult('');
-    try {
-      const { rides, items } = parseBodyLogBackup(raw);
-      const newRides = Object.keys(rides).filter((id) => !drive?.rides?.[id]);
-      const newItems = Object.keys(items).filter((id) => !drive?.items?.[id]);
-      const count = (type) => newItems.filter((id) => items[id].type === type).length;
-      const total = newRides.length + newItems.length;
-      const n = (k, one, many) => `${k} ${k === 1 ? one : many}`;
-      const summary = `${n(newRides.length, 'ride', 'rides')}, ${n(count('petrol'), 'petrol fill', 'petrol fills')} and ${n(count('other') + count('earn'), 'other entry', 'other entries')}`;
-      if (!total) return setResult('Everything in that backup is already here — nothing new to add.');
-      if (!confirmTwice(`Add ${summary}?`, 'these entries')) return;
-      const patch = {};
-      newRides.forEach((id) => (patch[`rides/${id}`] = rides[id]));
-      newItems.forEach((id) => (patch[`items/${id}`] = items[id]));
-      await patchPath(path, patch);
-      setResult(`Imported ${summary}.`);
-    } catch (e) {
-      setError(e.message || 'Couldn’t import that.');
-    }
-  }
-
-  function pickFile(e) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    file.text().then(run);
-  }
-
-  return (
-    <Modal title="Import from Body Log" onClose={onClose}>
-      <div className="sheet">
-        <p className="muted small">In Body Log, tap 📤 Export backup and save the file. Then choose it here, or paste its text. Only Grab rides, petrol and other car costs are brought over — nothing else.</p>
-        <input ref={fileRef} type="file" accept="application/json,.json,.txt" hidden onChange={pickFile} />
-        <button className="btn primary" onClick={() => fileRef.current?.click()}>
-          Choose backup file
-        </button>
-        <textarea className="import-text" value={text} onChange={(e) => setText(e.target.value)} placeholder="…or paste the backup text here" rows={5} />
-        {text.trim() && (
-          <button className="btn glass" onClick={() => run(text)}>
-            Import pasted text
-          </button>
-        )}
-        {result && <p className="pos">{result}</p>}
-        {error && <p className="error">{error}</p>}
-        <div className="row-gap end">
-          <button className="btn ghost" onClick={onClose}>
-            Close
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
+// What a Body Log backup would add here: Grab rides, petrol and other car costs not already logged.
+function planDriveImport(drive, raw) {
+  const { rides, items } = parseBodyLogBackup(raw);
+  const newRides = Object.keys(rides).filter((id) => !drive?.rides?.[id]);
+  const newItems = Object.keys(items).filter((id) => !drive?.items?.[id]);
+  const count = (type) => newItems.filter((id) => items[id].type === type).length;
+  const patch = {};
+  newRides.forEach((id) => (patch[`rides/${id}`] = rides[id]));
+  newItems.forEach((id) => (patch[`items/${id}`] = items[id]));
+  const summary = `${countText(newRides.length, 'ride', 'rides')}, ${countText(count('petrol'), 'petrol fill', 'petrol fills')} and ${countText(count('other') + count('earn'), 'other entry', 'other entries')}`;
+  return { patch, summary };
 }
 

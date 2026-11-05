@@ -68,6 +68,8 @@ import { PersonSheet, SalaryStrip } from './SalaryStrip';
 import ShareDialog from './ShareDialog';
 import MascotPicker from './MascotPicker';
 import DriveScreen from './drive/DriveScreen';
+import WeightScreen from './extras/WeightScreen';
+import BitcoinScreen from './extras/BitcoinScreen';
 import { grabIncomeFor } from '../lib/drive';
 import ThemeDialog from './ThemeDialog';
 import { confirmTwice } from '../lib/confirm';
@@ -95,7 +97,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   });
   const [billsGroup, setBillsGroup] = useState('all'); // group filter on Bills
   const [billsScroll, setBillsScroll] = useState(null); // { key } section to scroll to on Bills
-  const [driveFor, setDriveFor] = useState(null); // person whose Drive (Grab) page is open
+  const [page, setPage] = useState(null); // { type: 'drive' | 'weight' | 'bitcoin', pid } — a person's own page, open over the screens
   const [spendOpen, setSpendOpen] = useState(null); // budget to open on the Spending tab
   const [groupMenu, setGroupMenu] = useState(false);
   // The short tour: once per device, and from the menu.
@@ -316,12 +318,25 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
     const d = new Date(Number(pk.slice(0, 4)), Number(pk.slice(5, 7)) - 1 + dir, 1);
     selectPeriod(monthKey(d.getFullYear(), d.getMonth()));
   };
-  // The Drive page for a person's Grab income (from their sheet or Home tile).
-  const openDrive = (pid) => {
+  // A person's own pages: Drive (from their Grab income), Weight log and
+  // Bitcoin (added from their sheet). Opened from the sheet or their Home tile.
+  const openPage = (type, pid) => {
     setSheet(null);
-    setDriveFor(pid);
+    setPage({ type, pid });
     window.scrollTo(0, 0);
   };
+  const addExtra = (kind, pid) => {
+    patchPath(`ledgers/${ledgerId}/extras/${pid}`, { [kind]: true });
+    openPage(kind, pid);
+  };
+  // Takes the page off the person (Home icon and sheet button); its data is kept.
+  const removeExtra = (kind, pid, name) => {
+    const label = kind === 'weight' ? 'the Weight log' : 'Bitcoin';
+    if (!confirmTwice(`Remove ${label} from ${name || 'this person'}? Everything logged is kept, so adding it again brings it back.`, label)) return;
+    patchPath(`ledgers/${ledgerId}/extras/${pid}`, { [kind]: null });
+    setPage(null);
+  };
+  const personNameOf = (pid) => period?.people?.[pid]?.name || Object.values(periods).map((p) => p?.people?.[pid]?.name).find(Boolean) || '';
   // "Log a spend" opens a quick sheet over whatever screen is showing.
   const logSpend = (budgetId) => {
     setSpendOpen(budgetId || null);
@@ -485,8 +500,8 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
               onToday={() => selectPeriod(nowKey)}
             />
 
-            {!driveFor && canBuild && <p className="muted center-text">Setting up {periodLabel(pk)}…</p>}
-            {!driveFor && !periodExists && !canBuild && (
+            {!page && canBuild && <p className="muted center-text">Setting up {periodLabel(pk)}…</p>}
+            {!page && !periodExists && !canBuild && (
               <section className="new-month">
                 <div className="new-month-icon" aria-hidden="true">
                   🗓️
@@ -507,19 +522,39 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
               </section>
             )}
 
-            {driveFor && (
+            {page?.type === 'drive' && (
               <DriveScreen
                 ledgerId={ledgerId}
                 pk={pk}
-                personId={driveFor}
-                personName={period?.people?.[driveFor]?.name || Object.values(periods).map((p) => p?.people?.[driveFor]?.name).find(Boolean) || ''}
-                drive={data.drive?.[driveFor]}
+                personId={page.pid}
+                personName={personNameOf(page.pid)}
+                drive={data.drive?.[page.pid]}
                 currency={currency}
-                onBack={() => setDriveFor(null)}
+                onBack={() => setPage(null)}
+              />
+            )}
+            {page?.type === 'weight' && (
+              <WeightScreen
+                ledgerId={ledgerId}
+                personId={page.pid}
+                personName={personNameOf(page.pid)}
+                data={data.weight?.[page.pid]}
+                onBack={() => setPage(null)}
+                onRemove={() => removeExtra('weight', page.pid, personNameOf(page.pid))}
+              />
+            )}
+            {page?.type === 'bitcoin' && (
+              <BitcoinScreen
+                ledgerId={ledgerId}
+                personId={page.pid}
+                personName={personNameOf(page.pid)}
+                data={data.bitcoin?.[page.pid]}
+                onBack={() => setPage(null)}
+                onRemove={() => removeExtra('bitcoin', page.pid, personNameOf(page.pid))}
               />
             )}
 
-            {periodExists && !driveFor && screen === 'home' && (
+            {periodExists && !page && screen === 'home' && (
               <HomeScreen
                 pk={pk}
                 period={period}
@@ -535,11 +570,14 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                 onGoto={gotoScreen}
                 onOpenPerson={(id) => setSheet({ type: 'person', id })}
                 onAddPerson={addPerson}
-                onOpenDrive={openDrive}
+                extras={data.extras}
+                weight={data.weight}
+                bitcoin={data.bitcoin}
+                onOpenPage={openPage}
               />
             )}
 
-            {periodExists && !driveFor && screen === 'bills' && (
+            {periodExists && !page && screen === 'bills' && (
               <BillsScreen
                 base={base}
                 pk={pk}
@@ -614,7 +652,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
               />
             )}
 
-            {periodExists && !driveFor && screen === 'category' && (
+            {periodExists && !page && screen === 'category' && (
               <CategoriesScreen categories={allCats} favs={favs} selected={shownCat} onSelect={openCategory}>
                 {shownCat && (
                   <CategoryPage
@@ -645,7 +683,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         <BottomNav
           screen={screen}
           onChange={(k) => {
-            setDriveFor(null);
+            setPage(null);
             setScreen(k);
           }}
         />
@@ -716,7 +754,9 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             view={view}
             ctx={budgetCtx}
             drive={data.drive?.[sheet.id]}
-            onOpenDrive={() => openDrive(sheet.id)}
+            extras={data.extras?.[sheet.id]}
+            onOpenDrive={() => openPage('drive', sheet.id)}
+            onOpenExtra={(kind) => (data.extras?.[sheet.id]?.[kind] ? openPage(kind, sheet.id) : addExtra(kind, sheet.id))}
             onClose={() => setSheet(null)}
           />
         )}

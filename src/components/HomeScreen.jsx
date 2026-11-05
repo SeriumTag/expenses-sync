@@ -1,14 +1,31 @@
 import { afterExpenses, budgetItems, budgetStatus, spendStats, isYearKey, potBalance, setAsideTab, sorted, trackedItems, yearOf, yearlyRecurringSetAside } from '../lib/budget';
 import { formatMoney } from '../lib/format';
 import { useMascot } from '../lib/mascot';
+import { buysOf, isBuyOverdue } from '../lib/crypto';
+import { latestWeight } from '../lib/weight';
 import GrabBadge from './drive/GrabBadge';
+
+const hasGrab = (p) => Object.values(p.incomes || {}).some((x) => x.grab);
+
+// A small icon inside a person's tile that opens one of their pages (not the tile's own sheet).
+function PageChip({ label, className = '', onOpen, children }) {
+  const open = (e) => {
+    e.stopPropagation();
+    onOpen();
+  };
+  return (
+    <span role="button" tabIndex={0} className={`pt-chip ${className}`} title={label} aria-label={label} onClick={open} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), open(e))}>
+      {children}
+    </span>
+  );
+}
 
 // The first screen, top to bottom: each person (greeted by their plush friend),
 // the two everyday buttons, this month's spend stats, then savings and the
 // monthly set-aside for yearly bills.
 export default function HomeScreen(props) {
   const { pk, period, tabs, ctx, currency, username } = props;
-  const { onLogSpend, onAddBill, onGoto, onOpenPerson, onAddPerson, onOpenDrive } = props;
+  const { extras, weight, bitcoin, onLogSpend, onAddBill, onGoto, onOpenPerson, onAddPerson, onOpenPage } = props;
   const { friend, onPick } = useMascot();
   const view = isYearKey(pk) ? 'yearly' : 'monthly';
 
@@ -47,31 +64,30 @@ export default function HomeScreen(props) {
             return (
               <button key={p.id} className="person-tile" onClick={() => onOpenPerson(p.id)}>
                 <span className="pt-name">{p.name || 'Unnamed'}</span>
+                {/* Their own pages, as icons under the name (the tile itself opens the person). */}
+                {(hasGrab(p) || extras?.[p.id]?.weight || extras?.[p.id]?.bitcoin) && (
+                  <span className="pt-icons">
+                    {hasGrab(p) && (
+                      <PageChip label="Open the Drive page" onOpen={() => onOpenPage('drive', p.id)}>
+                        <GrabBadge small />
+                      </PageChip>
+                    )}
+                    {extras?.[p.id]?.weight && (
+                      <PageChip label="Open the Weight log" className="weight" onOpen={() => onOpenPage('weight', p.id)}>
+                        ⚖️{latestWeight(weight?.[p.id]) != null ? ` ${latestWeight(weight[p.id]).toFixed(1)} kg` : ''}
+                      </PageChip>
+                    )}
+                    {extras?.[p.id]?.bitcoin && (
+                      <PageChip label="Open Bitcoin" className="btc" onOpen={() => onOpenPage('bitcoin', p.id)}>
+                        ₿{isBuyOverdue(buysOf(bitcoin?.[p.id])) && <i className="red-dot" aria-label="This week’s buy isn’t logged yet" />}
+                      </PageChip>
+                    )}
+                  </span>
+                )}
                 <span className="pt-line">
                   <span className="muted small">Income</span>
                   <b>{formatMoney(mine.salary, currency)}</b>
                 </span>
-                {/* A Grab income: its icon opens the Drive page (the tile itself opens the person). */}
-                {Object.values(p.incomes || {}).some((x) => x.grab) && (
-                  <span
-                    role="button"
-                    tabIndex={0}
-                    className="pt-grab"
-                    title="Open the Drive page"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onOpenDrive(p.id);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key !== 'Enter' && e.key !== ' ') return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                      onOpenDrive(p.id);
-                    }}
-                  >
-                    <GrabBadge small /> ›
-                  </span>
-                )}
                 {picked ? (
                   <>
                     <span className="pt-line">

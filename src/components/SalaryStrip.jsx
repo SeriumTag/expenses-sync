@@ -47,7 +47,7 @@ export function SalaryStrip({ base, period, currency, view, ctx, onOpen }) {
   );
 }
 
-export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, ctx, drive, onOpenDrive, onClose }) {
+export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, ctx, drive, extras, onOpenDrive, onOpenExtra, onClose }) {
   const path = `${base}/people/${personId}`;
   const { salary, spent, left } = afterExpenses(person, period, view, ctx);
   const chosen = person.tabs || {};
@@ -173,6 +173,15 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
                 <span className="muted small">/mo</span>
               </span>
             )}
+          </div>
+          {/* Their own pages: added here, then opened from here or their Home tile. */}
+          <div className="extra-buttons">
+            <button className={`btn sm ${extras?.weight ? 'glass extra-on' : 'ghost'}`} onClick={() => onOpenExtra('weight')}>
+              {extras?.weight ? '⚖️ Weight log ›' : '＋ Add Weight Log'}
+            </button>
+            <button className={`btn sm ${extras?.bitcoin ? 'glass extra-on' : 'ghost'}`} onClick={() => onOpenExtra('bitcoin')}>
+              {extras?.bitcoin ? '₿ Bitcoin ›' : '＋ Add Bitcoin'}
+            </button>
           </div>
         </section>
 
