@@ -11,9 +11,9 @@ import { friendOf } from '../lib/mascot';
 // instead of by group. Groups stay as a label on each row and a filter on top.
 export const SECTIONS = [
   { key: 'spending', title: 'Spending', icon: '🛍️', hint: 'One-time bills, only in this month.', add: 'bill', recur: 'once' },
+  { key: 'expenses', title: 'Expenses List', icon: '💸', hint: 'Budgets you log spends against.', add: 'budget' },
   { key: 'recurring', title: 'Recurring', icon: '🔁', hint: 'Monthly and yearly bills.', add: 'bill' },
   { key: 'savings', title: 'Savings', icon: '🐷', hint: 'Money put aside in savings pots.', add: 'savings' },
-  { key: 'expenses', title: 'Expenses List', icon: '💸', hint: 'Budgets you log spends against.', add: 'budget' },
 ];
 
 export const sectionOf = (item) => (item.track ? 'savings' : item.budget ? 'expenses' : recurOf(item) === 'once' ? 'spending' : 'recurring');
