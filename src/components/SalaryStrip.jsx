@@ -47,7 +47,7 @@ export function SalaryStrip({ base, period, currency, view, ctx, onOpen }) {
   );
 }
 
-export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, ctx, drive, extras, onOpenDrive, onOpenExtra, onClose }) {
+export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, ctx, drive, extras, onOpenDrive, onOpenExtra, onHappyFish, onClose }) {
   const path = `${base}/people/${personId}`;
   const { salary, spent, left } = afterExpenses(person, period, view, ctx);
   const chosen = person.tabs || {};
@@ -96,20 +96,32 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
               autoFocusOnMount={!person.name}
             />
           </label>
-          <label className="field">
+          <div className="field">
             <span>Main salary (monthly)</span>
-            <LiveInput
-              className="ep-amount"
-              inputMode="decimal"
-              fieldKey={`${pk}:person:${personId}:salary`}
-              value={person.salary}
-              format={(v) => (v ? String(v) : '')}
-              parse={parseAmount}
-              display={(v) => formatMoney(v, currency)}
-              onSave={(v) => patchPath(path, { salary: v })}
-              placeholder="0.00"
-            />
-          </label>
+            {extras?.swim ? (
+              // Happy Fish: the salary is this month's swim earnings, from the Swim page.
+              <button className="swim-salary" onClick={() => onOpenExtra('swim')} title="Open the Swim page">
+                <b>{formatMoney(person.salary, currency)}</b>
+                <span className="muted small">this month’s swim days · Open Swim ›</span>
+              </button>
+            ) : (
+              <LiveInput
+                className="ep-amount"
+                inputMode="decimal"
+                fieldKey={`${pk}:person:${personId}:salary`}
+                value={person.salary}
+                format={(v) => (v ? String(v) : '')}
+                parse={parseAmount}
+                display={(v) => formatMoney(v, currency)}
+                onSave={(v) => patchPath(path, { salary: v })}
+                placeholder="0.00"
+              />
+            )}
+            <label className="happy-fish">
+              <input type="checkbox" checked={Boolean(extras?.swim)} onChange={(e) => onHappyFish(e.target.checked)} />
+              <span>🐟 Happy Fish — salary from my swim log</span>
+            </label>
+          </div>
         </div>
 
         <section className="sheet-section">

@@ -28,6 +28,7 @@ function Actions({ onRemove, onClose, saveLabel }) {
 export function BalanceSheet({ path, entry, currentSats, btcPrice, onSaved, onClose }) {
   const [date, setDate] = useState(entry?.date || today());
   const [sats, setSats] = useState(entry?.sats != null ? String(entry.sats) : '');
+  const [start] = useState(() => `${date}|${sats}`); // to tell if anything was typed
   const [error, setError] = useState('');
 
   async function save(e) {
@@ -58,7 +59,7 @@ export function BalanceSheet({ path, entry, currentSats, btcPrice, onSaved, onCl
   };
 
   return (
-    <Modal title={entry ? 'Edit balance' : 'Add balance'} onClose={onClose}>
+    <Modal title={entry ? 'Edit balance' : 'Add balance'} onClose={onClose} dirty={`${date}|${sats}` !== start}>
       <form className="sheet drive-form" onSubmit={save}>
         <p className="muted small">{entry ? 'Correct the total recorded on this date — this fixes this entry, it doesn’t add to your balance.' : 'Enter your ZBD wallet’s current total balance. Its SGD value is worked out from the live BTC price.'}</p>
         <div className="drive-grid">
@@ -83,6 +84,7 @@ export function BalanceSheet({ path, entry, currentSats, btcPrice, onSaved, onCl
 export function BuySheet({ path, buy, onSaved, onClose }) {
   const s = (v) => (v == null ? '' : String(v));
   const [form, setForm] = useState({ date: buy?.date || today(), paid: s(buy?.paid), received: s(buy?.received), holding: s(buy?.holding) });
+  const [start] = useState(() => JSON.stringify(form));
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -105,7 +107,7 @@ export function BuySheet({ path, buy, onSaved, onClose }) {
   };
 
   return (
-    <Modal title={buy ? 'Edit purchase' : 'Add purchase'} onClose={onClose}>
+    <Modal title={buy ? 'Edit purchase' : 'Add purchase'} onClose={onClose} dirty={JSON.stringify(form) !== start}>
       <form className="sheet drive-form" onSubmit={save}>
         <div className="drive-grid">
           <label className="field full">
@@ -152,7 +154,7 @@ export function NameSheet({ path, kind, item, nextOrder, onClose }) {
     onClose();
   };
   return (
-    <Modal title={item ? `Rename ${kind}` : `Add ${kind}`} onClose={onClose}>
+    <Modal title={item ? `Rename ${kind}` : `Add ${kind}`} onClose={onClose} dirty={name !== (item?.name || '')}>
       <form className="sheet drive-form" onSubmit={save}>
         <label className="field">
           <span>Name</span>
@@ -189,7 +191,7 @@ export function CoinSheet({ path, walletId, holding, onClose }) {
     onClose();
   };
   return (
-    <Modal title={holding ? 'Edit coin' : 'Add coin'} onClose={onClose}>
+    <Modal title={holding ? 'Edit coin' : 'Add coin'} onClose={onClose} dirty={symbol !== (holding?.symbol || '') || amount !== (holding?.amount != null ? String(holding.amount) : '')}>
       <form className="sheet drive-form" onSubmit={save}>
         <div className="drive-grid">
           <label className="field">
@@ -232,7 +234,7 @@ export function BotPasteSheet({ path, bot, onClose }) {
     onClose();
   }
   return (
-    <Modal title={`Paste coins · ${bot.name}`} onClose={onClose}>
+    <Modal title={`Paste coins · ${bot.name}`} onClose={onClose} dirty={Boolean(text.trim())}>
       <form className="sheet drive-form" onSubmit={save}>
         <p className="muted small">Copy the coin list from the bot’s screen (symbol and its value in USDT) and paste it here.</p>
         <textarea className="import-text" rows={7} value={text} onChange={(e) => setText(e.target.value)} placeholder={'INJ 43.366\nSOL 120.5\nETH 88.02'} autoFocus />

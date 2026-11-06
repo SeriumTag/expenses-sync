@@ -147,7 +147,7 @@ export default function ScanSheet({ onSave, onClose }) {
   }
 
   return (
-    <Modal title="Scan photos" onClose={onClose}>
+    <Modal title="Scan photos" onClose={onClose} dirty={rows.length > 0}>
       <div className="sheet scan-sheet">
         <p className="muted small">Pick your scale photos — as many as you like. It guesses which stat each one shows, but LCD digits are hard to read, so check each one.</p>
         <input ref={inputRef} type="file" accept="image/*" multiple hidden onChange={pick} />

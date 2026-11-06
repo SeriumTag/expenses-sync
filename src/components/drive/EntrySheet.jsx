@@ -23,6 +23,7 @@ export default function EntrySheet({ path, item, type: startType = 'petrol', dat
     note: item?.note || '',
     jobs: str(item?.jobs),
   }));
+  const [start] = useState(() => JSON.stringify(form)); // to tell if anything was typed
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const num = (v) => (v.trim() === '' ? null : parseAmount(v));
@@ -56,7 +57,7 @@ export default function EntrySheet({ path, item, type: startType = 'petrol', dat
   }
 
   return (
-    <Modal title={item ? 'Edit entry' : 'Add a car cost'} onClose={onClose}>
+    <Modal title={item ? 'Edit entry' : 'Add a car cost'} onClose={onClose} dirty={JSON.stringify(form) !== start}>
       <form className="sheet drive-form" onSubmit={save}>
         {type !== 'earn' && (
           <div className="seg" role="group" aria-label="Type">

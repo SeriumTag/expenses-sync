@@ -15,6 +15,7 @@ export default function RideSheet({ path, ride, date, onClose }) {
     erp: ride?.erp ? String(ride.erp) : '',
     note: ride?.note || '',
   }));
+  const [start] = useState(() => JSON.stringify(form)); // to tell if anything was typed
   const [error, setError] = useState('');
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
 
@@ -38,7 +39,7 @@ export default function RideSheet({ path, ride, date, onClose }) {
   }
 
   return (
-    <Modal title={ride ? 'Edit ride' : '🚗 Grab ride'} onClose={onClose}>
+    <Modal title={ride ? 'Edit ride' : '🚗 Grab ride'} onClose={onClose} dirty={JSON.stringify(form) !== start}>
       <form className="sheet drive-form" onSubmit={save}>
         <p className="muted small">Just the ride amount — nothing else needed.</p>
         <div className="drive-grid">

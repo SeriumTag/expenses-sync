@@ -70,6 +70,8 @@ import MascotPicker from './MascotPicker';
 import DriveScreen from './drive/DriveScreen';
 import WeightScreen from './extras/WeightScreen';
 import BitcoinScreen from './extras/BitcoinScreen';
+import SwimScreen from './extras/SwimScreen';
+import { swimSalaryFor } from '../lib/swim';
 import { grabIncomeFor } from '../lib/drive';
 import ThemeDialog from './ThemeDialog';
 import { confirmTwice } from '../lib/confirm';
@@ -237,8 +239,18 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         }
       }
     }
+    // Happy Fish: the main salary is that month's swim earnings.
+    for (const [pid, ex] of Object.entries(data.extras || {})) {
+      if (!ex?.swim) continue;
+      for (const [key, p] of Object.entries(data.periods)) {
+        const person = p?.people?.[pid];
+        if (!person) continue;
+        const salary = swimSalaryFor(data.swim?.[pid], key);
+        if (Math.abs((Number(person.salary) || 0) - salary) > 0.005) patch[`periods/${key}/people/${pid}/salary`] = salary;
+      }
+    }
     if (Object.keys(patch).length) patchPath(`ledgers/${ledgerId}`, patch);
-  }, [data?.periods, data?.drive, ledgerId]);
+  }, [data?.periods, data?.drive, data?.swim, data?.extras, ledgerId]);
 
   const noAccess = Boolean(data) && !data.members?.[username];
   useEffect(() => {
@@ -331,8 +343,9 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   };
   // Takes the page off the person (Home icon and sheet button); its data is kept.
   const removeExtra = (kind, pid, name) => {
-    const label = kind === 'weight' ? 'the Weight log' : 'Bitcoin';
-    if (!confirmTwice(`Remove ${label} from ${name || 'this person'}? Everything logged is kept, so adding it again brings it back.`, label)) return;
+    const label = { weight: 'the Weight log', bitcoin: 'Bitcoin', swim: 'Happy Fish (the Swim page)' }[kind];
+    const extra = kind === 'swim' ? ' Their salary goes back to a typed amount (it keeps the last figure).' : '';
+    if (!confirmTwice(`Remove ${label} from ${name || 'this person'}? Everything logged is kept, so adding it again brings it back.${extra}`, label)) return;
     patchPath(`ledgers/${ledgerId}/extras/${pid}`, { [kind]: null });
     setPage(null);
   };
@@ -541,6 +554,17 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                 data={data.weight?.[page.pid]}
                 onBack={() => setPage(null)}
                 onRemove={() => removeExtra('weight', page.pid, personNameOf(page.pid))}
+              />
+            )}
+            {page?.type === 'swim' && (
+              <SwimScreen
+                ledgerId={ledgerId}
+                pk={pk}
+                personId={page.pid}
+                personName={personNameOf(page.pid)}
+                data={data.swim?.[page.pid]}
+                onBack={() => setPage(null)}
+                onRemove={() => removeExtra('swim', page.pid, personNameOf(page.pid))}
               />
             )}
             {page?.type === 'bitcoin' && (
@@ -757,6 +781,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             extras={data.extras?.[sheet.id]}
             onOpenDrive={() => openPage('drive', sheet.id)}
             onOpenExtra={(kind) => (data.extras?.[sheet.id]?.[kind] ? openPage(kind, sheet.id) : addExtra(kind, sheet.id))}
+            onHappyFish={(on) => (on ? patchPath(`ledgers/${ledgerId}/extras/${sheet.id}`, { swim: true }) : removeExtra('swim', sheet.id, personNameOf(sheet.id)))}
             onClose={() => setSheet(null)}
           />
         )}

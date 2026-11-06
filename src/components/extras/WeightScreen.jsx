@@ -212,6 +212,7 @@ const LABELS = { weight: 'Weight (kg)', bmi: 'BMI', bodyAge: 'Body age', fat: 'B
 // Add or edit one reading; paste what the scale app says to fill the boxes.
 function ReadingSheet({ reading, onSave, onDelete, onClose }) {
   const [form, setForm] = useState(() => ({ date: reading?.date || today(), ...Object.fromEntries(FIELDS.map((f) => [f, reading?.[f] != null ? String(reading[f]) : ''])) }));
+  const [start] = useState(() => JSON.stringify(form)); // to tell if anything was typed
   const [paste, setPaste] = useState('');
   const [note, setNote] = useState('');
 
@@ -243,7 +244,7 @@ function ReadingSheet({ reading, onSave, onDelete, onClose }) {
   }
 
   return (
-    <Modal title={reading ? 'Edit reading' : 'Add reading'} onClose={onClose}>
+    <Modal title={reading ? 'Edit reading' : 'Add reading'} onClose={onClose} dirty={JSON.stringify(form) !== start || Boolean(paste.trim())}>
       <form className="sheet drive-form" onSubmit={submit}>
         <div className="drive-grid">
           <label className="field full">

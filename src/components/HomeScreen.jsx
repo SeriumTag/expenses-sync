@@ -65,11 +65,16 @@ export default function HomeScreen(props) {
               <button key={p.id} className="person-tile" onClick={() => onOpenPerson(p.id)}>
                 <span className="pt-name">{p.name || 'Unnamed'}</span>
                 {/* Their own pages, as icons under the name (the tile itself opens the person). */}
-                {(hasGrab(p) || extras?.[p.id]?.weight || extras?.[p.id]?.bitcoin) && (
+                {(hasGrab(p) || extras?.[p.id]?.weight || extras?.[p.id]?.bitcoin || extras?.[p.id]?.swim) && (
                   <span className="pt-icons">
                     {hasGrab(p) && (
                       <PageChip label="Open the Drive page" onOpen={() => onOpenPage('drive', p.id)}>
                         <GrabBadge small />
+                      </PageChip>
+                    )}
+                    {extras?.[p.id]?.swim && (
+                      <PageChip label="Open the Swim page" className="swim" onOpen={() => onOpenPage('swim', p.id)}>
+                        🐟 Swim
                       </PageChip>
                     )}
                     {extras?.[p.id]?.weight && (
