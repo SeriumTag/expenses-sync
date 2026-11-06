@@ -163,13 +163,13 @@ export function SwimDaySheet({ path, day, date, onSaved, onClose }) {
 }
 
 // Mark one or more days away, with what those days are usually worth.
-export function AwaySheet({ path, days, away, onClose }) {
+export function AwaySheet({ path, days, away, classDays, onClose }) {
   const [from, setFrom] = useState(todayStr());
   const [to, setTo] = useState(todayStr());
   const [reason, setReason] = useState('');
   const [status, setStatus] = useState('');
   const dates = awayDatesBetween(from, to);
-  const teaching = dates.filter((ds) => teachesOnDate(days, ds));
+  const teaching = dates.filter((ds) => teachesOnDate(days, ds, classDays));
   const total = teaching.reduce((s, ds) => s + estimateForDate(days, ds).amount, 0);
 
   async function save(e) {

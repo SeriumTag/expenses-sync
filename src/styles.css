@@ -2079,3 +2079,83 @@ body {
 .ps-g.up { color: var(--ok); }
 .ps-g.down { color: var(--danger); }
 .ps-g.miss { color: var(--warn); }
+
+/* ───────── Swim · Classes ───────── */
+.swim-top button, .day-seg button { position: relative; }
+.swim-top .red-dot { top: 2px; right: 4px; }
+.classes-view { display: flex; flex-direction: column; gap: 12px; }
+.day-seg { overflow-x: auto; }
+.day-seg button { min-width: 0; padding-left: 6px; padding-right: 6px; }
+.day-total { margin: 0 0 6px; position: relative; z-index: 1; }
+.review-card h2 { margin-bottom: 4px; }
+.review-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); position: relative; z-index: 1; }
+.red-bang { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--danger); color: #fff; font-size: 11px; font-weight: 900; margin-right: 4px; }
+
+/* A class in the day list */
+.class-block { border-top: 1px dashed var(--line); position: relative; z-index: 1; }
+.class-block:first-of-type { border-top: none; }
+.class-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto 14px; align-items: center; gap: 8px; width: 100%; padding: 10px 2px; border: none; background: none; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.cr-time { font-weight: 900; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cr-info { display: flex; flex-direction: column; min-width: 0; }
+.cr-chev { color: var(--muted); transition: transform 0.2s; }
+.cr-chev.open { transform: rotate(180deg); }
+.lesson-count { font-size: 12px; font-weight: 900; padding: 3px 9px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.lesson-count.green { background: var(--ok-soft); color: var(--ok); }
+.lesson-count.yellow { background: var(--warn-soft); color: var(--warn); }
+.lesson-count.red { background: var(--danger-soft); color: var(--danger); }
+.class-body { display: flex; flex-direction: column; gap: 8px; padding: 0 2px 12px; }
+.class-body > .muted { margin: 0; }
+.low-flag { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-left: 5px; border-radius: 50%; background: var(--danger); color: #fff; font-size: 10px; font-weight: 900; vertical-align: 1px; }
+.danger-text { color: var(--danger) !important; }
+
+/* Roster */
+.roster { display: flex; flex-direction: column; }
+.shared-skills { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; margin-bottom: 4px; border-radius: 12px; background: var(--swim-soft); }
+.ss-label { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; color: var(--swim); }
+.roster-row { display: grid; grid-template-columns: minmax(0, 1fr) 14px; align-items: center; gap: 6px; width: 100%; padding: 8px 2px; border: none; border-top: 1px dashed var(--line); background: none; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.roster-row:first-child, .shared-skills + .roster-row { border-top: none; }
+.rr-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.rr-name { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-weight: 800; }
+.rr-chev { color: var(--dim); }
+.credit-pill { margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.credit-pill.low, .credit-pill.n1 { background: var(--danger-soft); color: var(--danger); }
+.credit-pill.n2 { background: var(--warn-soft); color: var(--warn); }
+.credit-pill.n3 { background: var(--butter-soft); color: var(--warn); }
+.skill-primary { font-size: 12.5px; font-weight: 700; color: var(--swim); }
+.skill-primary.stuck { color: var(--danger); }
+.skill-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.skill-chip { padding: 1px 8px; border-radius: 999px; background: var(--surface-2); font-size: 11.5px; font-weight: 700; }
+.skill-chip.stuck { background: var(--danger-soft); color: var(--danger); }
+
+/* Class form */
+.class-preview { margin: 0; padding: 10px 12px; border-radius: 14px; background: var(--swim-soft); font-weight: 800; font-size: 13.5px; }
+.class-roster { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 16px; background: var(--surface-2); }
+.class-roster h3 { margin: 0; }
+.transfer-row select { flex: 1; min-width: 0; padding: 8px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface); font: inherit; color: var(--text); }
+
+/* Skills */
+.skill-cat { padding: 10px 12px; border-radius: 14px; background: var(--surface-2); }
+.skill-cat-title { margin: 0 0 4px; font-weight: 900; }
+.skill-row { display: grid; grid-template-columns: minmax(0, 1fr) 118px; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px dashed var(--line); }
+.skill-row:first-of-type { border-top: none; }
+.skill-row label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; font-size: 13.5px; }
+.skill-row input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--swim); margin: 0; flex-shrink: 0; }
+.skill-row.done label span { color: var(--swim); }
+.skill-row select { width: 100%; padding: 5px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--surface); font: inherit; font-size: 12.5px; color: var(--text); }
+.skill-row:not(:has(select)) { grid-template-columns: 1fr; }
+
+/* Duplicate question, quit list, hall, lessons left */
+.dup-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 12px; border: 1.5px solid var(--line); cursor: pointer; font-weight: 700; font-size: 13.5px; }
+.dup-row.on { border-color: var(--swim); background: var(--swim-soft); }
+.quit-row { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 0; border-top: 1px dashed var(--line); position: relative; z-index: 1; }
+.qr-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+.hall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; position: relative; z-index: 1; }
+.hall-card { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px; border-radius: 16px; border: none; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.hall-card.gold { background: var(--butter-soft); }
+.hall-card.silver { background: var(--surface-3); }
+.hall-card.bronze { background: var(--peach-soft); }
+.left-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.import-status { white-space: pre-line; }
+.cal-dots i.lesson, .cal-legend i.lesson { background: var(--accent); }
+.cal-dots i.s, .cal-legend i.s { background: var(--swim); }
+.review-row .link-btn { flex: 1; min-width: 0; text-align: left; text-decoration: none; font-weight: 800; color: var(--text); }

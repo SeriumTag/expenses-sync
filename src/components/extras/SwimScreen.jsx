@@ -24,6 +24,9 @@ import {
 import { periodLabel } from '../../lib/budget';
 import ImportBackup, { backupStores, countText } from './ImportBackup';
 import { AwaySheet, ReliefSheet, SwimDaySheet, shortD } from './SwimSheets';
+import ClassesView from './ClassesView';
+import { LEVEL_LABELS, TYPE_LABELS, classDays as classDaysOf, classesForDay, mergeImported, parseClassesBackup, remindersDue, timeLabel } from '../../lib/classes';
+import { prefs } from '../../lib/session';
 
 const money = (n) => `$${(Math.round((n || 0) * 100) / 100).toFixed(2)}`;
 const LOC_COLORS = { CC: 'var(--pink)', WWW: 'var(--sky)', JE: 'var(--mint)' };
@@ -37,12 +40,20 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
   const away = useMemo(() => awayOf(data), [data]);
   const [y, m] = /^\d{4}-\d{2}$/.test(pk) ? [Number(pk.slice(0, 4)), Number(pk.slice(5, 7)) - 1] : [Number(pk), new Date().getMonth()];
   const monthKey = `${y}-${String(m + 1).padStart(2, '0')}`;
+  // Paid a month later: this month's swim days are next month's salary.
+  const nextMonthKey = `${m === 11 ? y + 1 : y}-${String(m === 11 ? 1 : m + 2).padStart(2, '0')}`;
   const t = swimTotals(days, y, m);
   const [sheet, setSheet] = useState(null); // { kind, ... }
   const [week, setWeek] = useState(null);
   const [pickDay, setPickDay] = useState(null);
   const [menu, setMenu] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [top, setTopState] = useState(() => prefs.get('swimTop') || 'overview');
+  const setTop = (v) => {
+    setTopState(v);
+    prefs.set('swimTop', v);
+  };
+  const classDays = classDaysOf(data?.classes);
 
   const { weeks, current } = weeksOfMonth(days, y, m);
   const maxWeek = Math.max(...weeks.map((w) => w.students), 1);
@@ -51,13 +62,19 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
   const perDay = dailyTotals(days, y, m);
   const maxDay = Math.max(...perDay.map((d) => d.value), 1);
   const dayEntries = pickDay ? days.filter((d) => d.date === pickDay) : [];
-  const proj = monthAwayProjection(days, away, y, m);
+  const proj = monthAwayProjection(days, away, y, m, classDays);
   const today = todayStr();
   const upcoming = away.filter((a) => a.date >= today);
   const shownAway = (upcoming.length ? upcoming : away.slice(-3)).slice(0, 6);
 
   function planImport(raw) {
-    const found = parseSwimBackup(backupStores(raw));
+    const stores = backupStores(raw);
+    let found = {};
+    try {
+      found = parseSwimBackup(stores);
+    } catch {
+      /* no swim days, away days or payslips — classes may still be there */
+    }
     const patch = {};
     const counts = { days: 0, away: 0, payslips: 0 };
     for (const [folder, items] of Object.entries(found)) {
@@ -67,8 +84,28 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
         counts[folder]++;
       }
     }
-    const parts = [counts.days && countText(counts.days, 'swim day', 'swim days'), counts.away && countText(counts.away, 'away day', 'away days'), counts.payslips && countText(counts.payslips, 'payslip', 'payslips')].filter(Boolean);
-    return { patch, summary: parts.join(', ') };
+    // Classes: new classes, students, lesson records and reminders; nothing already here is touched.
+    let cls = { classes: 0, students: 0 };
+    let hadClasses = false;
+    try {
+      let exported = null;
+      try {
+        exported = JSON.parse(raw).exported || null;
+      } catch {
+        /* pasted stores only */
+      }
+      const imp = parseClassesBackup(stores, exported);
+      hadClasses = true;
+      const merged = structuredClone(data?.classes || {});
+      cls = mergeImported(merged, imp);
+      for (const part of ['lessons', 'students', 'occ', 'reminders']) for (const [k, v] of Object.entries(merged[part] || {})) if (data?.classes?.[part]?.[k] === undefined) patch[`classes/${part}/${k}`] = v;
+      if (merged.autoCreditStart && merged.autoCreditStart !== data?.classes?.autoCreditStart) patch['classes/autoCreditStart'] = merged.autoCreditStart;
+    } catch {
+      /* no classes in that backup */
+    }
+    const parts = [counts.days && countText(counts.days, 'swim day', 'swim days'), counts.away && countText(counts.away, 'away day', 'away days'), counts.payslips && countText(counts.payslips, 'payslip', 'payslips'), cls.classes && countText(cls.classes, 'class', 'classes'), cls.students && countText(cls.students, 'student', 'students')].filter(Boolean);
+    if (!hadClasses && !Object.keys(found).length) throw new Error('No swim data or classes found in that backup.');
+    return { patch, summary: parts.join(', ') || 'lesson records' };
   }
 
   return (
@@ -107,169 +144,183 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
         </div>
       </div>
 
-      {/* Swimming: the month's earnings — this is the salary */}
-      <section className="home-card">
-        <div className="home-card-head">
-          <h2>Swimming · {periodLabel(monthKey)}</h2>
-          <button className="btn primary sm" onClick={() => setSheet({ kind: 'day', date: today.startsWith(monthKey) ? today : `${monthKey}-01` })}>
-            ＋ Swim day
+      <div className="seg swim-top" role="tablist" aria-label="Swim">
+        {[
+          ['overview', 'Away & Payslip'],
+          ['classes', 'Classes'],
+        ].map(([k, l]) => (
+          <button key={k} role="tab" aria-selected={top === k} className={top === k ? 'on' : ''} onClick={() => setTop(k)}>
+            {l}
+            {k === 'classes' && remindersDue(data?.classes).length > 0 && <i className="red-dot" aria-label="Monthly review due" />}
           </button>
-        </div>
-        <div className="dh-split four">
-          <Cell k="Earned" v={money(t.total)} cls="swim" />
-          <Cell k="School students" v={t.students} />
-          <Cell k="Outside" v={t.outside} />
-          <Cell k="Days taught" v={t.days} />
-        </div>
-        <p className="muted small swim-salary-note">
-          <b>{money(t.total)}</b> is {personName || 'this person'}’s salary for {periodLabel(monthKey)}.
-        </p>
+        ))}
+      </div>
 
-        <p className="section-label">School students by week</p>
-        <p className="small">
-          {thisWeek ? (
-            <>
-              This week: <b>{weekLoc.CC + weekLoc.WWW + weekLoc.JE}</b> student{weekLoc.CC + weekLoc.WWW + weekLoc.JE === 1 ? '' : 's'}
-            </>
-          ) : (
-            <span className="muted">Pick this month in the top bar to see this week.</span>
-          )}
-        </p>
-        <div className="loc-legend">
-          {LOCATIONS.map((l) => (
-            <span key={l}>
-              <i style={{ background: LOC_COLORS[l] }} /> {l}
-              {thisWeek ? ` — ${weekLoc[l]}` : ''}
-            </span>
-          ))}
-        </div>
-        {weeks.some((w) => w.students > 0) ? (
-          <div className="wk-bars">
-            {weeks.map((w, i) => (
-              <button key={w.start} className={`wk-col ${week === i ? 'picked' : ''}`} onClick={() => setWeek(week === i ? null : i)} aria-label={`Week of ${shortD(w.start)}: ${w.students} students`}>
-                <span className="wk-n">{w.students}</span>
-                <span className="wk-wrap">
-                  <i className={i === current ? 'current' : ''} style={{ height: `${Math.max(3, (w.students / maxWeek) * 100)}%`, opacity: w.students || i === current ? 1 : 0.25 }} />
-                </span>
-                <span className={`wk-l ${i === current ? 'current' : ''}`}>{i === current ? 'This wk' : `Wk ${i + 1}`}</span>
-              </button>
-            ))}
+      {top === 'overview' && (
+        <>
+        {/* Swimming: the month's earnings — this is the salary */}
+        <section className="home-card">
+          <div className="home-card-head">
+            <h2>Swimming · {periodLabel(monthKey)}</h2>
+            <button className="btn primary sm" onClick={() => setSheet({ kind: 'day', date: today.startsWith(monthKey) ? today : `${monthKey}-01` })}>
+              ＋ Swim day
+            </button>
           </div>
-        ) : (
-          <p className="muted small">Log a swim day with its school total (and any private or trial students), and the weekly student counts appear here.</p>
-        )}
-        {week != null && weeks[week] && <WeekDetail days={days} w={weeks[week]} label={week === current ? 'This week' : `Week ${week + 1}`} />}
-
-        <p className="section-label">Swim earnings per day · tap a day to edit</p>
-        {perDay.some((d) => d.value > 0) ? (
-          <div className="day-bars">
-            {perDay.map((d) => (
-              <button key={d.date} className={`day-bar-col ${pickDay === d.date ? 'picked' : ''}`} onClick={() => setPickDay(pickDay === d.date ? null : d.date)} aria-label={`${shortD(d.date)}: ${money(d.value)}`}>
-                <span className="db-v">{d.value > 0 ? Math.round(d.value) : ''}</span>
-                <span className="db-wrap">
-                  <i className="swim" style={{ height: `${Math.max(2, (d.value / maxDay) * 100)}%`, opacity: d.value ? 1 : 0.2 }} />
-                </span>
-                <span className="db-l">{d.date.slice(8)}</span>
-              </button>
-            ))}
+          <div className="dh-split four">
+            <Cell k="Earned" v={money(t.total)} cls="swim" />
+            <Cell k="School students" v={t.students} />
+            <Cell k="Outside" v={t.outside} />
+            <Cell k="Days taught" v={t.days} />
           </div>
-        ) : (
-          <p className="muted small">Log a swim day and each day’s earnings appear here.</p>
-        )}
-        {pickDay && (
-          <div className="day-report">
-            <div className="dr-head">
-              <b>{new Date(`${pickDay}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</b>
-              <button className="btn glass sm" onClick={() => setSheet({ kind: 'day', date: pickDay })}>
-                ＋ Log this day
-              </button>
-            </div>
-            {dayEntries.length === 0 && <p className="muted small">Nothing logged.</p>}
-            {dayEntries.map((d) => (
-              <button key={d.id} className="history-row swim-day-row" onClick={() => setSheet({ kind: 'day', day: d })}>
-                <span className="hr-v">{dayText(d)}</span>
-                <b>{money(swimDayTotal(d))}</b>
-                <span className="rr-e">✎</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Away days */}
-      <section className="home-card">
-        <div className="home-card-head">
-          <h2>Away days</h2>
-          <button className="btn glass sm" onClick={() => setSheet({ kind: 'away' })}>
-            🧳 Mark away
-          </button>
-        </div>
-        <div className="dh-split three">
-          <Cell k="Logged" v={money(proj.actual)} />
-          <Cell k="To come" v={money(proj.toCome)} cls="swim" />
-          <Cell k="Potential" v={money(proj.potential)} cls="grab" />
-        </div>
-        <p className="muted small">
-          <b>{proj.toComeDays}</b> teaching day{proj.toComeDays === 1 ? '' : 's'} left in {periodLabel(monthKey)}
-          {proj.awayCount ? (
-            <>
-              {' · '}
-              <span className="neg">
-                <b>{proj.awayCount}</b> away · {money(proj.awayValue)}
+          <p className="muted small swim-salary-note">
+            <b>{money(t.total)}</b> earned in {periodLabel(monthKey)} is paid as {personName || 'this person'}’s {periodLabel(nextMonthKey)} salary.
+          </p>
+  
+          <p className="section-label">School students by week</p>
+          <p className="small">
+            {thisWeek ? (
+              <>
+                This week: <b>{weekLoc.CC + weekLoc.WWW + weekLoc.JE}</b> student{weekLoc.CC + weekLoc.WWW + weekLoc.JE === 1 ? '' : 's'}
+              </>
+            ) : (
+              <span className="muted">Pick this month in the top bar to see this week.</span>
+            )}
+          </p>
+          <div className="loc-legend">
+            {LOCATIONS.map((l) => (
+              <span key={l}>
+                <i style={{ background: LOC_COLORS[l] }} /> {l}
+                {thisWeek ? ` — ${weekLoc[l]}` : ''}
               </span>
-              {` · full month ${money(proj.ifPresent)}`}
-            </>
-          ) : (
-            ' · none away'
-          )}
-        </p>
-        {shownAway.length === 0 ? (
-          <p className="muted small">No away days marked yet.</p>
-        ) : (
-          <div className="history">
-            {shownAway.map((a) => {
-              const has = (a.blocks || []).some((b) => Object.values(b || {}).some((v) => String(v || '').trim()));
-              return (
-                <div key={a.id} className="history-row away-row">
-                  <span className="hr-d">
-                    {DAY_LABELS[dayKeyOf(a.date)].slice(0, 3)} {shortD(a.date)}
-                  </span>
-                  <span className="hr-v">
-                    {money(estimateForDate(days, a.date).amount)}
-                    {a.reason ? ` · ${a.reason}` : ''}
-                  </span>
-                  <button className={`btn sm ${has ? 'glass' : 'ghost'}`} onClick={() => setSheet({ kind: 'relief', entry: a })}>
-                    {has ? '✓ note' : '+ note'}
-                  </button>
-                  <button
-                    className="icon-btn"
-                    aria-label={`Remove away day ${shortD(a.date)}`}
-                    onClick={() => confirmTwice(`Remove ${shortD(a.date)} from your away days?`, 'this away day') && setPath(`${path}/away/${a.id}`, null)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              );
-            })}
+            ))}
           </div>
-        )}
-      </section>
+          {weeks.some((w) => w.students > 0) ? (
+            <div className="wk-bars">
+              {weeks.map((w, i) => (
+                <button key={w.start} className={`wk-col ${week === i ? 'picked' : ''}`} onClick={() => setWeek(week === i ? null : i)} aria-label={`Week of ${shortD(w.start)}: ${w.students} students`}>
+                  <span className="wk-n">{w.students}</span>
+                  <span className="wk-wrap">
+                    <i className={i === current ? 'current' : ''} style={{ height: `${Math.max(3, (w.students / maxWeek) * 100)}%`, opacity: w.students || i === current ? 1 : 0.25 }} />
+                  </span>
+                  <span className={`wk-l ${i === current ? 'current' : ''}`}>{i === current ? 'This wk' : `Wk ${i + 1}`}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="muted small">Log a swim day with its school total (and any private or trial students), and the weekly student counts appear here.</p>
+          )}
+          {week != null && weeks[week] && <WeekDetail days={days} w={weeks[week]} label={week === current ? 'This week' : `Week ${week + 1}`} />}
+  
+          <p className="section-label">Swim earnings per day · tap a day to edit</p>
+          {perDay.some((d) => d.value > 0) ? (
+            <div className="day-bars">
+              {perDay.map((d) => (
+                <button key={d.date} className={`day-bar-col ${pickDay === d.date ? 'picked' : ''}`} onClick={() => setPickDay(pickDay === d.date ? null : d.date)} aria-label={`${shortD(d.date)}: ${money(d.value)}`}>
+                  <span className="db-v">{d.value > 0 ? Math.round(d.value) : ''}</span>
+                  <span className="db-wrap">
+                    <i className="swim" style={{ height: `${Math.max(2, (d.value / maxDay) * 100)}%`, opacity: d.value ? 1 : 0.2 }} />
+                  </span>
+                  <span className="db-l">{d.date.slice(8)}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="muted small">Log a swim day and each day’s earnings appear here.</p>
+          )}
+          {pickDay && (
+            <div className="day-report">
+              <div className="dr-head">
+                <b>{new Date(`${pickDay}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</b>
+                <button className="btn glass sm" onClick={() => setSheet({ kind: 'day', date: pickDay })}>
+                  ＋ Log this day
+                </button>
+              </div>
+              {dayEntries.length === 0 && <p className="muted small">Nothing logged.</p>}
+              {dayEntries.map((d) => (
+                <button key={d.id} className="history-row swim-day-row" onClick={() => setSheet({ kind: 'day', day: d })}>
+                  <span className="hr-v">{dayText(d)}</span>
+                  <b>{money(swimDayTotal(d))}</b>
+                  <span className="rr-e">✎</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+  
+        {/* Away days */}
+        <section className="home-card">
+          <div className="home-card-head">
+            <h2>Away days</h2>
+            <button className="btn glass sm" onClick={() => setSheet({ kind: 'away' })}>
+              🧳 Mark away
+            </button>
+          </div>
+          <div className="dh-split three">
+            <Cell k="Logged" v={money(proj.actual)} />
+            <Cell k="To come" v={money(proj.toCome)} cls="swim" />
+            <Cell k="Potential" v={money(proj.potential)} cls="grab" />
+          </div>
+          <p className="muted small">
+            <b>{proj.toComeDays}</b> teaching day{proj.toComeDays === 1 ? '' : 's'} left in {periodLabel(monthKey)}
+            {proj.awayCount ? (
+              <>
+                {' · '}
+                <span className="neg">
+                  <b>{proj.awayCount}</b> away · {money(proj.awayValue)}
+                </span>
+                {` · full month ${money(proj.ifPresent)}`}
+              </>
+            ) : (
+              ' · none away'
+            )}
+          </p>
+          {shownAway.length === 0 ? (
+            <p className="muted small">No away days marked yet.</p>
+          ) : (
+            <div className="history">
+              {shownAway.map((a) => {
+                const has = (a.blocks || []).some((b) => Object.values(b || {}).some((v) => String(v || '').trim()));
+                return (
+                  <div key={a.id} className="history-row away-row">
+                    <span className="hr-d">
+                      {DAY_LABELS[dayKeyOf(a.date)].slice(0, 3)} {shortD(a.date)}
+                    </span>
+                    <span className="hr-v">
+                      {money(estimateForDate(days, a.date).amount)}
+                      {a.reason ? ` · ${a.reason}` : ''}
+                    </span>
+                    <button className={`btn sm ${has ? 'glass' : 'ghost'}`} onClick={() => setSheet({ kind: 'relief', entry: a })}>
+                      {has ? '✓ note' : '+ note'}
+                    </button>
+                    <button
+                      className="icon-btn"
+                      aria-label={`Remove away day ${shortD(a.date)}`}
+                      onClick={() => confirmTwice(`Remove ${shortD(a.date)} from your away days?`, 'this away day') && setPath(`${path}/away/${a.id}`, null)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+  
+        <PayslipCard path={path} saved={data?.payslips?.[monthKey]} days={days} y={y} m={m} monthKey={monthKey} />
+  
+          </>
+      )}
 
-      <PayslipCard path={path} saved={data?.payslips?.[monthKey]} days={days} y={y} m={m} monthKey={monthKey} />
-
-      <section className="home-card coming-card">
-        <h2>Classes</h2>
-        <p className="muted small">The class schedule, rosters, credits, skills and Hall of Swimming come in the next update.</p>
-      </section>
+      {top === 'classes' && <ClassesView path={`${path}/classes`} m={data?.classes || {}} swimDays={days} onSwimDay={(s) => setSheet({ kind: 'day', ...s })} />}
 
       <button className="link-btn extra-remove" onClick={onRemove}>
         Untick Happy Fish for {personName || 'this person'}
       </button>
 
       {sheet?.kind === 'day' && <SwimDaySheet path={path} day={sheet.day} date={sheet.date} onSaved={(d) => setPickDay(d)} onClose={() => setSheet(null)} />}
-      {sheet?.kind === 'away' && <AwaySheet path={path} days={days} away={away} onClose={() => setSheet(null)} />}
-      {sheet?.kind === 'relief' && <ReliefSheet path={path} entry={sheet.entry} initialBlocks={reliefBlocksFor(sheet.entry, away)} onClose={() => setSheet(null)} />}
-      {importing && <ImportBackup path={path} what="your swim days, away days and payslips" plan={planImport} onClose={() => setImporting(false)} />}
+      {sheet?.kind === 'away' && <AwaySheet path={path} days={days} away={away} classDays={classDays} onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'relief' && <ReliefSheet path={path} entry={sheet.entry} initialBlocks={reliefBlocksFor(sheet.entry, away, classesForDay(data?.classes, dayKeyOf(sheet.entry.date)).map((cl) => ({ time: timeLabel(cl.time), level: `${TYPE_LABELS[cl.type]} ${LEVEL_LABELS[cl.level]}` })))} onClose={() => setSheet(null)} />}
+      {importing && <ImportBackup path={path} what="your swim days, away days, payslips and classes" plan={planImport} onClose={() => setImporting(false)} />}
     </div>
   );
 }

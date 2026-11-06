@@ -102,7 +102,7 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
               // Happy Fish (from the month it was ticked): the salary is this month's swim earnings.
               <button className="swim-salary" onClick={() => onOpenExtra('swim')} title="Open the Swim page">
                 <b>{formatMoney(person.salary, currency)}</b>
-                <span className="muted small">this month’s swim days · Open Swim ›</span>
+                <span className="muted small">last month’s swim days, paid this month · Open Swim ›</span>
               </button>
             ) : (
               <LiveInput

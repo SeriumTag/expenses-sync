@@ -63,15 +63,22 @@ export function swimTotals(days, year, monthIndex) {
   return { total: Math.round(total * 100) / 100, students, outside, days: taught.size };
 }
 
-// The salary for a period key: that month's swim total (a whole year: its months ÷ 12).
+// Happy Fish pays a month in arrears: swim days from 1–31 January are
+// February's salary. The salary for a period key is therefore the month
+// before's swim total (a whole year: the 12 months before each of its months, ÷ 12).
+export const earnedMonthFor = (pk) => {
+  const d = new Date(Number(pk.slice(0, 4)), Number(pk.slice(5, 7)) - 2, 1);
+  return { year: d.getFullYear(), monthIndex: d.getMonth() };
+};
 export function swimSalaryFor(swim, pk) {
   const days = daysOf(swim);
-  if (/^\d{4}$/.test(pk)) {
+  if (/^d{4}$/.test(pk)) {
     let sum = 0;
-    for (let m = 0; m < 12; m++) sum += swimTotals(days, Number(pk), m).total;
+    for (let m = 0; m < 12; m++) sum += swimTotals(days, m === 0 ? Number(pk) - 1 : Number(pk), m === 0 ? 11 : m - 1).total;
     return Math.round((sum / 12) * 100) / 100;
   }
-  return swimTotals(days, Number(pk.slice(0, 4)), Number(pk.slice(5, 7)) - 1).total;
+  const { year, monthIndex } = earnedMonthFor(pk);
+  return swimTotals(days, year, monthIndex).total;
 }
 
 // ── Students by real Monday–Sunday weeks ──
@@ -129,8 +136,8 @@ function averageOf(rows) {
 // What a weekday is usually worth: the average of its last 8 swim days.
 export const weekdayEarnStats = (days, dayKey) => averageOf(days.filter((it) => dayKeyOf(it.date) === dayKey).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8));
 const overallStats = (days) => averageOf([...days].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 12));
-// A teaching day: that weekday has been taught before (classes come in part 2).
-export const teachesOnDate = (days, ds) => weekdayEarnStats(days, dayKeyOf(ds)).n > 0;
+// A teaching day: classes are set for that weekday, or it has been taught before.
+export const teachesOnDate = (days, ds, classDays = new Set()) => classDays.has(dayKeyOf(ds)) || weekdayEarnStats(days, dayKeyOf(ds)).n > 0;
 export function estimateForDate(days, ds) {
   const key = dayKeyOf(ds);
   const w = weekdayEarnStats(days, key);
@@ -140,7 +147,7 @@ export function estimateForDate(days, ds) {
   return { amount: 0, basis: 'no history for that day yet' };
 }
 // The month so far, plus an estimate for each teaching day to come, minus away days.
-export function monthAwayProjection(days, away, year, monthIndex, today = todayStr()) {
+export function monthAwayProjection(days, away, year, monthIndex, classDays = new Set(), today = todayStr()) {
   const actual = swimTotals(days, year, monthIndex).total;
   const awaySet = new Set(away.map((a) => a.date));
   let toCome = 0;
@@ -150,7 +157,7 @@ export function monthAwayProjection(days, away, year, monthIndex, today = todayS
   const n = new Date(year, monthIndex + 1, 0).getDate();
   for (let d = 1; d <= n; d++) {
     const ds = ymd(year, monthIndex, d);
-    if (ds <= today || !teachesOnDate(days, ds)) continue;
+    if (ds <= today || !teachesOnDate(days, ds, classDays)) continue;
     const est = estimateForDate(days, ds).amount;
     if (awaySet.has(ds)) {
       awayValue += est;
@@ -181,13 +188,27 @@ export const RELIEF_FIELDS = [
 ];
 export const blankBlock = () => Object.fromEntries(RELIEF_FIELDS.map((f) => [f.k, '']));
 export const blockFilled = (b) => RELIEF_FIELDS.some((f) => String(b?.[f.k] || '').trim());
-// Start a note from what's saved, else the last note for the same weekday (classes repeat weekly).
-export function reliefBlocksFor(a, away) {
+// Start a note from what's saved; else the last note for the same weekday
+// (classes repeat weekly), re-matched to this week's classes by their time;
+// else one block per class scheduled that day (schedule: [{ time, level }]).
+export function reliefBlocksFor(a, away, schedule = []) {
   if (Array.isArray(a.blocks) && a.blocks.some(blockFilled)) return a.blocks.map((b) => ({ ...blankBlock(), ...b }));
+  const fresh = schedule.length ? schedule.map((s) => ({ ...blankBlock(), ...s })) : [blankBlock()];
   const key = dayKeyOf(a.date);
   const prev = away.filter((x) => x.date !== a.date && dayKeyOf(x.date) === key && (x.blocks || []).some(blockFilled)).sort((x, y) => y.date.localeCompare(x.date))[0];
-  if (prev) return prev.blocks.filter(blockFilled).map((b) => ({ ...blankBlock(), ...b }));
-  return [blankBlock()];
+  if (!prev) return fresh;
+  const prevBlocks = prev.blocks.filter(blockFilled);
+  const used = new Set();
+  const merged = fresh.map((b) => {
+    const i = prevBlocks.findIndex((x, ix) => !used.has(ix) && String(x.time || '').trim() === String(b.time || '').trim());
+    if (i === -1) return b;
+    used.add(i);
+    const out = { ...b };
+    for (const k of ['safety', 'games', 'formation', 'remarks']) if (String(prevBlocks[i][k] || '').trim()) out[k] = prevBlocks[i][k];
+    return out;
+  });
+  prevBlocks.forEach((x, ix) => !used.has(ix) && merged.push({ ...blankBlock(), ...x })); // classes that no longer match still come along
+  return merged.some(blockFilled) ? merged : fresh;
 }
 export function reliefShareText(date, blocks, shortD) {
   const key = dayKeyOf(date);
