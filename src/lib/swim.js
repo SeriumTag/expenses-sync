@@ -37,6 +37,7 @@ export const swimModeOf = (it) => it?.swimMode || 'normal';
 export const schoolDeductions = (it) => (it.p1 != null ? it.p1 : it.priv || 0) * RATE_P1 + (it.p2 || 0) * RATE_P2 + (it.p3 || 0) * RATE_P3 + (it.trials || 0) * RATE_TRIAL;
 // School students, worked back from the school total (normal days only).
 export function schoolStudents(it) {
+  if (swimModeOf(it) === 'lessons') return lessonList(it).reduce((s, l) => s + (l.kids || 0), 0);
   if (it.amount == null || swimModeOf(it) !== 'normal') return null;
   const rest = it.amount - schoolDeductions(it);
   return rest <= 0 ? 0 : Math.round(rest / RATE_SCHOOL);
@@ -44,6 +45,152 @@ export function schoolStudents(it) {
 // Outside lessons after their discount, never below zero.
 export const outsideLessonAmount = (it) => Math.max(0, (it.outside || 0) * RATE_OUTSIDE - (it.outsideDiscount || 0));
 export const swimDayTotal = (it) => (it.amount || 0) + outsideLessonAmount(it);
+
+// ── A day logged lesson by lesson (pasted from the booking page or keyed in) ──
+// Group $8 a child, relief $10 a child, private $45 / $52.50 / $60 for 1 / 2 / 3 students.
+export const LESSON_KINDS = { group: 'Group', relief: 'Relief', private: 'Private' };
+export const lessonList = (it) => (Array.isArray(it?.lessons) ? it.lessons : Object.values(it?.lessons || {})).filter(Boolean);
+export function lessonPay(kind, kids) {
+  const n = Math.max(0, Math.round(Number(kids) || 0));
+  if (kind === 'private') return n <= 0 ? 0 : n === 1 ? RATE_P1 : n === 2 ? RATE_P2 : n === 3 ? RATE_P3 : RATE_P3 + (n - 3) * RATE_SCHOOL;
+  return n * (kind === 'relief' ? RATE_RELIEF : RATE_SCHOOL);
+}
+export const lessonsTotal = (lessons) => Math.round(lessons.reduce((s, l) => s + lessonPay(l.kind, l.kids), 0) * 100) / 100;
+export function lessonsSummary(lessons) {
+  return {
+    count: lessons.length,
+    kids: lessons.reduce((s, l) => s + (l.kids || 0), 0),
+    absent: lessons.reduce((s, l) => s + (l.absent || 0), 0),
+    relief: lessons.filter((l) => l.kind === 'relief').length,
+    priv: lessons.filter((l) => l.kind === 'private').length,
+    total: lessonsTotal(lessons),
+  };
+}
+// Where a lesson was taught, from the booking page's place name.
+export function locationOfText(s) {
+  const t = String(s || '').toLowerCase();
+  if (/downtown east|wild wild wet|\bwww\b/.test(t)) return 'WWW';
+  if (/jurong east|\bje\b/.test(t)) return 'JE';
+  if (/\bcc\b|community club/.test(t)) return 'CC';
+  return null;
+}
+
+const MON3 = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+const DOW3 = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const moneyIn = (s) => Number(String(s).replace(/[$,\s]/g, ''));
+// "Thu, 5 Nov" has no year: take the year where that date is that weekday,
+// preferring the latest date that isn't in the future.
+export function yearForDate(day, monthIndex, dow, today = todayStr()) {
+  const ty = Number(today.slice(0, 4));
+  const options = [ty + 1, ty, ty - 1, ty - 2].map((y) => ({ y, ds: ymd(y, monthIndex, day) })).filter((o) => new Date(o.y, monthIndex, day).getMonth() === monthIndex);
+  const match = options.filter((o) => dow == null || new Date(o.y, monthIndex, day).getDay() === dow);
+  const pool = match.length ? match : options;
+  return (pool.find((o) => o.ds <= today) || pool[pool.length - 1] || { y: ty }).y;
+}
+const HEADER_RE = /^(?:(sun|mon|tue|wed|thu|fri|sat)[a-z]*,?\s+)?(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b(?:\s+(\d{4}))?/i;
+const TIME_RE = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)\s+(.+)$/i;
+// One or more days copied from the booking page → [{ date, lessons, header, warnings, ... }].
+export function parseLessonDays(text, today = todayStr()) {
+  const days = [];
+  let day = null;
+  let lesson = null;
+  let skipped = 0;
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map((l) => l.replace(/^[\s·•\-–]+/, '').trim())
+    .filter(Boolean);
+  for (const line of lines) {
+    const h = line.match(HEADER_RE);
+    if (h && !TIME_RE.test(line) && !/came|absent|per child|fixed rate/i.test(line)) {
+      const mi = MON3.indexOf(h[3].toLowerCase());
+      const dow = h[1] ? DOW3.indexOf(h[1].toLowerCase()) : null;
+      const y = h[4] ? Number(h[4]) : yearForDate(Number(h[2]), mi, dow, today);
+      day = { date: ymd(y, mi, Number(h[2])), header: {}, lessons: [], skipped: 0 };
+      days.push(day);
+      lesson = null;
+      const rest = line.slice(h[0].length);
+      const tot = rest.match(/\$\s*([\d,]+(?:\.\d+)?)/);
+      if (tot) day.header.total = moneyIn(tot[1]);
+      const ln = rest.match(/(\d+)\s+lessons?/i);
+      if (ln) day.header.lessons = Number(ln[1]);
+      const rl = rest.match(/(\d+)\s+relief/i);
+      if (rl) day.header.relief = Number(rl[1]);
+      continue;
+    }
+    if (!day) {
+      skipped++;
+      continue;
+    }
+    // Header bits on their own lines: "$252.00", "9 lessons · 1 relief"
+    if (!lesson && !TIME_RE.test(line)) {
+      const ln = line.match(/(\d+)\s+lessons?/i);
+      const rl = line.match(/(\d+)\s+relief/i);
+      const tot = line.match(/^\$\s*([\d,]+(?:\.\d+)?)$/);
+      if (ln || rl || tot) {
+        if (tot) day.header.total = moneyIn(tot[1]);
+        if (ln) day.header.lessons = Number(ln[1]);
+        if (rl) day.header.relief = Number(rl[1]);
+        continue;
+      }
+    }
+    const t = line.match(TIME_RE);
+    if (t) {
+      lesson = { time: `${t[1]}${t[2] ? `:${t[2]}` : ''}${t[3].toLowerCase()}`, title: t[4].trim(), location: '', minutes: 0, kind: 'group', came: 0, absent: 0, kids: 0, slipPay: null };
+      day.lessons.push(lesson);
+      continue;
+    }
+    if (!lesson) {
+      day.skipped++;
+      continue;
+    }
+    const pay = line.match(/^\$\s*([\d,]+(?:\.\d+)?)$/);
+    if (pay) {
+      lesson.slipPay = moneyIn(pay[1]);
+      continue;
+    }
+    if (/\bmin\b|group|private|relief/i.test(line) && !/came|per child|fixed rate/i.test(line)) {
+      const parts = line.split('·').map((p) => p.trim());
+      lesson.location = parts[0] || '';
+      const mm = line.match(/(\d+)\s*min/i);
+      if (mm) lesson.minutes = Number(mm[1]);
+      lesson.kind = /private/i.test(line) ? 'private' : /relief/i.test(line) ? 'relief' : 'group';
+      continue;
+    }
+    if (/came|absent|per child|fixed rate/i.test(line)) {
+      const came = line.match(/(\d+)\s+came/i);
+      const absent = line.match(/(\d+)\s+absent/i);
+      const times = line.match(/(\d+)\s*[×x]\s*\$/i);
+      const fixed = line.match(/fixed rate for\s+(\d+)/i);
+      lesson.came = came ? Number(came[1]) : 0;
+      lesson.absent = absent ? Number(absent[1]) : 0;
+      lesson.kids = times ? Number(times[1]) : fixed ? Number(fixed[1]) : lesson.came + lesson.absent;
+      continue;
+    }
+    day.skipped++;
+  }
+  return days.map((d) => {
+    const lessons = d.lessons.map((l) => ({ ...l, pay: lessonPay(l.kind, l.kids) }));
+    const sum = lessonsSummary(lessons);
+    const warnings = [];
+    lessons.forEach((l) => {
+      if (l.slipPay != null && Math.abs(l.slipPay - l.pay) >= 0.005) warnings.push(`${l.time} ${l.title}: page says $${l.slipPay.toFixed(2)}, rule gives $${l.pay.toFixed(2)}`);
+    });
+    if (d.header.lessons != null && d.header.lessons !== lessons.length) warnings.push(`Header says ${d.header.lessons} lessons, found ${lessons.length}`);
+    const slipSum = lessons.reduce((s, l) => s + (l.slipPay || 0), 0);
+    if (d.header.total != null && lessons.every((l) => l.slipPay != null) && Math.abs(d.header.total - slipSum) >= 0.005) warnings.push(`Header says $${d.header.total.toFixed(2)}, lessons add to $${slipSum.toFixed(2)}`);
+    if (d.skipped) warnings.push(`${d.skipped} line${d.skipped === 1 ? '' : 's'} not understood`);
+    return { date: d.date, header: d.header, lessons, amount: sum.total, students: sum.kids, absent: sum.absent, relief: sum.relief, priv: sum.priv, warnings };
+  }).filter((d) => d.lessons.length || d.header.total != null);
+}
+// The record saved for one parsed day.
+export const lessonDayRecord = (date, lessons, extra = {}) => ({
+  date,
+  swimMode: 'lessons',
+  amount: lessonsTotal(lessons),
+  lessons: lessons.map((l) => ({ time: l.time || '', title: l.title || '', location: l.location || '', minutes: l.minutes || 0, kind: l.kind || 'group', came: l.came || 0, absent: l.absent || 0, kids: l.kids || 0, pay: lessonPay(l.kind, l.kids), slipPay: l.slipPay ?? null })),
+  outside: extra.outside || 0,
+  outsideDiscount: extra.outsideDiscount || 0,
+});
 
 // A calendar month (monthIndex 0-based) — what the salary follows.
 export function swimTotals(days, year, monthIndex) {
@@ -114,8 +261,16 @@ export function locationTotals(days, start, end) {
   for (const it of days) {
     if (it.date < start || it.date > end) continue;
     count++;
+    const fallback = LOCATION_BY_DAY[dayKeyOf(it.date)];
+    if (swimModeOf(it) === 'lessons') {
+      for (const l of lessonList(it)) {
+        const at = locationOfText(l.location) || fallback;
+        if (at) totals[at] += l.kids || 0;
+      }
+      continue;
+    }
     const s = schoolStudents(it);
-    const loc = LOCATION_BY_DAY[dayKeyOf(it.date)];
+    const loc = fallback;
     if (s != null && loc) totals[loc] += s;
   }
   return { totals, days: count };

@@ -11,6 +11,8 @@ import {
   parseSwimBackup,
   schoolStudents,
   swimDayTotal,
+  lessonList,
+  lessonsSummary,
   swimModeOf,
   swimTotals,
   todayStr,
@@ -18,7 +20,7 @@ import {
 } from '../../lib/swim';
 import { periodLabel } from '../../lib/budget';
 import ImportBackup, { backupStores, countText } from './ImportBackup';
-import { SwimDaySheet, shortD } from './SwimSheets';
+import { PasteDaysSheet, SwimDaySheet, lessonsLine, shortD } from './SwimSheets';
 import HappyFishIcon from './HappyFishIcon';
 import ClassesView from './ClassesView';
 import { mergeImported, parseClassesBackup } from '../../lib/classes';
@@ -154,9 +156,14 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
         <section className="home-card">
           <div className="home-card-head">
             <h2>Swimming · {periodLabel(monthKey)}</h2>
-            <button className="btn primary sm" onClick={() => setSheet({ kind: 'day', date: today.startsWith(monthKey) ? today : `${monthKey}-01` })}>
-              ＋ Swim day
-            </button>
+            <span className="swim-head-btns">
+              <button className="btn glass sm" onClick={() => setSheet({ kind: 'paste' })}>
+                📋 Paste days
+              </button>
+              <button className="btn primary sm" onClick={() => setSheet({ kind: 'day', date: today.startsWith(monthKey) ? today : `${monthKey}-01` })}>
+                ＋ Swim day
+              </button>
+            </span>
           </div>
           <div className="dh-split four">
             <Cell k="Earned" v={money(t.total)} cls="swim" />
@@ -199,7 +206,7 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
               ))}
             </div>
           ) : (
-            <p className="muted small">Log a swim day with its school total (and any private or trial students), and the weekly student counts appear here.</p>
+            <p className="muted small">Paste a day from the booking page (📋 Paste days) or log a swim day, and the weekly student counts appear here.</p>
           )}
           {week != null && weeks[week] && <WeekDetail days={days} w={weeks[week]} label={week === current ? 'This week' : `Week ${week + 1}`} />}
   
@@ -229,11 +236,28 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
               </div>
               {dayEntries.length === 0 && <p className="muted small">Nothing logged.</p>}
               {dayEntries.map((d) => (
-                <button key={d.id} className="history-row swim-day-row" onClick={() => setSheet({ kind: 'day', day: d })}>
-                  <span className="hr-v">{dayText(d)}</span>
-                  <b>{money(swimDayTotal(d))}</b>
-                  <span className="rr-e">✎</span>
-                </button>
+                <div key={d.id}>
+                  <button className="history-row swim-day-row" onClick={() => setSheet({ kind: 'day', day: d })}>
+                    <span className="hr-v">{dayText(d)}</span>
+                    <b>{money(swimDayTotal(d))}</b>
+                    <span className="rr-e">✎</span>
+                  </button>
+                  {swimModeOf(d) === 'lessons' && (
+                    <div className="lesson-list">
+                      {lessonList(d).map((l, i) => (
+                        <span key={i}>
+                          <span>
+                            {l.time} {l.title}
+                            {l.kind !== 'group' ? ` · ${l.kind}` : ''}
+                          </span>
+                          <span>
+                            {l.kids} × · {money(l.pay)}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}
@@ -250,7 +274,8 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
         Untick Happy Fish for {personName || 'this person'}
       </button>
 
-      {sheet?.kind === 'day' && <SwimDaySheet path={path} day={sheet.day} date={sheet.date} onSaved={(d) => setPickDay(d)} onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'day' && <SwimDaySheet path={path} day={sheet.day} date={sheet.date} days={days} onSaved={(d) => setPickDay(d)} onClose={() => setSheet(null)} />}
+      {sheet?.kind === 'paste' && <PasteDaysSheet path={path} days={days} onSaved={(d) => setPickDay(d.startsWith(monthKey) ? d : null)} onClose={() => setSheet(null)} />}
       {importing && <ImportBackup path={path} what="your swim days, payslips and classes" plan={planImport} onClose={() => setImporting(false)} />}
     </div>
   );
@@ -267,6 +292,7 @@ function Cell({ k, v, cls = '' }) {
 
 function dayText(d) {
   const mode = swimModeOf(d);
+  if (mode === 'lessons') return lessonsLine(lessonsSummary(lessonList(d)));
   if (mode === 'flat') return `Flat rate ${money(d.amount)}`;
   if (mode === 'relief') return `Relief ${d.reliefHeads || 0} heads`;
   const bits = [`School ${money(d.amount)}`];

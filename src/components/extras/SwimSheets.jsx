@@ -4,6 +4,7 @@ import { newKey, patchPath, setPath } from '../../lib/db';
 import {
   DAY_LABELS,
   FLAT_DEFAULT,
+  LESSON_KINDS,
   RATE_OUTSIDE,
   RATE_RELIEF,
   RELIEF_FIELDS,
@@ -12,7 +13,13 @@ import {
   blockFilled,
   dayKeyOf,
   estimateForDate,
+  lessonDayRecord,
+  lessonList,
+  lessonPay,
+  lessonsSummary,
   outsideLessonAmount,
+  parseLessonDays,
+  swimModeOf,
   reliefCsv,
   reliefShareText,
   schoolStudents,
@@ -26,15 +33,59 @@ export const shortD = (s) => `${Number(s.slice(8, 10))} ${MONTHS[Number(s.slice(
 const money = (n) => `$${(Math.round((n || 0) * 100) / 100).toFixed(2)}`;
 const int = (v) => parseInt(v, 10) || 0;
 
-const MODES = { normal: 'Normal', flat: 'Flat rate', relief: 'Relief' };
+const MODES = { lessons: 'Lessons', normal: 'School total', flat: 'Flat rate', relief: 'Relief' };
+const wd = (ds) => DAY_LABELS[dayKeyOf(ds)].slice(0, 3);
+const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+export const lessonsLine = (s) => [plural(s.count, 'lesson', 'lessons'), `${plural(s.kids, 'kid', 'kids')}${s.absent ? ` (${s.absent} absent)` : ''}`, s.relief && `${s.relief} relief`, s.priv && `${s.priv} private`].filter(Boolean).join(' · ');
+const blankLesson = () => ({ time: '', title: '', location: '', minutes: 0, kind: 'group', came: 0, absent: 0, kids: 1, slipPay: null });
 
-// One swim day: the school total (or a flat / relief day), private classes
-// and trials taken out of it, and outside lessons on top.
-export function SwimDaySheet({ path, day, date, onSaved, onClose }) {
+// One day's lessons: kind and kids per lesson, pay worked out from the rules.
+function LessonRows({ lessons, onChange }) {
+  const upd = (i, patch) => onChange(lessons.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  return (
+    <div className="lesson-rows">
+      {lessons.map((l, i) => {
+        const pay = lessonPay(l.kind, l.kids);
+        const off = l.slipPay != null && Math.abs(l.slipPay - pay) >= 0.005;
+        return (
+          <div key={i} className={`lesson-row ${l.kind}`}>
+            <input className="lr-name" value={`${l.time ? `${l.time} ` : ''}${l.title}`} onChange={(e) => upd(i, { time: '', title: e.target.value })} placeholder="Lesson, e.g. 3pm Kids Beginner" aria-label="Lesson" />
+            <select value={l.kind} onChange={(e) => upd(i, { kind: e.target.value })} aria-label="Kind of lesson">
+              {Object.entries(LESSON_KINDS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+            <input className="lr-kids" inputMode="numeric" value={l.kids || ''} onChange={(e) => upd(i, { kids: int(e.target.value) })} placeholder="0" aria-label="Kids" />
+            <b className="lr-pay">{money(pay)}</b>
+            <button type="button" className="icon-btn" aria-label="Remove lesson" onClick={() => onChange(lessons.filter((_, j) => j !== i))}>
+              ✕
+            </button>
+            {(l.location || l.absent > 0 || off) && (
+              <span className="lr-meta">
+                {[l.location, l.minutes && `${l.minutes} min`, l.absent > 0 && `${l.came} came, ${l.absent} absent`].filter(Boolean).join(' · ')}
+                {off && <span className="lr-warn"> ⚠ page says {money(l.slipPay)}</span>}
+              </span>
+            )}
+          </div>
+        );
+      })}
+      <button type="button" className="btn ghost sm" onClick={() => onChange([...lessons, blankLesson()])}>
+        ＋ Add lesson
+      </button>
+    </div>
+  );
+}
+
+// One swim day: lesson by lesson (paste from the booking page), or the older
+// school total / flat / relief day, with outside lessons on top.
+export function SwimDaySheet({ path, day, date, days = [], onSaved, onClose }) {
   const s = (v) => (v ? String(v) : '');
   const [form, setForm] = useState(() => ({
     date: day?.date || date || todayStr(),
-    mode: day?.swimMode || 'normal',
+    mode: day ? swimModeOf(day) : 'lessons',
+    lessons: day ? lessonList(day) : [],
     amount: day ? s(day.amount) : '',
     p1: s(day?.p1),
     p2: s(day?.p2),
@@ -46,12 +97,26 @@ export function SwimDaySheet({ path, day, date, onSaved, onClose }) {
   }));
   const [start] = useState(() => JSON.stringify(form));
   const [error, setError] = useState('');
+  const [paste, setPaste] = useState('');
+  const [pasteNote, setPasteNote] = useState('');
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const setMode = (mode) => setForm((f) => ({ ...f, mode, amount: mode === 'flat' && !f.amount ? String(FLAT_DEFAULT) : f.amount }));
+  function onPaste(text) {
+    setPaste(text);
+    const parsed = parseLessonDays(text);
+    if (!parsed.length) return setPasteNote(text.trim() ? 'Nothing readable yet — paste the day as it shows on the booking page, starting with its date line.' : '');
+    const d = parsed[0];
+    setForm((f) => ({ ...f, date: d.date, lessons: d.lessons }));
+    setPasteNote([`Read ${wd(d.date)} ${shortD(d.date)}: ${plural(d.lessons.length, 'lesson', 'lessons')}, ${money(d.amount)}.`, parsed.length > 1 && `Only the first of ${parsed.length} days is used here — use 📋 Paste days for several.`, ...d.warnings.map((w) => `⚠ ${w}`)].filter(Boolean).join('\n'));
+  }
 
   // The day as it would be saved, for the live breakdown.
+  const isLessons = form.mode === 'lessons';
+  const sum = lessonsSummary(form.lessons);
   const isNormal = form.mode === 'normal';
-  const school = form.mode === 'relief' ? int(form.heads) * RATE_RELIEF : form.amount === '' ? 0 : parseFloat(form.amount);
+  const school = isLessons ? sum.total : form.mode === 'relief' ? int(form.heads) * RATE_RELIEF : form.amount === '' ? 0 : parseFloat(form.amount);
+  // Another lessons entry on this date gets replaced, not doubled.
+  const replaced = isLessons ? days.filter((d) => d.date === form.date && d.id !== day?.id && swimModeOf(d) === 'lessons') : [];
   const outside = int(form.outside);
   const discount = Math.min(Math.max(0, parseFloat(form.discount) || 0), outside * RATE_OUTSIDE);
   const preview = { amount: school, swimMode: form.mode, p1: isNormal ? int(form.p1) : 0, p2: isNormal ? int(form.p2) : 0, p3: isNormal ? int(form.p3) : 0, trials: isNormal ? int(form.trials) : 0, outside, outsideDiscount: discount };
@@ -61,6 +126,17 @@ export function SwimDaySheet({ path, day, date, onSaved, onClose }) {
   async function save(e) {
     e.preventDefault();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(form.date)) return setError('Pick a date.');
+    if (isLessons) {
+      const lessons = form.lessons.filter((l) => l.kids > 0 || l.title.trim());
+      if (!lessons.length) return setError('Paste the day from the booking page, or add a lesson.');
+      if (lessons.some((l) => !(l.kids > 0))) return setError('Every lesson needs how many kids it was paid for.');
+      const id = day?.id || newKey(`${path}/days`);
+      const patch = { [id]: lessonDayRecord(form.date, lessons, { outside, outsideDiscount: discount }) };
+      replaced.forEach((d) => (patch[d.id] = null));
+      await patchPath(`${path}/days`, patch);
+      onSaved?.(form.date);
+      return onClose();
+    }
     if (form.mode === 'relief' && int(form.heads) <= 0) return setError('Enter how many heads you relieved.');
     if (form.mode === 'flat' && !(school > 0)) return setError('Enter the flat amount for the day.');
     if (Number.isNaN(school) || school < 0) return setError('Enter a valid school total, or leave it blank.');
@@ -96,7 +172,7 @@ export function SwimDaySheet({ path, day, date, onSaved, onClose }) {
             <span>Date</span>
             <input type="date" value={form.date} onChange={set('date')} />
           </label>
-          {form.mode === 'relief' ? (
+          {isLessons ? null : form.mode === 'relief' ? (
             <label className="field">
               <span>Heads (× {money(RATE_RELIEF)})</span>
               <input inputMode="numeric" value={form.heads} onChange={set('heads')} placeholder="6" autoFocus={!day} />
@@ -108,6 +184,18 @@ export function SwimDaySheet({ path, day, date, onSaved, onClose }) {
             </label>
           )}
         </div>
+        {isLessons && (
+          <>
+            <label className="field">
+              <span>📋 Paste from the booking page</span>
+              <textarea className="import-text" rows={paste ? 4 : 3} value={paste} onChange={(e) => onPaste(e.target.value)} placeholder={'Thu, 5 Nov\n3pm 1.1 Baby Foundation\n$24.00\nDowntown East · 30 min · Group · Level 3\n3 came · 3 × $8 per child'} autoFocus={!day} />
+            </label>
+            {pasteNote && <p className="muted small import-status">{pasteNote}</p>}
+            <p className="section-label">Lessons · Group $8 a kid · Relief $10 a kid · Private $45</p>
+            <LessonRows lessons={form.lessons} onChange={(lessons) => setForm((f) => ({ ...f, lessons }))} />
+            {replaced.length > 0 && <p className="muted small">Replaces the {money(replaced.reduce((t, d) => t + (d.amount || 0), 0))} already logged as lessons for this day.</p>}
+          </>
+        )}
         {isNormal && (
           <>
             <p className="section-label">Private & trial lessons · taken out of the school total</p>
@@ -141,7 +229,7 @@ export function SwimDaySheet({ path, day, date, onSaved, onClose }) {
           </label>
         </div>
         <div className="swim-calc">
-          {students != null && <span>{students} school student{students === 1 ? '' : 's'}</span>}
+          {isLessons ? <span>{lessonsLine(sum)}</span> : students != null && <span>{students} school student{students === 1 ? '' : 's'}</span>}
           {outside > 0 && <span>Outside {money(outsideAmt)}</span>}
           <b>Day total {money((Number.isNaN(school) ? 0 : school) + outsideAmt)}</b>
         </div>
@@ -344,6 +432,90 @@ export function ReliefSheet({ path, entry, initialBlocks, onClose }) {
           <button className="btn primary">Save note</button>
         </div>
       </form>
+    </Modal>
+  );
+}
+
+// Paste one or more days from the booking page; each becomes a lessons day.
+export function PasteDaysSheet({ path, days, onSaved, onClose }) {
+  const [text, setText] = useState('');
+  const [skip, setSkip] = useState(() => new Set());
+  const [error, setError] = useState('');
+  const parsed = parseLessonDays(text).filter((d) => d.lessons.length);
+  const picked = parsed.filter((d) => !skip.has(d.date));
+  const existing = (ds) => days.filter((d) => d.date === ds);
+  const toggle = (ds) =>
+    setSkip((s) => {
+      const n = new Set(s);
+      n.has(ds) ? n.delete(ds) : n.add(ds);
+      return n;
+    });
+
+  async function save() {
+    if (!picked.length) return setError('Nothing to save yet.');
+    const manual = picked.filter((d) => existing(d.date).some((x) => swimModeOf(x) !== 'lessons'));
+    if (manual.length && !window.confirm(`${manual.map((d) => shortD(d.date)).join(', ')} already ha${manual.length === 1 ? 's' : 've'} a swim day keyed in by hand. Add the pasted lessons as well?`)) return;
+    const patch = {};
+    for (const d of picked) {
+      existing(d.date)
+        .filter((x) => swimModeOf(x) === 'lessons')
+        .forEach((x) => (patch[x.id] = null));
+      patch[newKey(`${path}/days`)] = lessonDayRecord(d.date, d.lessons);
+    }
+    await patchPath(`${path}/days`, patch);
+    onSaved?.(picked[0].date);
+    onClose();
+  }
+
+  return (
+    <Modal title="Paste days from the booking page" onClose={onClose} dirty={Boolean(text.trim())}>
+      <div className="sheet drive-form">
+        <p className="muted small">Copy one or more days from the booking page and paste them here. Each day is priced Group $8 a kid, Relief $10 a kid, Private $45.</p>
+        <textarea className="import-text" rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Thu, 5 Nov\n· $252.00\n· 9 lessons · 1 relief\n3pm 1.1 Baby Foundation\n$24.00\nDowntown East · 30 min · Group · Level 3\n3 came · 3 × $8 per child\n…'} autoFocus />
+        {text.trim() && !parsed.length && <p className="muted small">Nothing readable yet — each day should start with its date line, like “Thu, 5 Nov”.</p>}
+        {parsed.map((d) => {
+          const had = existing(d.date);
+          const hadLessons = had.filter((x) => swimModeOf(x) === 'lessons');
+          const hadManual = had.filter((x) => swimModeOf(x) !== 'lessons');
+          return (
+            <label key={d.date} className={`paste-day ${skip.has(d.date) ? 'off' : ''}`}>
+              <input type="checkbox" checked={!skip.has(d.date)} onChange={() => toggle(d.date)} />
+              <span className="pd-main">
+                <span className="pd-top">
+                  <b>
+                    {wd(d.date)} {shortD(d.date)} {d.date.slice(0, 4)}
+                  </b>
+                  <b className="pd-amt">{money(d.amount)}</b>
+                </span>
+                <span className="muted small">{lessonsLine({ count: d.lessons.length, kids: d.students, absent: d.absent, relief: d.relief, priv: d.priv })}</span>
+                {hadLessons.length > 0 && <span className="small">Replaces the {money(hadLessons.reduce((t, x) => t + (x.amount || 0), 0))} pasted before</span>}
+                {hadManual.length > 0 && <span className="small lr-warn">Already has {money(hadManual.reduce((t, x) => t + (x.amount || 0), 0))} keyed in by hand</span>}
+                {d.warnings.map((w) => (
+                  <span key={w} className="small lr-warn">
+                    ⚠ {w}
+                  </span>
+                ))}
+              </span>
+            </label>
+          );
+        })}
+        {picked.length > 1 && (
+          <div className="swim-calc">
+            <span>{plural(picked.length, 'day', 'days')}</span>
+            <span>{plural(picked.reduce((t, d) => t + d.students, 0), 'kid', 'kids')}</span>
+            <b>Total {money(picked.reduce((t, d) => t + d.amount, 0))}</b>
+          </div>
+        )}
+        {error && <p className="error">{error}</p>}
+        <div className="row-gap end">
+          <button type="button" className="btn ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="btn primary" disabled={!picked.length} onClick={save}>
+            {picked.length ? `Save ${plural(picked.length, 'day', 'days')}` : 'Save'}
+          </button>
+        </div>
+      </div>
     </Modal>
   );
 }

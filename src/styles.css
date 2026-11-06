@@ -2174,3 +2174,24 @@ body {
 .cal-dots i.lesson, .cal-legend i.lesson { background: var(--accent); }
 .cal-dots i.s, .cal-legend i.s { background: var(--swim); }
 .review-row .link-btn { flex: 1; min-width: 0; text-align: left; text-decoration: none; font-weight: 800; color: var(--text); }
+
+/* Happy Fish · lessons day */
+.lesson-rows { display: flex; flex-direction: column; gap: 6px; }
+.lesson-row { display: grid; grid-template-columns: minmax(0, 1fr) 56px 66px 24px; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 12px; background: var(--surface-2); }
+.lesson-row.relief { background: var(--warn-soft); }
+.lesson-row.private { background: var(--lav-soft); }
+.lesson-row input, .lesson-row select { min-width: 0; width: 100%; padding: 6px; border-radius: 9px; border: 1.5px solid var(--line); background: var(--surface); font: inherit; font-size: 13px; color: var(--text); }
+.lesson-row .lr-kids { text-align: center; }
+.lr-pay { text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; }
+.lr-meta { grid-column: 1 / -1; font-size: 11.5px; color: var(--muted); }
+.lr-warn { color: var(--danger); font-weight: 700; }
+.paste-day { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 8px; align-items: start; padding: 10px 12px; border-radius: 14px; border: 1.5px solid var(--swim); background: var(--swim-soft); cursor: pointer; }
+.paste-day.off { opacity: 0.5; border-color: var(--line); background: none; }
+.paste-day input { margin-top: 3px; accent-color: var(--swim); }
+.pd-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pd-top { display: flex; justify-content: space-between; gap: 8px; }
+.pd-amt { color: var(--swim); font-variant-numeric: tabular-nums; }
+.lesson-list { display: flex; flex-direction: column; padding: 0 2px 6px; }
+.lesson-list span { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); padding: 2px 0; }
+.swim-head-btns { display: flex; gap: 6px; }
+.lesson-row .lr-name { grid-column: 1 / -1; font-weight: 700; }
