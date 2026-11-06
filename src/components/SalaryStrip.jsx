@@ -48,7 +48,7 @@ export function SalaryStrip({ base, period, currency, view, ctx, onOpen }) {
   );
 }
 
-export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, ctx, drive, extras, onOpenDrive, onOpenExtra, onHappyFish, onClose }) {
+export function PersonSheet({ base, pk, personId, person, period, tabs, currency, view, ctx, drive, extras, happyFishTaken, onOpenDrive, onOpenExtra, onHappyFish, onClose }) {
   const path = `${base}/people/${personId}`;
   const { salary, spent, left } = afterExpenses(person, period, view, ctx);
   const chosen = person.tabs || {};
@@ -118,10 +118,12 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
                 placeholder="0.00"
               />
             )}
+            {!happyFishTaken && (
             <label className="happy-fish">
               <input type="checkbox" checked={Boolean(extras?.swim)} onChange={(e) => onHappyFish(e.target.checked)} />
               <span>🐟 Happy Fish — salary from my swim log</span>
             </label>
+            )}
           </div>
         </div>
 

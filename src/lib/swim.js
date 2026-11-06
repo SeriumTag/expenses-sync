@@ -219,7 +219,7 @@ export const earnedMonthFor = (pk) => {
 };
 export function swimSalaryFor(swim, pk) {
   const days = daysOf(swim);
-  if (/^d{4}$/.test(pk)) {
+  if (/^\d{4}$/.test(pk)) {
     let sum = 0;
     for (let m = 0; m < 12; m++) sum += swimTotals(days, m === 0 ? Number(pk) - 1 : Number(pk), m === 0 ? 11 : m - 1).total;
     return Math.round((sum / 12) * 100) / 100;

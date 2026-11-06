@@ -73,7 +73,7 @@ export function cycleTotals(rides, items, start, end) {
 export function grabIncomeFor(drive, pk) {
   const rides = ridesOf(drive);
   const items = itemsOf(drive);
-  if (/^d{4}$/.test(pk)) {
+  if (/^\d{4}$/.test(pk)) {
     let sum = 0;
     for (let m = 0; m < 12; m++) {
       const { start, end } = cycleRange(Number(pk), m);

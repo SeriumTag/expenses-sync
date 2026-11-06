@@ -782,9 +782,10 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             ctx={budgetCtx}
             drive={data.drive?.[sheet.id]}
             extras={data.extras?.[sheet.id]}
+            happyFishTaken={Object.keys(data.extras || {}).some((id) => id !== sheet.id && data.extras[id]?.swim)}
             onOpenDrive={() => openPage('drive', sheet.id)}
             onOpenExtra={(kind) => (data.extras?.[sheet.id]?.[kind] ? openPage(kind, sheet.id) : addExtra(kind, sheet.id))}
-            onHappyFish={(on) => (on ? patchPath(`ledgers/${ledgerId}/extras/${sheet.id}`, { swim: /^d{4}-d{2}$/.test(pk) ? pk : currentMonthKey() }) : removeExtra('swim', sheet.id, personNameOf(sheet.id)))}
+            onHappyFish={(on) => (on ? patchPath(`ledgers/${ledgerId}/extras/${sheet.id}`, { swim: /^\d{4}-\d{2}$/.test(pk) ? pk : currentMonthKey() }) : removeExtra('swim', sheet.id, personNameOf(sheet.id)))}
             onClose={() => setSheet(null)}
           />
         )}
