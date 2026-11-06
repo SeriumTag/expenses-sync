@@ -98,8 +98,8 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
           </label>
           <div className="field">
             <span>Main salary (monthly)</span>
-            {extras?.swim ? (
-              // Happy Fish: the salary is this month's swim earnings, from the Swim page.
+            {extras?.swim && (typeof extras.swim !== 'string' || pk >= extras.swim) ? (
+              // Happy Fish (from the month it was ticked): the salary is this month's swim earnings.
               <button className="swim-salary" onClick={() => onOpenExtra('swim')} title="Open the Swim page">
                 <b>{formatMoney(person.salary, currency)}</b>
                 <span className="muted small">this month’s swim days · Open Swim ›</span>

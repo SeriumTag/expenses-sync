@@ -239,12 +239,15 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         }
       }
     }
-    // Happy Fish: the main salary is that month's swim earnings.
+    // Happy Fish: the main salary is that month's swim earnings — from the
+    // month it was ticked onwards (extras.swim holds that month), so earlier
+    // months keep the salary that was typed in.
     for (const [pid, ex] of Object.entries(data.extras || {})) {
       if (!ex?.swim) continue;
+      const from = typeof ex.swim === 'string' ? ex.swim : '';
       for (const [key, p] of Object.entries(data.periods)) {
         const person = p?.people?.[pid];
-        if (!person) continue;
+        if (!person || key < from) continue;
         const salary = swimSalaryFor(data.swim?.[pid], key);
         if (Math.abs((Number(person.salary) || 0) - salary) > 0.005) patch[`periods/${key}/people/${pid}/salary`] = salary;
       }
@@ -781,7 +784,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             extras={data.extras?.[sheet.id]}
             onOpenDrive={() => openPage('drive', sheet.id)}
             onOpenExtra={(kind) => (data.extras?.[sheet.id]?.[kind] ? openPage(kind, sheet.id) : addExtra(kind, sheet.id))}
-            onHappyFish={(on) => (on ? patchPath(`ledgers/${ledgerId}/extras/${sheet.id}`, { swim: true }) : removeExtra('swim', sheet.id, personNameOf(sheet.id)))}
+            onHappyFish={(on) => (on ? patchPath(`ledgers/${ledgerId}/extras/${sheet.id}`, { swim: /^d{4}-d{2}$/.test(pk) ? pk : currentMonthKey() }) : removeExtra('swim', sheet.id, personNameOf(sheet.id)))}
             onClose={() => setSheet(null)}
           />
         )}
