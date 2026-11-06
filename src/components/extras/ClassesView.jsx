@@ -11,10 +11,8 @@ import {
   fullD,
   hallEntries,
   lessonsOf,
-  markReminder,
   processDue,
   quitStudents,
-  remindersDue,
   setCredits,
   shortD,
   todayKey,
@@ -55,7 +53,6 @@ export default function ClassesView({ path, m, swimDays, onSwimDay }) {
     return () => clearInterval(t);
   }, [path, hasClasses]);
 
-  const due = remindersDue(m);
   const toggle = (id) =>
     setClosed((s) => {
       const n = new Set(s);
@@ -97,28 +94,6 @@ export default function ClassesView({ path, m, swimDays, onSwimDay }) {
           </button>
         ))}
       </div>
-
-      {due.length > 0 && (
-        <section className="home-card review-card">
-          <h2>Monthly review</h2>
-          {due.map((r) => (
-            <div key={r.key} className="review-row">
-              <button
-                className="link-btn"
-                onClick={() => {
-                  setMode('days');
-                  setDay(r.day);
-                }}
-              >
-                <span className="red-bang">!</span> Update {r.label} students & credits
-              </button>
-              <button className="btn ghost sm" onClick={() => mutateClasses(path, (x) => markReminder(x, r.key))}>
-                Mark reviewed
-              </button>
-            </div>
-          ))}
-        </section>
-      )}
 
       {mode === 'days' && (
         <>

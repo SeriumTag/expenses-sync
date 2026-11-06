@@ -5,6 +5,7 @@ import { buysOf, isBuyOverdue } from '../lib/crypto';
 import { latestWeight } from '../lib/weight';
 import HappyFishIcon from './extras/HappyFishIcon';
 import GrabIcon from './drive/GrabIcon';
+import ScaleIcon from './extras/ScaleIcon';
 
 const hasGrab = (p) => Object.values(p.incomes || {}).some((x) => x.grab);
 
@@ -74,13 +75,13 @@ export default function HomeScreen(props) {
                       </PageChip>
                     )}
                     {extras?.[p.id]?.swim && (
-                      <PageChip label="Open the Swim page" className="swim" onOpen={() => onOpenPage('swim', p.id)}>
+                      <PageChip label="Open Happy Fish" className="swim" onOpen={() => onOpenPage('swim', p.id)}>
                         <HappyFishIcon /><span className="pt-chip-text">Swim</span>
                       </PageChip>
                     )}
                     {extras?.[p.id]?.weight && (
                       <PageChip label="Open the Weight log" className="weight" onOpen={() => onOpenPage('weight', p.id)}>
-                        ⚖️{latestWeight(weight?.[p.id]) != null && <span className="pt-chip-text">{latestWeight(weight[p.id]).toFixed(1)} kg</span>}
+                        <ScaleIcon size={14} />{latestWeight(weight?.[p.id]) != null && <span className="pt-chip-text">{latestWeight(weight[p.id]).toFixed(1)} kg</span>}
                       </PageChip>
                     )}
                     {extras?.[p.id]?.bitcoin && (

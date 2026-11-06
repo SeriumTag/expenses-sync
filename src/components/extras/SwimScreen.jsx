@@ -1,19 +1,14 @@
 import { useMemo, useState } from 'react';
-import { confirmTwice } from '../../lib/confirm';
 import { setPath } from '../../lib/db';
 import {
   DAY_LABELS,
   LOCATIONS,
-  awayOf,
   checkPayslip,
   dailyTotals,
   dayKeyOf,
   daysOf,
-  estimateForDate,
   locationTotals,
-  monthAwayProjection,
   parseSwimBackup,
-  reliefBlocksFor,
   schoolStudents,
   swimDayTotal,
   swimModeOf,
@@ -23,9 +18,10 @@ import {
 } from '../../lib/swim';
 import { periodLabel } from '../../lib/budget';
 import ImportBackup, { backupStores, countText } from './ImportBackup';
-import { AwaySheet, ReliefSheet, SwimDaySheet, shortD } from './SwimSheets';
+import { SwimDaySheet, shortD } from './SwimSheets';
+import HappyFishIcon from './HappyFishIcon';
 import ClassesView from './ClassesView';
-import { LEVEL_LABELS, TYPE_LABELS, classDays as classDaysOf, classesForDay, mergeImported, parseClassesBackup, remindersDue, timeLabel } from '../../lib/classes';
+import { mergeImported, parseClassesBackup } from '../../lib/classes';
 import { prefs } from '../../lib/session';
 
 const money = (n) => `$${(Math.round((n || 0) * 100) / 100).toFixed(2)}`;
@@ -37,7 +33,6 @@ const LOC_COLORS = { CC: 'var(--pink)', WWW: 'var(--sky)', JE: 'var(--mint)' };
 export default function SwimScreen({ ledgerId, pk, personId, personName, data, onBack, onRemove }) {
   const path = `ledgers/${ledgerId}/swim/${personId}`;
   const days = useMemo(() => daysOf(data), [data]);
-  const away = useMemo(() => awayOf(data), [data]);
   const [y, m] = /^\d{4}-\d{2}$/.test(pk) ? [Number(pk.slice(0, 4)), Number(pk.slice(5, 7)) - 1] : [Number(pk), new Date().getMonth()];
   const monthKey = `${y}-${String(m + 1).padStart(2, '0')}`;
   // Paid a month later: this month's swim days are next month's salary.
@@ -53,7 +48,6 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
     setTopState(v);
     prefs.set('swimTop', v);
   };
-  const classDays = classDaysOf(data?.classes);
 
   const { weeks, current } = weeksOfMonth(days, y, m);
   const maxWeek = Math.max(...weeks.map((w) => w.students), 1);
@@ -62,10 +56,7 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
   const perDay = dailyTotals(days, y, m);
   const maxDay = Math.max(...perDay.map((d) => d.value), 1);
   const dayEntries = pickDay ? days.filter((d) => d.date === pickDay) : [];
-  const proj = monthAwayProjection(days, away, y, m, classDays);
   const today = todayStr();
-  const upcoming = away.filter((a) => a.date >= today);
-  const shownAway = (upcoming.length ? upcoming : away.slice(-3)).slice(0, 6);
 
   function planImport(raw) {
     const stores = backupStores(raw);
@@ -79,7 +70,7 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
     const counts = { days: 0, away: 0, payslips: 0 };
     for (const [folder, items] of Object.entries(found)) {
       for (const [id, v] of Object.entries(items)) {
-        if (data?.[folder]?.[id] !== undefined) continue;
+        if (folder === 'away' || data?.[folder]?.[id] !== undefined) continue;
         patch[`${folder}/${id}`] = v;
         counts[folder]++;
       }
@@ -103,7 +94,7 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
     } catch {
       /* no classes in that backup */
     }
-    const parts = [counts.days && countText(counts.days, 'swim day', 'swim days'), counts.away && countText(counts.away, 'away day', 'away days'), counts.payslips && countText(counts.payslips, 'payslip', 'payslips'), cls.classes && countText(cls.classes, 'class', 'classes'), cls.students && countText(cls.students, 'student', 'students')].filter(Boolean);
+    const parts = [counts.days && countText(counts.days, 'swim day', 'swim days'), counts.payslips && countText(counts.payslips, 'payslip', 'payslips'), cls.classes && countText(cls.classes, 'class', 'classes'), cls.students && countText(cls.students, 'student', 'students')].filter(Boolean);
     if (!hadClasses && !Object.keys(found).length) throw new Error('No swim data or classes found in that backup.');
     return { patch, summary: parts.join(', ') || 'lesson records' };
   }
@@ -137,21 +128,22 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
         </span>
       </div>
       <div className="drive-title">
-        <span className="extra-badge swim">🐟</span>
+        <span className="extra-badge swim">
+          <HappyFishIcon size={40} />
+        </span>
         <div>
-          <h1 className="screen-title">Swim</h1>
-          <span className="muted small">{personName ? `${personName} · Happy Fish` : 'Happy Fish'}</span>
+          <h1 className="screen-title">Happy Fish</h1>
+          <span className="muted small">{personName ? `${personName}’s swim teaching` : 'Swim teaching'}</span>
         </div>
       </div>
 
-      <div className="seg swim-top" role="tablist" aria-label="Swim">
+      <div className="seg swim-top" role="tablist" aria-label="Happy Fish">
         {[
-          ['overview', 'Away & Payslip'],
+          ['overview', 'Earnings'],
           ['classes', 'Classes'],
         ].map(([k, l]) => (
           <button key={k} role="tab" aria-selected={top === k} className={top === k ? 'on' : ''} onClick={() => setTop(k)}>
             {l}
-            {k === 'classes' && remindersDue(data?.classes).length > 0 && <i className="red-dot" aria-label="Monthly review due" />}
           </button>
         ))}
       </div>
@@ -247,65 +239,6 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
           )}
         </section>
   
-        {/* Away days */}
-        <section className="home-card">
-          <div className="home-card-head">
-            <h2>Away days</h2>
-            <button className="btn glass sm" onClick={() => setSheet({ kind: 'away' })}>
-              🧳 Mark away
-            </button>
-          </div>
-          <div className="dh-split three">
-            <Cell k="Logged" v={money(proj.actual)} />
-            <Cell k="To come" v={money(proj.toCome)} cls="swim" />
-            <Cell k="Potential" v={money(proj.potential)} cls="grab" />
-          </div>
-          <p className="muted small">
-            <b>{proj.toComeDays}</b> teaching day{proj.toComeDays === 1 ? '' : 's'} left in {periodLabel(monthKey)}
-            {proj.awayCount ? (
-              <>
-                {' · '}
-                <span className="neg">
-                  <b>{proj.awayCount}</b> away · {money(proj.awayValue)}
-                </span>
-                {` · full month ${money(proj.ifPresent)}`}
-              </>
-            ) : (
-              ' · none away'
-            )}
-          </p>
-          {shownAway.length === 0 ? (
-            <p className="muted small">No away days marked yet.</p>
-          ) : (
-            <div className="history">
-              {shownAway.map((a) => {
-                const has = (a.blocks || []).some((b) => Object.values(b || {}).some((v) => String(v || '').trim()));
-                return (
-                  <div key={a.id} className="history-row away-row">
-                    <span className="hr-d">
-                      {DAY_LABELS[dayKeyOf(a.date)].slice(0, 3)} {shortD(a.date)}
-                    </span>
-                    <span className="hr-v">
-                      {money(estimateForDate(days, a.date).amount)}
-                      {a.reason ? ` · ${a.reason}` : ''}
-                    </span>
-                    <button className={`btn sm ${has ? 'glass' : 'ghost'}`} onClick={() => setSheet({ kind: 'relief', entry: a })}>
-                      {has ? '✓ note' : '+ note'}
-                    </button>
-                    <button
-                      className="icon-btn"
-                      aria-label={`Remove away day ${shortD(a.date)}`}
-                      onClick={() => confirmTwice(`Remove ${shortD(a.date)} from your away days?`, 'this away day') && setPath(`${path}/away/${a.id}`, null)}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-  
         <PayslipCard path={path} saved={data?.payslips?.[monthKey]} days={days} y={y} m={m} monthKey={monthKey} />
   
           </>
@@ -318,9 +251,7 @@ export default function SwimScreen({ ledgerId, pk, personId, personName, data, o
       </button>
 
       {sheet?.kind === 'day' && <SwimDaySheet path={path} day={sheet.day} date={sheet.date} onSaved={(d) => setPickDay(d)} onClose={() => setSheet(null)} />}
-      {sheet?.kind === 'away' && <AwaySheet path={path} days={days} away={away} classDays={classDays} onClose={() => setSheet(null)} />}
-      {sheet?.kind === 'relief' && <ReliefSheet path={path} entry={sheet.entry} initialBlocks={reliefBlocksFor(sheet.entry, away, classesForDay(data?.classes, dayKeyOf(sheet.entry.date)).map((cl) => ({ time: timeLabel(cl.time), level: `${TYPE_LABELS[cl.type]} ${LEVEL_LABELS[cl.level]}` })))} onClose={() => setSheet(null)} />}
-      {importing && <ImportBackup path={path} what="your swim days, away days, payslips and classes" plan={planImport} onClose={() => setImporting(false)} />}
+      {importing && <ImportBackup path={path} what="your swim days, payslips and classes" plan={planImport} onClose={() => setImporting(false)} />}
     </div>
   );
 }
@@ -382,6 +313,7 @@ function PayslipCard({ path, saved, days, y, m, monthKey }) {
   const [basis, setBasis] = useState(saved?.basis || 'school');
   const [result, setResult] = useState(() => (saved?.text ? checkPayslip(saved.text, days, y, m, saved.basis || 'school') : null));
   const [note, setNote] = useState('');
+  const [open, setOpen] = useState(false);
   const [loadedFor, setLoadedFor] = useState(monthKey);
   if (loadedFor !== monthKey) {
     // Another month in the top bar: show that month's saved slip.
@@ -411,10 +343,15 @@ function PayslipCard({ path, saved, days, y, m, monthKey }) {
 
   return (
     <section className="home-card">
-      <div className="home-card-head">
+      <button className="payslip-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         <h2>Payslip check</h2>
         <span className="muted small">{saved ? (saved.issues ? `${saved.issues} to fix` : 'All match') : 'Not checked yet'}</span>
-      </div>
+        <span className={`cr-chev ${open ? 'open' : ''}`} aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open && (
+        <>
       <p className="muted small">Paste the whole payslip page as it is (class by class), or key it in as date amount, one per line. It’s checked against what you logged this month.</p>
       <textarea className="import-text payslip-text" rows={6} value={text} onChange={(e) => setText(e.target.value)} placeholder={'Group class (Kid)\n5 Nov 2026, 15:00\n3\t24\t56\n\nor: 5 Nov 184.00'} />
       <div className="seg" role="group" aria-label="Compare with">
@@ -486,6 +423,8 @@ function PayslipCard({ path, saved, days, y, m, monthKey }) {
           ))}
           <p className="muted small">Checked against {basis === 'all' ? 'the school total plus outside lessons' : 'the school total only, outside lessons left out'}.</p>
         </div>
+      )}
+        </>
       )}
     </section>
   );

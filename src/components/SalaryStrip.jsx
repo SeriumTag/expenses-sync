@@ -7,6 +7,7 @@ import Modal from './Modal';
 import { confirmTwice } from '../lib/confirm';
 import { cycleForPeriod, grabIncomeFor } from '../lib/drive';
 import GrabBadge from './drive/GrabBadge';
+import ScaleIcon from './extras/ScaleIcon';
 
 // Summary cards at the top: each person's salary and what's left after the
 // head categories they chose.
@@ -100,9 +101,9 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
             <span>Main salary (monthly)</span>
             {extras?.swim && (typeof extras.swim !== 'string' || pk >= extras.swim) ? (
               // Happy Fish (from the month it was ticked): the salary is this month's swim earnings.
-              <button className="swim-salary" onClick={() => onOpenExtra('swim')} title="Open the Swim page">
+              <button className="swim-salary" onClick={() => onOpenExtra('swim')} title="Open Happy Fish">
                 <b>{formatMoney(person.salary, currency)}</b>
-                <span className="muted small">last month’s swim days, paid this month · Open Swim ›</span>
+                <span className="muted small">last month’s swim days, paid this month · Open Happy Fish ›</span>
               </button>
             ) : (
               <LiveInput
@@ -189,7 +190,13 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
           {/* Their own pages: added here, then opened from here or their Home tile. */}
           <div className="extra-buttons">
             <button className={`btn sm ${extras?.weight ? 'glass extra-on' : 'ghost'}`} onClick={() => onOpenExtra('weight')}>
-              {extras?.weight ? '⚖️ Weight log ›' : '＋ Add Weight Log'}
+              {extras?.weight ? (
+                <>
+                  <ScaleIcon size={15} /> Weight log ›
+                </>
+              ) : (
+                '＋ Add Weight Log'
+              )}
             </button>
             <button className={`btn sm ${extras?.bitcoin ? 'glass extra-on' : 'ghost'}`} onClick={() => onOpenExtra('bitcoin')}>
               {extras?.bitcoin ? '₿ Bitcoin ›' : '＋ Add Bitcoin'}

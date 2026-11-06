@@ -5,6 +5,7 @@ import { FIELDS, METRICS, bmiCategory, fmt, latestWithDelta, parseBackupReadings
 import Modal from '../Modal';
 import ImportBackup, { backupStores, countText } from './ImportBackup';
 import ScanSheet from './ScanSheet';
+import ScaleIcon from './ScaleIcon';
 import TrendChart, { Sparkline } from './TrendChart';
 
 const today = () => new Date().toLocaleDateString('en-CA');
@@ -76,7 +77,9 @@ export default function WeightScreen({ ledgerId, personId, personName, data, onB
         </span>
       </div>
       <div className="drive-title">
-        <span className="extra-badge weight">⚖️</span>
+        <span className="extra-badge weight">
+          <ScaleIcon size={24} />
+        </span>
         <div>
           <h1 className="screen-title">Weight log</h1>
           <span className="muted small">{personName ? `${personName}’s readings` : 'Readings'}</span>

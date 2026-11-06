@@ -1917,14 +1917,18 @@ body {
 .grab-icon { display: block; flex-shrink: 0; }
 /* Phones: icons only, same-size circles on one row */
 @media (max-width: 600px) {
-  .pt-icons { flex-wrap: nowrap; gap: 6px; }
-  .pt-chip { width: 28px; height: 28px; flex-shrink: 0; padding: 0; justify-content: center; border-radius: 50%; font-size: 14px; line-height: 1; }
+  .pt-icons { flex-wrap: nowrap; gap: 5px; }
+  .pt-chip { width: 22px; height: 22px; flex-shrink: 0; padding: 0; justify-content: center; border-radius: 50%; font-size: 12px; line-height: 1; }
   .pt-chip-text { display: none; }
   .pt-chip.swim { background: none; }
-  .pt-chip.swim .hf-icon, .pt-chip.grab .grab-icon { width: 28px; height: 28px; }
-  .pt-chip.grab { border-radius: 7px; }
+  .pt-chip.swim .hf-icon, .pt-chip.grab .grab-icon { width: 22px; height: 22px; }
+  .pt-chip.grab { border-radius: 6px; }
 }
-.hf-icon { display: block; flex-shrink: 0; }
+.hf-icon, .scale-icon { display: block; flex-shrink: 0; }
+.extra-badge.swim:has(.hf-icon) { background: none; }
+.extra-badge.weight { color: var(--lav-ink); }
+.payslip-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 0; border: none; background: none; font: inherit; color: var(--text); text-align: left; cursor: pointer; position: relative; z-index: 1; }
+.payslip-head h2 { margin: 0; flex: 1; }
 .pt-chip.weight { background: var(--lav-soft); color: var(--lav-ink); }
 .pt-chip.btc { background: var(--btc-soft); color: var(--btc); }
 .red-dot { position: absolute; top: -2px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px var(--paper); }
