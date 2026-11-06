@@ -3,7 +3,8 @@ import { formatMoney } from '../lib/format';
 import { useMascot } from '../lib/mascot';
 import { buysOf, isBuyOverdue } from '../lib/crypto';
 import { latestWeight } from '../lib/weight';
-import GrabBadge from './drive/GrabBadge';
+import HappyFishIcon from './extras/HappyFishIcon';
+import GrabIcon from './drive/GrabIcon';
 
 const hasGrab = (p) => Object.values(p.incomes || {}).some((x) => x.grab);
 
@@ -68,18 +69,18 @@ export default function HomeScreen(props) {
                 {(hasGrab(p) || extras?.[p.id]?.weight || extras?.[p.id]?.bitcoin || extras?.[p.id]?.swim) && (
                   <span className="pt-icons">
                     {hasGrab(p) && (
-                      <PageChip label="Open the Drive page" onOpen={() => onOpenPage('drive', p.id)}>
-                        <GrabBadge small />
+                      <PageChip label="Open the Drive page" className="grab" onOpen={() => onOpenPage('drive', p.id)}>
+                        <GrabIcon />
                       </PageChip>
                     )}
                     {extras?.[p.id]?.swim && (
                       <PageChip label="Open the Swim page" className="swim" onOpen={() => onOpenPage('swim', p.id)}>
-                        🐟 Swim
+                        <HappyFishIcon /><span className="pt-chip-text">Swim</span>
                       </PageChip>
                     )}
                     {extras?.[p.id]?.weight && (
                       <PageChip label="Open the Weight log" className="weight" onOpen={() => onOpenPage('weight', p.id)}>
-                        ⚖️{latestWeight(weight?.[p.id]) != null ? ` ${latestWeight(weight[p.id]).toFixed(1)} kg` : ''}
+                        ⚖️{latestWeight(weight?.[p.id]) != null && <span className="pt-chip-text">{latestWeight(weight[p.id]).toFixed(1)} kg</span>}
                       </PageChip>
                     )}
                     {extras?.[p.id]?.bitcoin && (
