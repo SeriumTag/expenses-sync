@@ -24,26 +24,6 @@ export const botsOf = (b) => list(b?.bots).sort((x, y) => (x.order || 0) - (y.or
 
 // ── ZBD: each entry is the wallet's whole balance at that time ──
 export const currentSats = (zbd) => (zbd.length ? zbd[zbd.length - 1].sats || 0 : 0);
-// What the ZBD sats cost: each rise in balance is priced at that entry's SGD
-// rate (its saved SGD value ÷ its sats); a fall takes sats out at the average
-// cost so far. Entries saved without an SGD value use the last known rate.
-export function zbdInvested(zbd) {
-  let invested = 0;
-  let prev = 0;
-  let rate = null;
-  let unpriced = 0;
-  for (const z of zbd) {
-    const sats = z.sats || 0;
-    if (z.sgd != null && sats > 0) rate = z.sgd / sats;
-    const diff = sats - prev;
-    if (diff > 0) {
-      if (rate != null) invested += diff * rate;
-      else unpriced += diff;
-    } else if (diff < 0 && prev > 0) invested += (invested / prev) * diff;
-    prev = sats;
-  }
-  return { invested: Math.round(invested * 100) / 100, unpriced };
-}
 // The latest entry from before today, as the "yesterday" baseline.
 export function priorBefore(rows, day = today()) {
   for (let i = rows.length - 1; i >= 0; i--) if (rows[i].date < day) return rows[i];
