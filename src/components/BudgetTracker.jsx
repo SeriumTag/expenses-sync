@@ -199,7 +199,7 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
           <input
             value={form.category}
             onChange={(e) => setForm({ ...form, category: e.target.value })}
-            placeholder="Category (optional)"
+            placeholder="Category"
             list={catList}
             aria-label="Category"
           />

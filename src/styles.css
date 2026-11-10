@@ -2195,3 +2195,60 @@ body {
 .lesson-list span { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); padding: 2px 0; }
 .swim-head-btns { display: flex; gap: 6px; }
 .lesson-row .lr-name { grid-column: 1 / -1; font-weight: 700; }
+
+/* Grab ride: share it elsewhere */
+.ride-share { display: flex; flex-direction: column; gap: 6px; }
+.ride-share .section-label { margin: 0; }
+.ride-share .row-gap { flex-wrap: wrap; }
+.ride-share a.btn { text-decoration: none; }
+
+/* ───────── Forms on phones: fields in line, same height, no zoom on tap ───────── */
+/* The item name sits flush with the other fields (it was pulled 8px left). */
+.compact-sheet .sheet-title input { margin-left: 0; width: 100%; }
+@media (max-width: 600px) {
+  /* Under 16px, phones zoom in when a field is tapped and the sheet jumps around. */
+  .modal .field input:not([type='checkbox']):not([type='radio']),
+  .modal .field select,
+  .modal .field textarea,
+  .modal .spend-form input,
+  .modal .spend-form select,
+  .modal .sheet-cat input,
+  .modal .item-date input,
+  .modal .lesson-row input,
+  .modal .lesson-row select,
+  .modal .import-text,
+  .modal .inline-day .day-input,
+  .modal .inline-date,
+  .modal .move-box input,
+  .modal .move-box select,
+  .modal .recur-row input,
+  .modal .sheet-note textarea,
+  .modal .sheet-note input,
+  .modal .payslip-text,
+  .modal .transfer-row select,
+  .modal .skill-row select { font-size: 16px; }
+  /* Native date / time / month pickers: same box as the text fields beside them. */
+  .modal input[type='date'],
+  .modal input[type='time'],
+  .modal input[type='month'] {
+    -webkit-appearance: none; appearance: none; display: block; box-sizing: border-box;
+    width: 100%; min-width: 0; min-height: 42px; text-align: left; line-height: 1.2;
+  }
+  .modal input[type='date']::-webkit-date-and-time-value,
+  .modal input[type='time']::-webkit-date-and-time-value { text-align: left; }
+  /* Item sheet: Category and Date as two equal columns, labels on one line. */
+  .cs-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .cs-row .sheet-cat input,
+  .cs-row .item-date input { min-height: 42px; padding: 8px 12px; box-sizing: border-box; }
+  /* Repeat pills on their own line, "on 10th" / the date under them. */
+  .cs-repeat { flex-wrap: wrap; }
+  .cs-repeat .pill-seg { flex: 1 1 100%; }
+  .inline-date { width: 100% !important; }
+  /* Log a spend: one height for every box in the row. */
+  .spend-form input,
+  .spend-form select { min-height: 42px; padding: 8px 10px; box-sizing: border-box; }
+  .spend-form .spend-clip,
+  .spend-form .btn.primary { min-height: 42px; }
+  .lesson-row input,
+  .lesson-row select { min-height: 38px; }
+}

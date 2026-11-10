@@ -308,3 +308,12 @@ export function parseBodyLogBackup(text) {
   }
   return { rides, items };
 }
+
+// A ride as plain text, for sharing to WhatsApp, Telegram, notes, etc.
+export function rideShareText({ date, time, amount, erp, note }) {
+  const money = (n) => `$${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2)}`;
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(date || '') ? new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+  const lines = [`🚗 Grab ride${d ? ` · ${d}` : ''}${time ? `, ${time}` : ''}`, `Fare ${money(amount)}${Number(erp) > 0 ? ` (+ ERP ${money(erp)})` : ''}`];
+  if (String(note || '').trim()) lines.push(`Note: ${String(note).trim()}`);
+  return lines.join('\n');
+}
