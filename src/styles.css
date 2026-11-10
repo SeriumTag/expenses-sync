@@ -2202,6 +2202,10 @@ body {
 .ride-share .row-gap { flex-wrap: wrap; }
 .ride-share a.btn { text-decoration: none; }
 
+/* Bitcoin · ZBD: current value vs total invested */
+.zbd-pl .dh-v { white-space: normal; overflow: visible; text-overflow: clip; }
+.zbd-pct { display: block; font-size: 12px; font-weight: 800; }
+
 /* ───────── Forms on phones: fields in line, same height, no zoom on tap ───────── */
 /* The item name sits flush with the other fields (it was pulled 8px left). */
 .compact-sheet .sheet-title input { margin-left: 0; width: 100%; }

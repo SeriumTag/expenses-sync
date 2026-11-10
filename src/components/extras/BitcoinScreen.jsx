@@ -19,6 +19,7 @@ import {
   walletsBtc,
   walletsOf,
   withHoldings,
+  zbdInvested,
   zbdOf,
 } from '../../lib/crypto';
 import { prefs } from '../../lib/session';
@@ -59,6 +60,10 @@ export default function BitcoinScreen({ ledgerId, personId, personName, data, on
   // ── Totals ──
   const t = today();
   const sats = currentSats(zbd);
+  const zCost = zbdInvested(zbd);
+  const zValue = btcPrice != null ? (sats / SATS_PER_BTC) * btcPrice : null;
+  const zGain = zValue != null ? zValue - zCost.invested : null;
+  const zPct = zGain != null && zCost.invested > 0 ? (zGain / zCost.invested) * 100 : null;
   const holding = buys.length ? buys[buys.length - 1].eff : 0;
   const walletBtc = walletsBtc(wallets);
   const totalBtc = sats / SATS_PER_BTC + holding + walletBtc;
@@ -199,8 +204,23 @@ export default function BitcoinScreen({ ledgerId, personId, personName, data, on
                   <span className="muted">sats</span>
                 </div>
                 <p className="muted small">{(sats / SATS_PER_BTC).toFixed(8)} BTC</p>
-                <div className="dh-split three">
-                  <Cell k="Current value" v={btcPrice != null ? `$${sgdStr((sats / SATS_PER_BTC) * btcPrice)}` : '—'} />
+                {/* Current value against what went in */}
+                <div className="dh-split three zbd-pl">
+                  <Cell k="Total invested" v={`$${sgdStr(zCost.invested)}`} />
+                  <Cell k="Current value" v={zValue != null ? `$${sgdStr(zValue)}` : '—'} cls="swim" />
+                  <Cell k={zGain == null ? 'Gain / loss' : zGain >= 0 ? 'Gain' : 'Loss'} v={
+                      zGain != null ? (
+                        <>
+                          {signed(Math.round(zGain * 100) / 100, (v) => `$${sgdStr(v)}`)}
+                          {zPct != null && <span className="zbd-pct">{`${zPct >= 0 ? '+' : '−'}${Math.abs(zPct).toFixed(1)}%`}</span>}
+                        </>
+                      ) : (
+                        '—'
+                      )
+                    } cls={tone(zGain)} />
+                </div>
+                {zCost.unpriced > 0 && <p className="muted small">{commas(zCost.unpriced)} sats were added without an SGD value, so they aren’t counted in Total invested.</p>}
+                <div className="dh-split">
                   <Cell k="Since yesterday" v={zPrev ? `${signed(sats - zPrev.sats, commas)} sats` : '—'} cls={tone(zPrev ? sats - zPrev.sats : null)} />
                   <Cell
                     k="Value change"
