@@ -2252,3 +2252,27 @@ body {
   .lesson-row input,
   .lesson-row select { min-height: 38px; }
 }
+
+/* ───────── Money rules: automatic amounts, shared budgets, credit cards ───────── */
+.cs-computed { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 14px; background: var(--surface-2); }
+.big-amount-ro { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.money-rules { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 14px; border: 1.5px dashed var(--line); }
+.money-rules .compact-switch { margin: 0; }
+.inline-field { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; margin: 0; }
+.inline-field > span { white-space: nowrap; }
+.inline-field select, .inline-field input { width: 100%; min-width: 0; }
+.rule-note { margin: 0; }
+.rule-note select { font: inherit; padding: 2px 4px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--surface); color: var(--text); }
+.pool-note { margin: 4px 0 0; }
+.s-card { display: inline-block; margin-left: 4px; padding: 0 6px; border-radius: 999px; background: var(--lav-soft); color: var(--lav-ink); font-size: 11px; font-weight: 800; }
+.spend-form .spend-card { grid-column: 1 / -1; width: 100%; min-width: 0; padding: 7px 8px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--surface); font: inherit; font-size: 13.5px; color: var(--text); }
+.card-hint { margin: 4px 0 0; }
+.ep2-amount.not-counted b { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 1px; }
+.ep2-amount.pooled b { color: var(--muted); }
+.carried-rows { display: flex; flex-direction: column; position: relative; z-index: 1; }
+.carried-row { display: flex; justify-content: space-between; gap: 8px; padding: 8px 2px; border-top: 1px dashed var(--line); font-size: 14px; }
+.carried-row:first-child { border-top: none; }
+.card-row { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 2px; border: none; border-top: 1px dashed var(--line); background: none; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+@media (max-width: 600px) {
+  .modal .spend-form .spend-card, .modal .inline-field select, .modal .inline-field input { font-size: 16px; min-height: 42px; }
+}

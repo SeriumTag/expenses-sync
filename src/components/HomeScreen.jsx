@@ -32,7 +32,7 @@ export default function HomeScreen(props) {
   const view = isYearKey(pk) ? 'yearly' : 'monthly';
 
   const people = sorted(period?.people);
-  const budgets = budgetItems(period, tabs).map((b) => ({ ...b, status: budgetStatus(b.item, b.id, ctx.spending, pk) }));
+  const budgets = budgetItems(period, tabs).map((b) => ({ ...b, status: budgetStatus(b.item, b.id, ctx.spending, pk, ctx) }));
   const stats = spendStats(ctx.spending, budgets.map((b) => b.id), pk);
   const todayLabel = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   const due = isYearKey(pk) ? `${pk}-12` : pk;

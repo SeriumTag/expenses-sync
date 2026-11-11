@@ -6,6 +6,7 @@ import { PresenceContext, usePresence } from '../hooks/usePresence';
 import {
   FREQS,
   allSpendCategories,
+  autoAmount,
   budgetItems,
   categoriesIn,
   splitCats,
@@ -72,7 +73,7 @@ import WeightScreen from './extras/WeightScreen';
 import BitcoinScreen from './extras/BitcoinScreen';
 import SwimScreen from './extras/SwimScreen';
 import { swimSalaryFor } from '../lib/swim';
-import { grabIncomeFor } from '../lib/drive';
+import { cashcardTopUps, grabIncomeFor } from '../lib/drive';
 import ThemeDialog from './ThemeDialog';
 import { confirmTwice } from '../lib/confirm';
 
@@ -252,6 +253,34 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
         if (Math.abs((Number(person.salary) || 0) - salary) > 0.005) patch[`periods/${key}/people/${pid}/salary`] = salary;
       }
     }
+    // Linked and automatic bill amounts, month by month:
+    // 1. a Cashcard bill linked to Grab = that month's cash card top-ups on Drive;
+    // 2. then an automatic item (e.g. Allowances) = its set total minus every
+    //    other item in its group, using the amounts from step 1.
+    for (const [key, p] of Object.entries(data.periods)) {
+      if (isYearKey(key)) continue;
+      for (const [tabId, items] of Object.entries(p?.items || {})) {
+        const work = { ...(items || {}) };
+        for (const [iid, it] of Object.entries(work)) {
+          const pid = it?.link?.cashcard;
+          if (!pid) continue;
+          const amount = cashcardTopUps(data.drive?.[pid], key);
+          work[iid] = { ...it, amount, freq: 'monthly', parts: null };
+          if (Math.abs((Number(it.amount) || 0) - amount) > 0.005 || it.freq === 'yearly') {
+            patch[`periods/${key}/items/${tabId}/${iid}/amount`] = amount;
+            if (it.freq === 'yearly') patch[`periods/${key}/items/${tabId}/${iid}/freq`] = 'monthly';
+          }
+        }
+        for (const [iid, it] of Object.entries(work)) {
+          if (!it?.auto) continue;
+          const amount = autoAmount(work, iid);
+          if (Math.abs((Number(it.amount) || 0) - amount) > 0.005 || it.freq === 'yearly') {
+            patch[`periods/${key}/items/${tabId}/${iid}/amount`] = amount;
+            if (it.freq === 'yearly') patch[`periods/${key}/items/${tabId}/${iid}/freq`] = 'monthly';
+          }
+        }
+      }
+    }
     if (Object.keys(patch).length) patchPath(`ledgers/${ledgerId}`, patch);
   }, [data?.periods, data?.drive, data?.swim, data?.extras, ledgerId]);
 
@@ -279,7 +308,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
   }
 
   const currency = meta.currency ?? '$';
-  const budgetCtx = { year: yearOf(pk), tracks: data.tracks, periods, spending: data.spending, pk };
+  const budgetCtx = { year: yearOf(pk), tracks: data.tracks, periods, spending: data.spending, pk, period, cards: data.cards || {}, people: period?.people || {}, drive: data.drive, ledgerId };
   const categoryList = categoriesIn(period, view, budgetCtx);
   const categoryNames = categoryList.map((c) => c.label);
   // Every category that exists anywhere (for people who can only pick one).
@@ -740,6 +769,12 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             tab={period.tabs?.[sheet.tabId]}
             onTrashed={showUndo}
             groups={tabs.map((t) => ({ id: t.id, name: t.name }))}
+            cards={data.cards}
+            drive={data.drive}
+            onOpenPage={(kind, pid) => {
+              setSheet(null);
+              openPage(kind, pid);
+            }}
             onMoved={(toTab) => {
               setSheet({ type: 'item', tabId: toTab, itemId: sheet.itemId });
               setActiveTab(toTab);
@@ -829,6 +864,7 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
             currency={currency}
             username={username}
             startWith={spendOpen}
+            ctx={budgetCtx}
             onAddBudget={() => {
               setDialog(null);
               addExpense('budget');

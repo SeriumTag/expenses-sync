@@ -309,6 +309,13 @@ export function parseBodyLogBackup(text) {
   return { rides, items };
 }
 
+// Cash card top-ups logged on the Drive page (Other → "Cashcard top-up") in a
+// calendar month 'YYYY-MM' — what a linked Cashcard bill counts as.
+export const CASHCARD_CATEGORY = 'Cashcard top-up';
+export function cashcardTopUps(drive, monthKey) {
+  return Math.round(itemsOf(drive).reduce((s, it) => (it.type === 'other' && it.category === CASHCARD_CATEGORY && String(it.date || '').startsWith(monthKey) ? s + (Number(it.amount) || 0) : s), 0) * 100) / 100;
+}
+
 // A ride as plain text, for sharing to WhatsApp, Telegram, notes, etc.
 export function rideShareText({ date, time, amount, erp, note }) {
   const money = (n) => `$${(Math.round((Number(n) || 0) * 100) / 100).toFixed(2)}`;

@@ -11,6 +11,8 @@ import SavingsTracker from './SavingsTracker';
 import { confirmTwice } from '../lib/confirm';
 import Attachments from './Attachments';
 import BudgetTracker from './BudgetTracker';
+import { billMonth, cardsList, monthShort } from '../lib/cards';
+import { cashcardTopUps } from '../lib/drive';
 
 // What an item is. One choice instead of separate "savings" / "spending" ticks.
 export const KINDS = {
@@ -25,9 +27,10 @@ export default function ItemSheet(props) {
   const { ledgerId, base, pk, tabId, tabName, itemId, item, periods, prevPeriod, prevLabel } = props;
   const { spending, otherBudgets } = props;
   const { tracks, categories, currency, username, view, siblings, onOpenItem, onClose, tab, onTrashed } = props;
-  const { groups = [], onMoved } = props;
+  const { groups = [], onMoved, cards: cardMap, drive, onOpenPage } = props;
   const noBudget = spentMode(item);
-  const ctx = { year: yearOf(pk), tracks, periods, spending, pk };
+  const period = periods?.[pk];
+  const ctx = { year: yearOf(pk), tracks, periods, spending, pk, period, cards: cardMap || {}, people: period?.people || {} };
   const path = `${base}/items/${tabId}/${itemId}`;
   const key = (f) => `${pk}:item:${itemId}:${f}`;
   // Changes to a recurring item apply to this month and later months.
@@ -155,6 +158,20 @@ export default function ItemSheet(props) {
     await splitItem(base, tabId, itemId, item, username);
   }
 
+  // ── Money rules: automatic amount, cash card link, shared budget, paid by card ──
+  const cards = cardsList(cardMap);
+  const personName = (pid) => period?.people?.[pid]?.name || 'someone';
+  const driveOwners = Object.keys(drive || {}).filter((pid) => Object.keys(drive[pid]?.items || {}).length || Object.keys(drive[pid]?.rides || {}).length);
+  const computed = Boolean(item.auto || item.link?.cashcard);
+  const poolSource = item.pool ? findItem(period, item.pool) : null;
+  const poolOptions = Object.entries(period?.items || {})
+    .filter(([t]) => t !== tabId)
+    .flatMap(([t, items]) => Object.entries(items || {}).filter(([, it]) => it && !it.pool && !it.track).map(([id, it]) => ({ id, it, t })))
+    .sort((a, b) => Number(Boolean(b.it.auto)) - Number(Boolean(a.it.auto)) || String(a.it.name || '').localeCompare(String(b.it.name || '')));
+  const groupNameOf = (t) => period?.tabs?.[t]?.name || 'Untitled';
+  const billDate = `${pk}-${/^\d{4}-\d{2}-\d{2}$/.test(item.date || '') ? item.date.slice(8, 10) : '01'}`;
+  const cardBm = item.card && cardMap?.[item.card] && monthOnly ? billMonth(billDate, cardMap[item.card]) : null;
+
   // ── Compact layout bits ──
   const [noteOpen, setNoteOpen] = useState(false);
   const showNote = noteOpen || Boolean(item.note);
@@ -196,7 +213,25 @@ export default function ItemSheet(props) {
         />
 
         {/* Amount (with per month / per year for monthly items) */}
-        {!isGroup && !noBudget && (
+        {!isGroup && computed && (
+          <div className="cs-computed">
+            <b className="big-amount-ro">{formatMoney(Number(item.amount) || 0, currency)}</b>
+            <span className="muted small">
+              {item.link?.cashcard
+                ? `Grab cash card top-ups in ${monthName(pk)}`
+                : `${formatMoney(Number(item.auto?.total) || 0, currency)} − ${formatMoney(Math.max(0, (Number(item.auto?.total) || 0) - (Number(item.amount) || 0)), currency)} of the other items in ${tabName || 'this group'}`}
+            </span>
+          </div>
+        )}
+        {!isGroup && poolSource && (
+          <div className="cs-computed">
+            <b className="big-amount-ro">{formatMoney(monthlyOf(poolSource.item), currency)}</b>
+            <span className="muted small">
+              Shared budget from {poolSource.item.name || 'another item'} ({groupNameOf(poolSource.tabId)}) · not counted in {tabName || 'this group'}’s total
+            </span>
+          </div>
+        )}
+        {!isGroup && !noBudget && !computed && !poolSource && (
           <div className="cs-amount">
             <LiveInput
               className="ep-amount big-amount"
@@ -305,6 +340,100 @@ export default function ItemSheet(props) {
           </label>
         </div>
         {isGroup && <span className="muted small cs-note-hint">Its parts get this category too; add extra ones on each part below.</span>}
+
+        {monthOnly && !isGroup && kind !== 'savings' && (
+          <div className="money-rules">
+            {kind === 'bill' && (
+              <label className="switch-row compact-switch">
+                <input type="checkbox" checked={Boolean(item.auto)} onChange={(e) => saveMany({ auto: e.target.checked ? { total: 1800 } : null, link: null })} />
+                <span>
+                  Automatic: a set total minus everything else in {tabName || 'this group'} <span className="muted small">— e.g. Allowances</span>
+                </span>
+              </label>
+            )}
+            {item.auto && (
+              <label className="field inline-field">
+                <span>Set total</span>
+                <LiveInput
+                  inputMode="decimal"
+                  fieldKey={key('autoTotal')}
+                  value={item.auto.total}
+                  format={(v) => (v ? String(v) : '')}
+                  parse={parseAmount}
+                  display={(v) => formatMoney(v, currency)}
+                  onSave={(v) => v > 0 && saveMany({ auto: { total: v } })}
+                  aria-label="Set total"
+                />
+              </label>
+            )}
+            {kind === 'bill' && driveOwners.length > 0 && (
+              <label className="switch-row compact-switch">
+                <input type="checkbox" checked={Boolean(item.link?.cashcard)} onChange={(e) => saveMany({ link: e.target.checked ? { cashcard: driveOwners[0] } : null, auto: null })} />
+                <span>
+                  Amount = Grab cash card top-ups <span className="muted small">— Drive → Other → Cashcard top-up</span>
+                </span>
+              </label>
+            )}
+            {item.link?.cashcard && (
+              <p className="muted small rule-note">
+                {driveOwners.length > 1 ? (
+                  <>
+                    From{' '}
+                    <select value={item.link.cashcard} onChange={(e) => saveMany({ link: { cashcard: e.target.value } })} aria-label="Whose Drive page">
+                      {driveOwners.map((pid) => (
+                        <option key={pid} value={pid}>
+                          {personName(pid)}
+                        </option>
+                      ))}
+                    </select>{' '}
+                    ’s Drive page.
+                  </>
+                ) : (
+                  <>From {personName(item.link.cashcard)}’s Drive page. </>
+                )}{' '}
+                {formatMoney(cashcardTopUps(drive?.[item.link.cashcard], pk), currency)} topped up in {monthName(pk)}.{' '}
+                {onOpenPage && (
+                  <button className="link-btn" onClick={() => onOpenPage('drive', item.link.cashcard)}>
+                    Open Drive ›
+                  </button>
+                )}
+              </p>
+            )}
+            {kind === 'budget' && poolOptions.length > 0 && (
+              <label className="field inline-field">
+                <span>Budget comes from</span>
+                <select value={item.pool || ''} onChange={(e) => saveMany({ pool: e.target.value || null })} aria-label="Budget comes from">
+                  <option value="">Its own amount</option>
+                  {poolOptions.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.it.name || 'Untitled'} · {groupNameOf(o.t)}
+                      {o.it.auto ? ' (automatic)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {kind === 'bill' && cards.length > 0 && (
+              <label className="field inline-field">
+                <span>Paid by</span>
+                <select value={item.card || ''} onChange={(e) => saveMany({ card: e.target.value || null })} aria-label="Paid by">
+                  <option value="">Cash / debit / GIRO</option>
+                  {cards.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      💳 {c.name || 'Card'}
+                      {period?.people?.[c.person]?.name ? ` · ${period.people[c.person].name}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {cardBm && (
+              <p className="muted small rule-note">
+                {cardBm === pk ? `💳 On the ${monthShort(cardBm)} card bill — counts in ${monthName(pk)}.` : `💳 Billed in ${monthName(cardBm)} — counts there, not in ${monthName(pk)}.`}
+              </p>
+            )}
+          </div>
+        )}
         <datalist id="sheet-categories">
           {categories.map((c) => (
             <option key={c} value={c} />
@@ -333,6 +462,7 @@ export default function ItemSheet(props) {
               username={username}
               otherBudgets={(otherBudgets || []).filter((b) => b.id !== itemId)}
               groups={groups}
+              ctx={ctx}
             />
           </section>
         )}

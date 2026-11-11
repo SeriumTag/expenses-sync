@@ -6,7 +6,7 @@ import BudgetTracker from './BudgetTracker';
 import Modal from './Modal';
 
 // "Log a spend" from Home: pick the budget, then amount / what / photo.
-export default function QuickSpend({ ledgerId, pk, period, tabs, spending, currency, username, startWith, onAddBudget, onClose }) {
+export default function QuickSpend({ ledgerId, pk, period, tabs, spending, currency, username, startWith, onAddBudget, onClose, ctx }) {
   const budgets = budgetItems(period, tabs);
   const [chosen, setChosen] = useState(() => {
     const want = startWith || prefs.get('lastBudget');
@@ -37,7 +37,7 @@ export default function QuickSpend({ ledgerId, pk, period, tabs, spending, curre
           <span className="field-label">What did you spend on?</span>
           <div className="budget-chips" role="radiogroup" aria-label="Budget">
             {budgets.map((b) => {
-              const st = budgetStatus(b.item, b.id, spending, pk);
+              const st = budgetStatus(b.item, b.id, spending, pk, ctx);
               return (
                 <button key={b.id} role="radio" aria-checked={chosen === b.id} className={`budget-chip ${chosen === b.id ? 'on' : ''}`} onClick={() => pick(b.id)}>
                   <b>{b.item.name || 'Untitled'}</b>
@@ -62,6 +62,7 @@ export default function QuickSpend({ ledgerId, pk, period, tabs, spending, curre
               groups={tabs.map((t) => ({ id: t.id, name: t.name }))}
               showList={false}
               autoFocus
+              ctx={ctx}
             />
           )}
         </>

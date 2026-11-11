@@ -8,6 +8,7 @@ import Attachments from './Attachments';
 import { catStyle } from '../lib/catStyle';
 import LiveInput from './LiveInput';
 import { useCatPerm } from '../lib/catPerm';
+import { billMonth, cardsList, monthShort } from '../lib/cards';
 
 const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
 const dayName = (d) => `${Number(d.slice(8, 10))} ${MONTHS[Number(d.slice(5, 7)) - 1]}`;
@@ -21,7 +22,7 @@ function defaultDate(pk) {
 
 // Budget, spent and left with a bar — shared by the item card and the Budgets list.
 export function BudgetBar({ status, currency }) {
-  const { budget, spent, left, noBudget } = status;
+  const { budget, spent, left, noBudget, pool } = status;
   if (noBudget) {
     return (
       <div className="budget-bar none">
@@ -53,16 +54,25 @@ export function BudgetBar({ status, currency }) {
       <div className="budget-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)}>
         <span style={{ width: `${pct}%` }} />
       </div>
+      {pool && (
+        <p className="muted small pool-note">
+          Shared budget from <b>{pool.name}</b>
+          {pool.count > 1 ? ` · spends on all ${pool.count} items count` : ''}
+          {status.ownSpent != null && pool.count > 1 ? ` · ${formatMoney(status.ownSpent, currency)} here` : ''}
+        </p>
+      )}
     </div>
   );
 }
 
 // Log what was spent against an item's budget, e.g. Food: 2 Oct Chicken rice $4.
 // otherBudgets: [{ id, name }] — the other tracked budgets a spend can be moved to.
-export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, currency, username, otherBudgets = [], groups = [], showList = true, autoFocus = false }) {
-  const status = budgetStatus(item, itemId, spending, pk);
+export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, currency, username, otherBudgets = [], groups = [], showList = true, autoFocus = false, ctx }) {
+  const status = budgetStatus(item, itemId, spending, pk, ctx);
+  const cards = cardsList(ctx?.cards);
+  const cardLabel = (c) => `${c.name || 'Card'}${ctx?.people?.[c.person]?.name ? ` · ${ctx.people[c.person].name}` : ''}`;
   const path = `ledgers/${ledgerId}/spending/${itemId}`;
-  const [form, setForm] = useState(() => ({ date: defaultDate(pk), note: '', category: '', amount: '' }));
+  const [form, setForm] = useState(() => ({ date: defaultDate(pk), note: '', category: '', amount: '', card: '' }));
   const [listOpen, setListOpen] = useState(showList);
   const [pendingFiles, setPendingFiles] = useState([]); // photos picked before tapping Add
   const [saving, setSaving] = useState(false);
@@ -88,10 +98,11 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
         note: form.note.trim() || null,
         category: splitCats(form.category).join(', ') || null,
         amount,
+        card: form.card || null,
         by: username || null,
         at: Date.now(),
       });
-      setForm({ date: form.date, note: '', category: '', amount: '' }); // keep the date for logging several in a row
+      setForm({ date: form.date, note: '', category: '', amount: '', card: form.card }); // keep the date for logging several in a row
       setNotice(`✓ Added ${form.note.trim() || 'spend'} ${formatMoney(amount, currency)}`);
       setTimeout(() => setNotice(''), 3000);
       setPendingFiles([]);
@@ -234,10 +245,23 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
             setPendingFiles((p) => [...p, ...picked]);
           }}
         />
+        {cards.length > 0 && (
+          <select className="spend-card" value={form.card} onChange={(e) => setForm({ ...form, card: e.target.value })} aria-label="Paid by">
+            <option value="">Paid by cash / debit</option>
+            {cards.map((c) => (
+              <option key={c.id} value={c.id}>
+                💳 {cardLabel(c)}
+              </option>
+            ))}
+          </select>
+        )}
         <button className="btn primary sm" disabled={!canAdd || saving}>
           {saving ? 'Saving…' : '＋ Add'}
         </button>
       </form>
+      {form.card && ctx?.cards?.[form.card] && /^\d{4}-\d{2}-\d{2}$/.test(form.date) && (
+        <p className="muted small card-hint">💳 On the card bill for {monthShort(billMonth(form.date, ctx.cards[form.card]))} — it counts in that month.</p>
+      )}
       {pendingFiles.length > 0 && (
         <p className="muted small spend-pending">
           📎 {pendingFiles.map((f) => f.name).join(', ')}{' '}
@@ -277,6 +301,7 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                           {s.category}
                         </span>
                       )}
+                      {s.card && ctx?.cards?.[s.card] && <span className="s-card">💳 {ctx.cards[s.card].name} · {monthShort(billMonth(s.date, ctx.cards[s.card]))} bill</span>}
                       {s.by && s.by !== username && <span className="muted small s-by">{s.by}</span>}
                     </span>
                     <LiveInput
@@ -327,6 +352,19 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                               <CatSelect value={s.category || ''} options={perm.known} onChange={(v) => saveSpend(s, 'category')(v || null)} />
                             )}
                           </label>
+                          {cards.length > 0 && (
+                            <label>
+                              <span>Paid by</span>
+                              <select value={s.card || ''} onChange={(e) => saveSpend(s, 'card')(e.target.value || null)} aria-label="Paid by">
+                                <option value="">Cash / debit</option>
+                                {cards.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    💳 {cardLabel(c)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
                           {otherBudgets.length > 0 && (
                             <label>
                               <span>Move to</span>

@@ -8,6 +8,7 @@ import { confirmTwice } from '../lib/confirm';
 import { cycleForPeriod, grabIncomeFor } from '../lib/drive';
 import GrabBadge from './drive/GrabBadge';
 import ScaleIcon from './extras/ScaleIcon';
+import { billMonth, cardsFor, monthShort, ordinalDay } from '../lib/cards';
 
 // Summary cards at the top: each person's salary and what's left after the
 // head categories they chose.
@@ -55,6 +56,9 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
   const incomes = sorted(person.incomes);
   const [newIncome, setNewIncome] = useState(null); // focus the name of a just-added income
   const [askGrab, setAskGrab] = useState(false); // "Is this earning from Grab?"
+  const [cardSheet, setCardSheet] = useState(null); // { card } | { card: null } for a new one
+  const myCards = cardsFor(ctx?.cards, personId);
+  const cardsPath = ctx?.ledgerId ? `ledgers/${ctx.ledgerId}/cards` : null;
   const hasGrab = incomes.some((x) => x.grab);
   const cycle = /^\d{4}-\d{2}$/.test(pk) ? cycleForPeriod(pk) : null;
   const shortD = (s) => new Date(`${s}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
@@ -221,6 +225,25 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
           ))}
         </section>
 
+        {cardsPath && (
+          <section className="sheet-section">
+            <h3>💳 Credit cards</h3>
+            <p className="muted small">What’s put on a card counts in the month its bill comes, not the month it was used. Pick the card under “Paid by” on a bill or a spend.</p>
+            {myCards.map((cd) => (
+              <button key={cd.id} className="card-row" onClick={() => setCardSheet({ card: cd })}>
+                <span>
+                  <b>{cd.name || 'Card'}</b>
+                  <span className="muted small"> · bill on the {ordinalDay(cd.day)}</span>
+                </span>
+                <span className="rr-e">✎</span>
+              </button>
+            ))}
+            <button className="btn ghost sm" onClick={() => setCardSheet({ card: null })}>
+              ＋ Add card
+            </button>
+          </section>
+        )}
+
         <div className="sheet-summary">
           <span>
             <span className="muted small">{incomes.length ? 'Income ' : 'Salary '}</span>
@@ -244,6 +267,7 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
         </div>
       </div>
     </Modal>
+    {cardSheet && cardsPath && <CardSheet path={cardsPath} personId={personId} card={cardSheet.card} onClose={() => setCardSheet(null)} />}
     {askGrab && (
       <Modal title="New income" onClose={() => setAskGrab(false)}>
         <div className="sheet ask-grab">
@@ -264,5 +288,63 @@ export function PersonSheet({ base, pk, personId, person, period, tabs, currency
       </Modal>
     )}
     </>
+  );
+}
+
+// A credit card: its name and the day its bill comes (the statement day).
+function CardSheet({ path, personId, card, onClose }) {
+  const [name, setName] = useState(card?.name || '');
+  const [day, setDay] = useState(card?.day ? String(card.day) : '');
+  const [error, setError] = useState('');
+  const d = Math.round(Number(day));
+  const valid = d >= 1 && d <= 28;
+  const example = valid ? (() => {
+    const y = new Date().getFullYear();
+    const used = d === 1 ? `${y}-01-01` : `${y}-01-${String(d).padStart(2, '0')}`;
+    const to = d === 1 ? '31 Jan' : `${d - 1} Feb`;
+    return `Used ${d === 1 ? '1' : d} Jan – ${to} → bill on the ${ordinalDay(d)} of ${monthShort(billMonth(used, { day: d }))}, counted in ${monthShort(billMonth(used, { day: d }))}.`;
+  })() : '';
+
+  async function save(e) {
+    e.preventDefault();
+    if (!name.trim()) return setError('Give the card a name, e.g. POSB.');
+    if (!valid) return setError('The bill day must be 1 to 28.');
+    const id = card?.id || newKey(path);
+    await patchPath(`${path}/${id}`, { name: name.trim(), day: d, person: personId, order: card?.order || Date.now() });
+    onClose();
+  }
+  async function remove() {
+    if (!confirmTwice(`Remove the card “${card.name}”? Bills and spends paid with it go back to counting in their own month.`, `“${card.name}”`)) return;
+    await setPath(`${path}/${card.id}`, null);
+    onClose();
+  }
+  return (
+    <Modal title={card ? 'Edit card' : 'Add a credit card'} onClose={onClose} dirty={name !== (card?.name || '') || day !== (card?.day ? String(card.day) : '')}>
+      <form className="sheet drive-form" onSubmit={save}>
+        <div className="drive-grid">
+          <label className="field">
+            <span>Card</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. POSB" autoFocus={!card} />
+          </label>
+          <label className="field">
+            <span>Bill comes on the</span>
+            <input inputMode="numeric" value={day} onChange={(e) => setDay(e.target.value)} placeholder="15" />
+          </label>
+        </div>
+        <p className="muted small">{example || 'POSB: 15 (used 15 Jan – 14 Feb, billed 15 Feb). HSBC: 1 (used in January, billed 1 Feb).'}</p>
+        {error && <p className="error">{error}</p>}
+        <div className="row-gap end">
+          {card && (
+            <button type="button" className="btn danger-outline sm" onClick={remove}>
+              Remove
+            </button>
+          )}
+          <button type="button" className="btn ghost" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="btn primary">Save card</button>
+        </div>
+      </form>
+    </Modal>
   );
 }

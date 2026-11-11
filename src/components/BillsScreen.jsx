@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { FREQS, amountInView, potBalance, recurOf, setAsideTab, sorted, tabInView, yearOf, yearlyRecurringSetAside } from '../lib/budget';
+import { FREQS, MONTHS, amountInView, carriedIn, potBalance, recurOf, setAsideTab, sorted, tabTotal, yearOf, yearlyRecurringSetAside } from '../lib/budget';
+import { cardsList } from '../lib/cards';
 import { prefs } from '../lib/session';
 import { duplicateItems, mergeItems, ordersAfter, reorderItems } from '../lib/db';
 import { reordered, useDragSort } from '../hooks/useDragSort';
@@ -31,7 +32,11 @@ export default function BillsScreen(props) {
   const tabName = (id) => tabs.find((t) => t.id === id)?.name || 'Untitled';
   const entries = shownTabs.flatMap((t) => sorted(period.items?.[t.id]).map((item) => ({ item, tabId: t.id, key: `${t.id}:${item.id}` })));
   const bySection = Object.fromEntries(SECTIONS.map((s) => [s.key, entries.filter((e) => sectionOf(e.item) === s.key)]));
-  const total = entries.reduce((sum, e) => sum + amountInView(e.item, e.item.id, view, ctx), 0);
+  // Last month's bills put on a credit card whose card bill comes this month.
+  const carried = view === 'monthly' ? shownTabs.flatMap((t) => carriedIn(ctx.periods, pk, t.id, ctx).map((x) => ({ ...x, tabId: t.id }))) : [];
+  const carriedSum = carried.reduce((s, x) => s + x.amount, 0);
+  const cardName = (id) => cardsList(ctx.cards).find((cd) => cd.id === id)?.name || 'Card';
+  const total = entries.reduce((sum, e) => sum + amountInView(e.item, e.item.id, view, ctx), 0) + carriedSum;
   // Bills priced per year, plus (for all groups) bills that repeat yearly, spread over 12 months.
   const setAside = shownTabs.reduce((sum, t) => sum + setAsideTab(period.items?.[t.id]), 0) + (group === 'all' ? yearlyRecurringSetAside(ctx.periods, yearOf(pk)) : 0);
   const due = /^\d{4}$/.test(pk) ? `${pk}-12` : pk;
@@ -177,8 +182,8 @@ export default function BillsScreen(props) {
           {/* Group filter */}
           <div className="group-chips" role="tablist" aria-label="Groups">
             {/* Each chip carries its group's total, so the summary is visible at a glance. */}
-            {[{ id: 'all', name: 'All', total: tabs.reduce((sum, t) => sum + tabInView(period.items?.[t.id], view, ctx), 0) }]
-              .concat(tabs.map((t) => ({ id: t.id, name: t.name || 'Untitled', friend: t.friend, total: tabInView(period.items?.[t.id], view, ctx) })))
+            {[{ id: 'all', name: 'All', total: tabs.reduce((sum, t) => sum + tabTotal(period, t.id, view, ctx), 0) }]
+              .concat(tabs.map((t) => ({ id: t.id, name: t.name || 'Untitled', friend: t.friend, total: tabTotal(period, t.id, view, ctx) })))
               .map((g) => (
                 <button key={g.id} role="tab" aria-selected={group === g.id} className={`chip group-chip ${g.friend ? 'has-friend' : ''} ${group === g.id ? 'active' : ''}`} onClick={() => onGroup(g.id)}>
                   {g.friend && <img className="gc-friend" src={friendOf(g.friend).src} alt="" title={friendOf(g.friend).name} />}
@@ -258,6 +263,37 @@ export default function BillsScreen(props) {
               </section>
             );
           })}
+
+          {/* Card bills from last month, paid this month */}
+          {carried.length > 0 && (
+            <section className="home-card bills-section sec-carried" aria-label="Card bills from last month">
+              <div className="home-card-head">
+                <h2>
+                  <span aria-hidden="true">💳</span> Card bills from {MONTHS[Number(carried[0].fromKey.slice(5, 7)) - 1]}
+                </h2>
+                <span className="bills-sum">
+                  {formatMoney(carriedSum, currency)}
+                  <span className="per-small">{FREQS[view].short}</span>
+                </span>
+              </div>
+              <p className="muted small bills-note">Put on a credit card last month — the card bill comes this month, so they count here.</p>
+              <div className="carried-rows">
+                {carried.map((x) => (
+                  <div key={`${x.tabId}:${x.id}`} className="carried-row">
+                    <span>
+                      <b>{x.item.name || 'Untitled'}</b>
+                      <span className="muted small">
+                        {' '}
+                        · {cardName(x.item.card)}
+                        {group === 'all' ? ` · ${tabName(x.tabId)}` : ''}
+                      </span>
+                    </span>
+                    <b>{formatMoney(x.amount, currency)}</b>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {editing && (
             <div className="select-bar">

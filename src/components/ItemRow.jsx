@@ -1,4 +1,4 @@
-import { FREQS, MONTHS, amountInView, isPaused, recurOf, budgetStatus, spentMode, compareItem, itemCats, inView, partCats, partMonthly, sorted } from '../lib/budget';
+import { FREQS, MONTHS, amountInView, cardBillMonth, findItem, isPaused, monthlyOf, recurOf, budgetStatus, spentMode, compareItem, itemCats, inView, partCats, partMonthly, sorted } from '../lib/budget';
 import { formatMoney } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
 import { ChangeBadge } from './ChangeBadge';
@@ -18,8 +18,15 @@ export default function ItemRow(props) {
   const freq = item.freq === 'yearly' ? 'yearly' : 'monthly';
   const shownView = isGroup ? item.view || view : view;
   const noBudget = spentMode(item);
-  const status = item.budget && ctx?.pk ? budgetStatus(item, item.id, ctx.spending, ctx.pk) : null;
-  const amount = amountInView(item, item.id, shownView, ctx);
+  const status = item.budget && ctx?.pk ? budgetStatus(item, item.id, ctx.spending, ctx.pk, ctx) : null;
+  const counted = amountInView(item, item.id, shownView, ctx);
+  // Paid from another item's budget, or on a card billed in a later month: show
+  // its own figure, greyed, since it isn't counted here.
+  const cardBm = shownView === 'monthly' ? cardBillMonth(item, pk, ctx?.cards) : null;
+  const billedLater = Boolean(cardBm && cardBm !== pk);
+  const poolName = item.pool ? findItem(ctx?.period, item.pool)?.item?.name || 'shared budget' : null;
+  const notCounted = Boolean(poolName) || billedLater;
+  const amount = poolName && status ? status.budget : billedLater ? monthlyOf(item) : counted;
   // Every row gets an icon square, like the design's transactions.
   const kind = item.track ? 'savings' : item.budget ? 'budget' : 'bill';
   const icon = { savings: '🐷', budget: '💸', bill: '🧾' }[kind];
@@ -36,6 +43,10 @@ export default function ItemRow(props) {
     recur === 'once' && 'One-time',
     recur === 'yearly' && `Yearly · ${MONTHS[Number(String(item.startMonth || pk).slice(5, 7)) - 1] || ''}`,
     paused && '⏸ Paused',
+    item.auto && 'Auto',
+    item.link?.cashcard && '🔗 Cash card',
+    poolName && `From ${poolName}`,
+    item.card && ctx?.cards?.[item.card] && `💳 ${ctx.cards[item.card].name}${cardBm ? ` · ${MONTHS[Number(cardBm.slice(5, 7)) - 1]} bill` : ''}`,
     item.endMonth && recur !== 'once' && `Ends ${MONTHS[Number(item.endMonth.slice(5, 7)) - 1]}${item.endMonth.slice(0, 4) !== String(pk).slice(0, 4) ? ` ${item.endMonth.slice(0, 4)}` : ''}`,
   ].filter(Boolean);
   const native =
@@ -99,12 +110,12 @@ export default function ItemRow(props) {
       </div>
 
       <div className="ep2-amt">
-        <span className="ep2-amount">
+        <span className={`ep2-amount ${billedLater ? 'not-counted' : poolName ? 'pooled' : ''}`} title={notCounted ? (poolName ? `Comes out of ${poolName} — not counted again here` : 'Counts in the month the card bill comes') : undefined}>
           <ChangeBadge change={change} prevLabel={prevLabel} currency={currency} view={view} />
           <b>{formatMoney(amount, currency)}</b>
-          <span className="per-small">{amountSuffix(item, shownView, noBudget)}</span>
+          <span className="per-small">{poolName ? 'shared' : amountSuffix(item, shownView, noBudget)}</span>
         </span>
-        {status && !noBudget && (
+        {status && (!noBudget || poolName) && (
           <span className={`ep2-left ${status.left < 0 ? 'neg' : 'pos'}`}>
             {status.left < 0 ? `${formatMoney(-status.left, currency)} over` : `${formatMoney(status.left, currency)} left`}
           </span>
