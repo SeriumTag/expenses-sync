@@ -210,7 +210,7 @@ export function periodSpends(period, spending, key, cards) {
   for (const [tabId, items] of Object.entries(period?.items || {})) {
     for (const [id, item] of Object.entries(items || {})) {
       if (!item?.budget) continue;
-      for (const sp of spendsIn(spending, id, key, cards)) {
+      for (const sp of spendsIn(spending, id, key, cards, item.card)) {
         out.push({ ...sp, budgetId: id, budgetName: item.name || 'Untitled', budgetCats: splitCats(item.category), tabId });
       }
     }
@@ -346,7 +346,7 @@ export const amountInView = (item, id, view, ctx) =>
   isPaused(item, ctx?.pk) || item?.pool || billedLater(item, view, ctx)
     ? 0
     : spentMode(item)
-      ? spentInView(id, view, ctx)
+      ? spentInView(id, view, ctx, item)
       : view === 'yearly'
         ? yearlyOf(item, id, ctx)
         : monthlyOf(item);
@@ -363,8 +363,10 @@ export function cardBillMonth(item, key, cards) {
 }
 // In the monthly view a bill on a card counts when its card bill comes, so it
 // counts nothing in its own month if that bill comes later.
+// ("No fixed budget" items count their spends, and each spend already lands
+// in its card bill's month, so they're never moved as a whole.)
 function billedLater(item, view, ctx) {
-  if (view !== 'monthly' || !ctx?.pk || isYearKey(ctx.pk)) return false;
+  if (view !== 'monthly' || !ctx?.pk || isYearKey(ctx.pk) || spentMode(item)) return false;
   const bm = cardBillMonth(item, ctx.pk, ctx.cards);
   return Boolean(bm && bm !== ctx.pk);
 }
@@ -378,8 +380,17 @@ export function carriedIn(periods, pk, tabId, ctx) {
   if (!pk || isYearKey(pk) || !ctx?.cards) return [];
   const from = prevMonthKey(pk);
   const out = [];
+  const here = periods?.[pk]?.items?.[tabId] || {};
   for (const [id, item] of Object.entries(periods?.[from]?.items?.[tabId] || {})) {
-    if (!item?.card || item.pool || isPaused(item, from) || spentMode(item)) continue;
+    if (!item?.card || item.pool || isPaused(item, from)) continue;
+    if (spentMode(item)) {
+      // A spends-only budget that isn't in this month (e.g. one-time): its
+      // spends whose card bill comes this month. (If it is here, its own copy counts them.)
+      if (here[id]) continue;
+      const amount = sumSpends(spendsIn(ctx.spending, id, pk, ctx.cards, item.card));
+      if (amount > 0) out.push({ id, item, amount, fromKey: from });
+      continue;
+    }
     if (cardBillMonth(item, from, ctx.cards) === pk) out.push({ id, item, amount: monthlyOf(item), fromKey: from });
   }
   return out;
@@ -421,9 +432,11 @@ export function afterExpenses(person, period, view = 'monthly', ctx) {
 // across months: ledgers/{lid}/spending/{itemId}/{id} = { date, note, amount, by, at },
 // and each month (or year) only counts its own dates.
 // A spend put on a credit card counts in the month its card bill comes (cards).
-export function spendsIn(spending, itemId, pk, cards) {
+// defaultCard: the budget item's own "Paid by" card, for spends that didn't pick one
+// (a spend saved as card 'cash' was paid in cash on purpose).
+export function spendsIn(spending, itemId, pk, cards, defaultCard) {
   const inKey = (s) => {
-    const m = countsInMonth(s.date, s.card, cards);
+    const m = countsInMonth(s.date, s.card || defaultCard, cards);
     return Boolean(m) && (isYearKey(pk) ? m.startsWith(`${pk}-`) : m === pk);
   };
   return Object.entries(spending?.[itemId] || {})
@@ -439,12 +452,12 @@ const sumSpends = (list) => list.reduce((s, x) => s + (Number(x.amount) || 0), 0
 
 // What a "no fixed budget" item counts as in totals: this month's spends
 // (monthly view) or the whole year's (yearly view).
-function spentInView(itemId, view, ctx) {
+function spentInView(itemId, view, ctx, item) {
   const pk = ctx?.pk;
   if (!pk) return 0;
-  const yearSpent = sumSpends(spendsIn(ctx.spending, itemId, pk.slice(0, 4), ctx.cards));
+  const yearSpent = sumSpends(spendsIn(ctx.spending, itemId, pk.slice(0, 4), ctx.cards, item?.card));
   if (view === 'yearly') return yearSpent;
-  return isYearKey(pk) ? yearSpent / 12 : sumSpends(spendsIn(ctx.spending, itemId, pk, ctx.cards));
+  return isYearKey(pk) ? yearSpent / 12 : sumSpends(spendsIn(ctx.spending, itemId, pk, ctx.cards, item?.card));
 }
 
 // An item, or a part inside a combined item, by id: { tabId, item, parent }.
@@ -477,12 +490,12 @@ export function poolOf(period, poolId) {
 // and items sharing a pool show the pool's budget and everything spent from it.
 export function budgetStatus(item, itemId, spending, pk, ctx) {
   const cards = ctx?.cards;
-  const spends = spendsIn(spending, itemId, pk, cards);
+  const spends = spendsIn(spending, itemId, pk, cards, item?.card);
   const spent = sumSpends(spends);
   if (item?.pool && ctx?.period) {
     const { source, members } = poolOf(ctx.period, item.pool);
     const budget = source && !isPaused(source.parent || source.item, pk) ? monthlyOf(source.item) * (isYearKey(pk) ? 12 : 1) : 0;
-    const poolSpent = members.reduce((s, m) => s + sumSpends(spendsIn(spending, m.id, pk, cards)), 0);
+    const poolSpent = members.reduce((s, m) => s + sumSpends(spendsIn(spending, m.id, pk, cards, m.item.card)), 0);
     return { budget, spent: poolSpent, left: budget - poolSpent, spends, ownSpent: spent, pool: { name: source?.item?.name || 'the shared budget', tabId: source?.tabId, count: members.length } };
   }
   if (spentMode(item)) return { budget: spent, spent, left: 0, spends, noBudget: true };

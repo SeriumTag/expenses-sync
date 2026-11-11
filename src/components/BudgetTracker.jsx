@@ -71,6 +71,9 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
   const status = budgetStatus(item, itemId, spending, pk, ctx);
   const cards = cardsList(ctx?.cards);
   const cardLabel = (c) => `${c.name || 'Card'}${ctx?.people?.[c.person]?.name ? ` · ${ctx.people[c.person].name}` : ''}`;
+  // The budget's own card (its Paid by): spends use it unless they pick otherwise.
+  const itemCard = item?.card && ctx?.cards?.[item.card] ? item.card : '';
+  const cardOf = (s) => (s.card === 'cash' ? null : s.card || itemCard || null);
   const path = `ledgers/${ledgerId}/spending/${itemId}`;
   const [form, setForm] = useState(() => ({ date: defaultDate(pk), note: '', category: '', amount: '', card: '' }));
   const [listOpen, setListOpen] = useState(showList);
@@ -98,7 +101,7 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
         note: form.note.trim() || null,
         category: splitCats(form.category).join(', ') || null,
         amount,
-        card: form.card || null,
+        card: form.card || null, // '' = the budget's own card (or cash when it has none)
         by: username || null,
         at: Date.now(),
       });
@@ -247,8 +250,15 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
         />
         {cards.length > 0 && (
           <select className="spend-card" value={form.card} onChange={(e) => setForm({ ...form, card: e.target.value })} aria-label="Paid by">
-            <option value="">Paid by cash / debit</option>
-            {cards.map((c) => (
+            {itemCard ? (
+              <>
+                <option value="">💳 {cardLabel(ctx.cards[itemCard])} (this budget’s card)</option>
+                <option value="cash">Paid by cash / debit</option>
+              </>
+            ) : (
+              <option value="">Paid by cash / debit</option>
+            )}
+            {cards.filter((c) => c.id !== itemCard).map((c) => (
               <option key={c.id} value={c.id}>
                 💳 {cardLabel(c)}
               </option>
@@ -259,8 +269,8 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
           {saving ? 'Saving…' : '＋ Add'}
         </button>
       </form>
-      {form.card && ctx?.cards?.[form.card] && /^\d{4}-\d{2}-\d{2}$/.test(form.date) && (
-        <p className="muted small card-hint">💳 On the card bill for {monthShort(billMonth(form.date, ctx.cards[form.card]))} — it counts in that month.</p>
+      {ctx?.cards?.[form.card || itemCard] && form.card !== 'cash' && /^\d{4}-\d{2}-\d{2}$/.test(form.date) && (
+        <p className="muted small card-hint">💳 On the card bill for {monthShort(billMonth(form.date, ctx.cards[form.card || itemCard]))} — it counts in that month.</p>
       )}
       {pendingFiles.length > 0 && (
         <p className="muted small spend-pending">
@@ -301,7 +311,7 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                           {s.category}
                         </span>
                       )}
-                      {s.card && ctx?.cards?.[s.card] && <span className="s-card">💳 {ctx.cards[s.card].name} · {monthShort(billMonth(s.date, ctx.cards[s.card]))} bill</span>}
+                      {cardOf(s) && ctx?.cards?.[cardOf(s)] && <span className="s-card">💳 {ctx.cards[cardOf(s)].name} · {monthShort(billMonth(s.date, ctx.cards[cardOf(s)]))} bill</span>}
                       {s.by && s.by !== username && <span className="muted small s-by">{s.by}</span>}
                     </span>
                     <LiveInput
@@ -356,7 +366,14 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                             <label>
                               <span>Paid by</span>
                               <select value={s.card || ''} onChange={(e) => saveSpend(s, 'card')(e.target.value || null)} aria-label="Paid by">
-                                <option value="">Cash / debit</option>
+                                {itemCard ? (
+                                  <>
+                                    <option value="">Same as the budget ({ctx.cards[itemCard].name})</option>
+                                    <option value="cash">Cash / debit</option>
+                                  </>
+                                ) : (
+                                  <option value="">Cash / debit</option>
+                                )}
                                 {cards.map((c) => (
                                   <option key={c.id} value={c.id}>
                                     💳 {cardLabel(c)}

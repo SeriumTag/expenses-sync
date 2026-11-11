@@ -420,7 +420,7 @@ export default function ItemSheet(props) {
                 </select>
               </label>
             )}
-            {kind === 'bill' && cards.length > 0 && (
+            {cards.length > 0 && (
               <label className="field inline-field">
                 <span>Paid by</span>
                 <select value={item.card || ''} onChange={(e) => saveMany({ card: e.target.value || null })} aria-label="Paid by">
@@ -434,7 +434,10 @@ export default function ItemSheet(props) {
                 </select>
               </label>
             )}
-            {cardBm && (
+            {kind === 'budget' && item.card && cardMap?.[item.card] && (
+              <p className="muted small rule-note">💳 Spends on this budget go on {cardMap[item.card].name} — each counts in the month its card bill comes (a spend can still pick cash).</p>
+            )}
+            {cardBm && kind !== 'budget' && (
               <p className="muted small rule-note">
                 {cardBm === pk ? `💳 On the ${monthShort(cardBm)} card bill — counts in ${monthName(pk)}.` : `💳 Billed in ${monthName(cardBm)} — counts there, not in ${monthName(pk)}.`}
               </p>

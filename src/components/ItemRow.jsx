@@ -22,7 +22,7 @@ export default function ItemRow(props) {
   const counted = amountInView(item, item.id, shownView, ctx);
   // Paid from another item's budget, or on a card billed in a later month: show
   // its own figure, greyed, since it isn't counted here.
-  const cardBm = shownView === 'monthly' ? cardBillMonth(item, pk, ctx?.cards) : null;
+  const cardBm = shownView === 'monthly' && !noBudget ? cardBillMonth(item, pk, ctx?.cards) : null;
   const billedLater = Boolean(cardBm && cardBm !== pk);
   const poolName = item.pool ? findAny(ctx?.period, item.pool)?.item?.name || 'shared budget' : null;
   const notCounted = Boolean(poolName) || billedLater;
