@@ -398,6 +398,7 @@ export function autoAmount(items, id) {
   const item = items?.[id];
   const total = Number(item?.auto?.total) || 0;
   const others = Object.entries(items || {}).reduce((s, [oid, it]) => (oid === id || it?.pool ? s : s + monthlyOf(it)), 0);
+  // (a part's own automatic amount is handled by autoPartAmount)
   return Math.max(0, Math.round((total - others) * 100) / 100);
 }
 
@@ -446,9 +447,26 @@ function spentInView(itemId, view, ctx) {
   return isYearKey(pk) ? yearSpent / 12 : sumSpends(spendsIn(ctx.spending, itemId, pk, ctx.cards));
 }
 
-// Items sharing one budget (item.pool = the item whose amount is the budget).
+// An item, or a part inside a combined item, by id: { tabId, item, parent }.
+export function findAny(period, id) {
+  const top = findItem(period, id);
+  if (top) return top;
+  for (const [tabId, items] of Object.entries(period?.items || {})) {
+    for (const parent of Object.values(items || {})) if (parent?.parts?.[id]) return { tabId, item: parent.parts[id], parent };
+  }
+  return null;
+}
+// A part with parts.auto = { total }: the total minus the other parts of its
+// combined item (e.g. Combined → Allowances = $1,800 − the other parts).
+export function autoPartAmount(parts, pid) {
+  const total = Number(parts?.[pid]?.auto?.total) || 0;
+  const others = Object.entries(parts || {}).reduce((s, [id, p]) => (id === pid ? s : s + partMonthly(p)), 0);
+  return Math.max(0, Math.round((total - others) * 100) / 100);
+}
+
+// Items sharing one budget (item.pool = the item, or part, whose amount is the budget).
 export function poolOf(period, poolId) {
-  const source = findItem(period, poolId);
+  const source = findAny(period, poolId);
   const members = [];
   for (const [tabId, items] of Object.entries(period?.items || {})) for (const [id, it] of Object.entries(items || {})) if (it?.pool === poolId) members.push({ id, tabId, item: it });
   return { source, members };
@@ -463,7 +481,7 @@ export function budgetStatus(item, itemId, spending, pk, ctx) {
   const spent = sumSpends(spends);
   if (item?.pool && ctx?.period) {
     const { source, members } = poolOf(ctx.period, item.pool);
-    const budget = source && !isPaused(source.item, pk) ? monthlyOf(source.item) * (isYearKey(pk) ? 12 : 1) : 0;
+    const budget = source && !isPaused(source.parent || source.item, pk) ? monthlyOf(source.item) * (isYearKey(pk) ? 12 : 1) : 0;
     const poolSpent = members.reduce((s, m) => s + sumSpends(spendsIn(spending, m.id, pk, cards)), 0);
     return { budget, spent: poolSpent, left: budget - poolSpent, spends, ownSpent: spent, pool: { name: source?.item?.name || 'the shared budget', tabId: source?.tabId, count: members.length } };
   }

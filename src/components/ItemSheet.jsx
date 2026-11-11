@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FREQS, MONTHS, RECURS, amountInView, compareItem, isPaused, isYearKey, nextOccurrences, recurOf, spentMode, findItem, inView, monthlyOf, setAsideOf, yearOf, yearlyOf } from '../lib/budget';
+import { FREQS, MONTHS, RECURS, amountInView, compareItem, isPaused, isYearKey, nextOccurrences, recurOf, spentMode, findItem, findAny, inView, monthlyOf, setAsideOf, yearOf, yearlyOf } from '../lib/budget';
 import { copyItemsToMonth, dateIn, duplicateItems, itemToSpend, laterCopies, moveItem, ordersAfter, removeFromLater, saveItemForward, setEndMonth, splitItem, trashItem } from '../lib/db';
 import { formatMoney, parseAmount } from '../lib/format';
 import CatField from './CatField';
@@ -163,10 +163,15 @@ export default function ItemSheet(props) {
   const personName = (pid) => period?.people?.[pid]?.name || 'someone';
   const driveOwners = Object.keys(drive || {}).filter((pid) => Object.keys(drive[pid]?.items || {}).length || Object.keys(drive[pid]?.rides || {}).length);
   const computed = Boolean(item.auto || item.link?.cashcard);
-  const poolSource = item.pool ? findItem(period, item.pool) : null;
+  const poolSource = item.pool ? findAny(period, item.pool) : null;
   const poolOptions = Object.entries(period?.items || {})
     .filter(([t]) => t !== tabId)
-    .flatMap(([t, items]) => Object.entries(items || {}).filter(([, it]) => it && !it.pool && !it.track).map(([id, it]) => ({ id, it, t })))
+    .flatMap(([t, items]) =>
+      Object.entries(items || {})
+        .filter(([, it]) => it && !it.pool && !it.track)
+        // A combined item offers its parts (e.g. Combined → Allowances) as well as itself.
+        .flatMap(([id, it]) => [{ id, it, t }, ...Object.entries(it.parts || {}).map(([pid, p]) => ({ id: pid, it: p, t, parent: it }))]),
+    )
     .sort((a, b) => Number(Boolean(b.it.auto)) - Number(Boolean(a.it.auto)) || String(a.it.name || '').localeCompare(String(b.it.name || '')));
   const groupNameOf = (t) => period?.tabs?.[t]?.name || 'Untitled';
   const billDate = `${pk}-${/^\d{4}-\d{2}-\d{2}$/.test(item.date || '') ? item.date.slice(8, 10) : '01'}`;
@@ -227,7 +232,8 @@ export default function ItemSheet(props) {
           <div className="cs-computed">
             <b className="big-amount-ro">{formatMoney(monthlyOf(poolSource.item), currency)}</b>
             <span className="muted small">
-              Shared budget from {poolSource.item.name || 'another item'} ({groupNameOf(poolSource.tabId)}) · not counted in {tabName || 'this group'}’s total
+              Shared budget from {poolSource.parent ? `${poolSource.parent.name || 'Combined'} → ` : ''}
+              {poolSource.item.name || 'another item'} ({groupNameOf(poolSource.tabId)}) · not counted in {tabName || 'this group'}’s total
             </span>
           </div>
         )}
@@ -406,6 +412,7 @@ export default function ItemSheet(props) {
                   <option value="">Its own amount</option>
                   {poolOptions.map((o) => (
                     <option key={o.id} value={o.id}>
+                      {o.parent ? `${o.parent.name || 'Combined'} → ` : ''}
                       {o.it.name || 'Untitled'} · {groupNameOf(o.t)}
                       {o.it.auto ? ' (automatic)' : ''}
                     </option>
@@ -473,7 +480,7 @@ export default function ItemSheet(props) {
           </section>
         )}
         {isGroup && (
-          <PartsList path={path} lockPrefix={`${pk}:part:${itemId}`} item={item} currency={currency} globalView={view} listId="sheet-categories" saveForward={saveMany} />
+          <PartsList path={path} lockPrefix={`${pk}:part:${itemId}`} item={item} currency={currency} globalView={view} listId="sheet-categories" saveForward={saveMany} driveOwners={monthOnly ? driveOwners : []} personName={personName} topUps={(pid) => cashcardTopUps(drive?.[pid], pk)} />
         )}
 
         {/* Rarely needed: folded away */}

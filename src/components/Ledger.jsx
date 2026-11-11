@@ -7,6 +7,7 @@ import {
   FREQS,
   allSpendCategories,
   autoAmount,
+  autoPartAmount,
   budgetItems,
   categoriesIn,
   splitCats,
@@ -261,6 +262,24 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
       if (isYearKey(key)) continue;
       for (const [tabId, items] of Object.entries(p?.items || {})) {
         const work = { ...(items || {}) };
+        // Parts of a combined item first: linked parts, then automatic parts.
+        for (const [iid, it] of Object.entries(work)) {
+          if (!it?.parts) continue;
+          const parts = { ...it.parts };
+          let changed = false;
+          const setPart = (pid, amount) => {
+            const p = parts[pid];
+            parts[pid] = { ...p, amount, freq: 'monthly' };
+            changed = true;
+            if (Math.abs((Number(p.amount) || 0) - amount) > 0.005 || p.freq === 'yearly') {
+              patch[`periods/${key}/items/${tabId}/${iid}/parts/${pid}/amount`] = amount;
+              if (p.freq === 'yearly') patch[`periods/${key}/items/${tabId}/${iid}/parts/${pid}/freq`] = 'monthly';
+            }
+          };
+          for (const [pid, p] of Object.entries(parts)) if (p?.link?.cashcard) setPart(pid, cashcardTopUps(data.drive?.[p.link.cashcard], key));
+          for (const [pid, p] of Object.entries(parts)) if (p?.auto) setPart(pid, autoPartAmount(parts, pid));
+          if (changed) work[iid] = { ...it, parts };
+        }
         for (const [iid, it] of Object.entries(work)) {
           const pid = it?.link?.cashcard;
           if (!pid) continue;

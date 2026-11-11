@@ -8,7 +8,7 @@ import LiveInput from './LiveInput';
 import { confirmTwice } from '../lib/confirm';
 
 // The breakdown inside a merged item, e.g. Kids Insurance → PA (Arissa) $211.08/yr …
-export default function PartsList({ path, lockPrefix, item, currency, globalView, listId, saveForward }) {
+export default function PartsList({ path, lockPrefix, item, currency, globalView, listId, saveForward, driveOwners = [], personName = () => '', topUps = () => 0 }) {
   // Writes go through saveForward (this month and later ones) when given.
   const write = (patch) => (saveForward ? saveForward(patch) : patchPath(path, patch));
   const view = item.view || globalView;
@@ -74,6 +74,44 @@ export default function PartsList({ path, lockPrefix, item, currency, globalView
                 listId={listId}
                 className="part-cat"
               />
+              {/* Worked-out amounts for this part */}
+              <div className="part-rules">
+                <label className="part-rule">
+                  <input type="checkbox" checked={Boolean(p.auto)} onChange={(e) => write({ [`parts/${p.id}/auto`]: e.target.checked ? { total: 1800 } : null, [`parts/${p.id}/link`]: null })} />
+                  <span>Automatic: total minus the other parts</span>
+                </label>
+                {p.auto && (
+                  <label className="part-total">
+                    <span>Set total</span>
+                    <LiveInput
+                      inputMode="decimal"
+                      fieldKey={`${lockPrefix}:${p.id}:autoTotal`}
+                      value={p.auto.total}
+                      format={(v) => (v ? String(v) : '')}
+                      parse={parseAmount}
+                      display={(v) => formatMoney(v, currency)}
+                      onSave={(v) => v > 0 && write({ [`parts/${p.id}/auto`]: { total: v } })}
+                      aria-label="Set total"
+                    />
+                  </label>
+                )}
+                {p.auto && (
+                  <span className="muted small">
+                    {formatMoney(Number(p.auto.total) || 0, currency)} − {formatMoney(Math.max(0, (Number(p.auto.total) || 0) - (Number(p.amount) || 0)), currency)} of the other parts
+                  </span>
+                )}
+                {driveOwners.length > 0 && (
+                  <label className="part-rule">
+                    <input type="checkbox" checked={Boolean(p.link?.cashcard)} onChange={(e) => write({ [`parts/${p.id}/link`]: e.target.checked ? { cashcard: driveOwners[0] } : null, [`parts/${p.id}/auto`]: null })} />
+                    <span>Amount = Grab cash card top-ups</span>
+                  </label>
+                )}
+                {p.link?.cashcard && (
+                  <span className="muted small">
+                    {formatMoney(topUps(p.link.cashcard), currency)} topped up this month on {personName(p.link.cashcard)}’s Drive page
+                  </span>
+                )}
+              </div>
               <LiveInput
                 className="ep-note"
                 fieldKey={`${lockPrefix}:${p.id}:note`}
@@ -84,7 +122,13 @@ export default function PartsList({ path, lockPrefix, item, currency, globalView
               />
             </div>
             <div className="part-amt">
-              <div className="amt-line">
+              {(p.auto || p.link?.cashcard) && (
+                <div className="amt-line part-computed">
+                  <b>{formatMoney(Number(p.amount) || 0, currency)}</b>
+                  <span className="muted small">/mo</span>
+                </div>
+              )}
+              <div className="amt-line" hidden={Boolean(p.auto || p.link?.cashcard)}>
                 <LiveInput
                   className="ep-amount"
                   inputMode="decimal"

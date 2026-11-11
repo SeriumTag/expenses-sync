@@ -1,4 +1,4 @@
-import { FREQS, MONTHS, amountInView, cardBillMonth, findItem, isPaused, monthlyOf, recurOf, budgetStatus, spentMode, compareItem, itemCats, inView, partCats, partMonthly, sorted } from '../lib/budget';
+import { FREQS, MONTHS, amountInView, cardBillMonth, findAny, isPaused, monthlyOf, recurOf, budgetStatus, spentMode, compareItem, itemCats, inView, partCats, partMonthly, sorted } from '../lib/budget';
 import { formatMoney } from '../lib/format';
 import { usePresenceCtx } from '../hooks/usePresence';
 import { ChangeBadge } from './ChangeBadge';
@@ -24,7 +24,7 @@ export default function ItemRow(props) {
   // its own figure, greyed, since it isn't counted here.
   const cardBm = shownView === 'monthly' ? cardBillMonth(item, pk, ctx?.cards) : null;
   const billedLater = Boolean(cardBm && cardBm !== pk);
-  const poolName = item.pool ? findItem(ctx?.period, item.pool)?.item?.name || 'shared budget' : null;
+  const poolName = item.pool ? findAny(ctx?.period, item.pool)?.item?.name || 'shared budget' : null;
   const notCounted = Boolean(poolName) || billedLater;
   const amount = poolName && status ? status.budget : billedLater ? monthlyOf(item) : counted;
   // Every row gets an icon square, like the design's transactions.

@@ -2276,3 +2276,12 @@ body {
 @media (max-width: 600px) {
   .modal .spend-form .spend-card, .modal .inline-field select, .modal .inline-field input { font-size: 16px; min-height: 42px; }
 }
+/* Parts of a combined item: automatic / cash card amounts */
+.part-rules { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.part-rule { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.part-rule input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); flex-shrink: 0; }
+.part-total { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; }
+.part-total input { width: 100%; min-width: 0; }
+.part-computed b { font-size: 15px; font-variant-numeric: tabular-nums; }
+@media (max-width: 600px) { .modal .part-total input { font-size: 16px; min-height: 40px; } }
+.amt-line[hidden] { display: none !important; }
