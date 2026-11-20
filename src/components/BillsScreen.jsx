@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FREQS, MONTHS, amountInView, carriedIn, potBalance, recurOf, setAsideTab, sorted, tabTotal, yearOf, yearlyRecurringSetAside } from '../lib/budget';
-import { cardsList } from '../lib/cards';
+import { FREQS, MONTHS, amountInView, cardBills, carriedIn, potBalance, recurOf, setAsideTab, sorted, tabTotal, yearOf, yearlyRecurringSetAside } from '../lib/budget';
 import { prefs } from '../lib/session';
 import { duplicateItems, mergeItems, ordersAfter, reorderItems } from '../lib/db';
 import { reordered, useDragSort } from '../hooks/useDragSort';
@@ -35,7 +34,11 @@ export default function BillsScreen(props) {
   // Last month's bills put on a credit card whose card bill comes this month.
   const carried = view === 'monthly' ? shownTabs.flatMap((t) => carriedIn(ctx.periods, pk, t.id, ctx).map((x) => ({ ...x, tabId: t.id }))) : [];
   const carriedSum = carried.reduce((s, x) => s + x.amount, 0);
-  const cardName = (id) => cardsList(ctx.cards).find((cd) => cd.id === id)?.name || 'Card';
+  // Each card's statement this month (everything on it), for the Card bills section.
+  const statements = view === 'monthly' ? cardBills(ctx.periods, pk, shownTabs.map((t) => t.id), ctx) : [];
+  const statementsTotal = statements.reduce((s, b) => s + b.total, 0);
+  const ownerName = (card) => period.people?.[card.person]?.name || '';
+  const shortDay = (ds) => `${Number(ds.slice(8, 10))} ${MONTHS[Number(ds.slice(5, 7)) - 1]}`;
   const total = entries.reduce((sum, e) => sum + amountInView(e.item, e.item.id, view, ctx), 0) + carriedSum;
   // Bills priced per year, plus (for all groups) bills that repeat yearly, spread over 12 months.
   const setAside = shownTabs.reduce((sum, t) => sum + setAsideTab(period.items?.[t.id]), 0) + (group === 'all' ? yearlyRecurringSetAside(ctx.periods, yearOf(pk)) : 0);
@@ -264,32 +267,62 @@ export default function BillsScreen(props) {
             );
           })}
 
-          {/* Card bills from last month, paid this month */}
-          {carried.length > 0 && (
-            <section className="home-card bills-section sec-carried" aria-label="Card bills from last month">
+          {/* Each card's statement this month: tap a card to see what's on it */}
+          {statements.length > 0 && (
+            <section className="home-card bills-section sec-carried" aria-label="Card bills this month">
               <div className="home-card-head">
                 <h2>
-                  <span aria-hidden="true">💳</span> Card bills from {MONTHS[Number(carried[0].fromKey.slice(5, 7)) - 1]}
+                  <span aria-hidden="true">💳</span> Card bills this month
                 </h2>
                 <span className="bills-sum">
-                  {formatMoney(carriedSum, currency)}
+                  {formatMoney(statementsTotal, currency)}
                   <span className="per-small">{FREQS[view].short}</span>
                 </span>
               </div>
-              <p className="muted small bills-note">Put on a credit card last month — the card bill comes this month, so they count here.</p>
-              <div className="carried-rows">
-                {carried.map((x) => (
-                  <div key={`${x.tabId}:${x.id}`} className="carried-row">
-                    <span>
-                      <b>{x.item.name || 'Untitled'}</b>
-                      <span className="muted small">
-                        {' '}
-                        · {cardName(x.item.card)}
-                        {group === 'all' ? ` · ${tabName(x.tabId)}` : ''}
+              <p className="muted small bills-note">
+                {carriedSum > 0
+                  ? `${formatMoney(carriedSum, currency)} of it was put on a card last month and is added to this month here; the rest is already in its own bills and budgets.`
+                  : 'Already counted in their own bills and budgets — shown here by card, as each statement will read.'}
+              </p>
+              <div className="card-bills">
+                {statements.map((b) => (
+                  <details key={b.cardId} className="card-bill">
+                    <summary>
+                      <span className="cb-name">
+                        <b>💳 {b.card.name || 'Card'}</b>
+                        <span className="muted small">
+                          {ownerName(b.card) ? ` · ${ownerName(b.card)}` : ''} · bill {shortDay(b.billDate)} · {b.lines.length} item{b.lines.length === 1 ? '' : 's'}
+                        </span>
                       </span>
-                    </span>
-                    <b>{formatMoney(x.amount, currency)}</b>
-                  </div>
+                      <b className="cb-total">{formatMoney(b.total, currency)}</b>
+                      <span className="cb-chev" aria-hidden="true">
+                        ▾
+                      </span>
+                    </summary>
+                    <div className="carried-rows">
+                      {b.lines.map((l) => {
+                        const tag = l.kind === 'carried' ? `from ${MONTHS[Number(l.fromKey.slice(5, 7)) - 1]}` : l.kind === 'spends' ? `${l.count} spend${l.count === 1 ? '' : 's'}` : 'this month';
+                        const canOpen = l.kind !== 'carried';
+                        return (
+                          <div
+                            key={`${l.kind}:${l.tabId}:${l.id}`}
+                            className={`carried-row ${canOpen ? 'tappable' : ''}`}
+                            role={canOpen ? 'button' : undefined}
+                            tabIndex={canOpen ? 0 : undefined}
+                            onClick={canOpen ? () => onOpenItem(l.tabId, l.id) : undefined}
+                            onKeyDown={canOpen ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onOpenItem(l.tabId, l.id)) : undefined}
+                          >
+                            <span>
+                              <b>{l.name || 'Untitled'}</b>
+                              <span className="muted small">{group === 'all' ? ` · ${tabName(l.tabId)}` : ''}</span>{' '}
+                              <span className={`cb-tag ${l.kind}`}>{tag}</span>
+                            </span>
+                            <b>{formatMoney(l.amount, currency)}</b>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
                 ))}
               </div>
             </section>

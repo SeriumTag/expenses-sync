@@ -395,6 +395,53 @@ export function carriedIn(periods, pk, tabId, ctx) {
   }
   return out;
 }
+// Each card's statement for month `pk`, as the person sees it: everything that
+// lands on it this month. Only the 'carried' lines (last month's items) are added
+// to this month's totals; 'bill' and 'spends' lines are already in their own rows.
+// [{ cardId, card, billDate, total, addedHere, lines: [{ kind, id, tabId, name, amount, count, fromKey }] }]
+export function cardBills(periods, pk, tabIds, ctx) {
+  if (!pk || isYearKey(pk) || !ctx?.cards) return [];
+  const period = periods?.[pk];
+  const byCard = new Map();
+  const add = (cardId, line) => {
+    const card = ctx.cards[cardId];
+    if (!card || !(line.amount > 0)) return;
+    if (!byCard.has(cardId)) {
+      const day = String(Math.min(28, Math.max(1, Number(card.day) || 1))).padStart(2, '0');
+      byCard.set(cardId, { cardId, card, billDate: `${pk}-${day}`, total: 0, addedHere: 0, lines: [] });
+    }
+    const b = byCard.get(cardId);
+    b.lines.push(line);
+    b.total += line.amount;
+    if (line.kind === 'carried') b.addedHere += line.amount;
+  };
+  for (const tabId of tabIds) {
+    for (const x of carriedIn(periods, pk, tabId, ctx)) add(x.item.card, { kind: 'carried', id: x.id, tabId, name: x.item.name, amount: x.amount, fromKey: x.fromKey });
+    for (const [id, item] of Object.entries(period?.items?.[tabId] || {})) {
+      if (!item || item.pool || isPaused(item, pk)) continue;
+      if (item.budget) {
+        // Spends on a card (their own, or the budget's) whose bill comes this month.
+        const groups = new Map();
+        for (const s of spendsIn(ctx.spending, id, pk, ctx.cards, item.card)) {
+          const cid = s.card === 'cash' ? null : s.card || item.card;
+          if (!cid || !ctx.cards[cid]) continue;
+          const g = groups.get(cid) || { amount: 0, count: 0 };
+          g.amount += Number(s.amount) || 0;
+          g.count += 1;
+          groups.set(cid, g);
+        }
+        for (const [cid, g] of groups) add(cid, { kind: 'spends', id, tabId, name: item.name, amount: Math.round(g.amount * 100) / 100, count: g.count });
+        // A fixed budget on a card is a bill of its own amount too (see below).
+        if (spentMode(item)) continue;
+      }
+      if (item.card && !item.budget && cardBillMonth(item, pk, ctx.cards) === pk) add(item.card, { kind: 'bill', id, tabId, name: item.name, amount: monthlyOf(item) });
+    }
+  }
+  return [...byCard.values()]
+    .map((b) => ({ ...b, total: Math.round(b.total * 100) / 100, addedHere: Math.round(b.addedHere * 100) / 100 }))
+    .sort((a, b) => a.billDate.localeCompare(b.billDate) || String(a.card.name).localeCompare(String(b.card.name)));
+}
+
 // A group's total in `view`, with last month's card bills that are paid this month.
 export function tabTotal(period, tabId, view, ctx) {
   const own = tabInView(period?.items?.[tabId], view, ctx);

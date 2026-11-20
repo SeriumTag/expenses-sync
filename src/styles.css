@@ -2285,3 +2285,17 @@ body {
 .part-computed b { font-size: 15px; font-variant-numeric: tabular-nums; }
 @media (max-width: 600px) { .modal .part-total input { font-size: 16px; min-height: 40px; } }
 .amt-line[hidden] { display: none !important; }
+/* Card bills: one expandable statement per card */
+.card-bills { display: flex; flex-direction: column; gap: 6px; position: relative; z-index: 1; }
+.card-bill { border-radius: 14px; background: var(--surface-2); }
+.card-bill > summary { display: grid; grid-template-columns: minmax(0, 1fr) auto 16px; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer; list-style: none; }
+.card-bill > summary::-webkit-details-marker { display: none; }
+.cb-name { min-width: 0; }
+.cb-total { font-variant-numeric: tabular-nums; }
+.cb-chev { color: var(--muted); transition: transform 0.2s; }
+.card-bill[open] .cb-chev { transform: rotate(180deg); }
+.card-bill .carried-rows { padding: 0 12px 8px; }
+.carried-row.tappable { cursor: pointer; }
+.carried-row.tappable:active { background: var(--accent-soft); }
+.cb-tag { display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 800; background: var(--surface); color: var(--muted); }
+.cb-tag.carried { background: var(--lav-soft); color: var(--lav-ink); }
