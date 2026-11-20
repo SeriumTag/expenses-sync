@@ -170,6 +170,9 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
   return (
     <div className="budget-tracker">
       <BudgetBar status={status} currency={currency} />
+      {status.onLaterBills > 0 && (
+        <p className="muted small card-hint">💳 {formatMoney(status.onLaterBills, currency)} put on a card this month — it counts when the card bill comes.</p>
+      )}
 
       {byCat.length > 0 && (
         <details className="spend-cats" open={showList}>
@@ -283,14 +286,14 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
       {error && <p className="att-error">{error}</p>}
       {notice && <p className="spend-notice" role="status">{notice}</p>}
 
-      {status.spends.length > 0 && (
+      {status.logged.length > 0 && (
         <>
           <button className="spend-toggle" onClick={() => setListOpen((v) => !v)} aria-expanded={listOpen}>
-            {listOpen ? '▾' : '▸'} {status.spends.length} spend{status.spends.length === 1 ? '' : 's'}
+            {listOpen ? '▾' : '▸'} {status.logged.length} spend{status.logged.length === 1 ? '' : 's'}
           </button>
           {listOpen && (
             <ul className="spend-list">
-              {status.spends.map((s) => {
+              {status.logged.map((s) => {
                 const open = detail === s.id;
                 const nFiles = Object.keys(s.files || {}).length;
                 return (
@@ -312,6 +315,7 @@ export default function BudgetTracker({ ledgerId, itemId, item, pk, spending, cu
                         </span>
                       )}
                       {cardOf(s) && ctx?.cards?.[cardOf(s)] && <span className="s-card">💳 {ctx.cards[cardOf(s)].name} · {monthShort(billMonth(s.date, ctx.cards[cardOf(s)]))} bill</span>}
+                      {!String(s.date).startsWith(pk) && <span className="s-card from">from {monthShort(s.date.slice(0, 7))} · on this bill</span>}
                       {s.by && s.by !== username && <span className="muted small s-by">{s.by}</span>}
                     </span>
                     <LiveInput

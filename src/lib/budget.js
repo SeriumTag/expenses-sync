@@ -387,8 +387,9 @@ export function carriedIn(periods, pk, tabId, ctx) {
       // A spends-only budget that isn't in this month (e.g. one-time): its
       // spends whose card bill comes this month. (If it is here, its own copy counts them.)
       if (here[id]) continue;
-      const amount = sumSpends(spendsIn(ctx.spending, id, pk, ctx.cards, item.card));
-      if (amount > 0) out.push({ id, item, amount, fromKey: from });
+      const spends = spendsIn(ctx.spending, id, pk, ctx.cards, item.card).filter((s) => s.card !== 'cash' && ctx.cards[s.card || item.card]);
+      const amount = Math.round(sumSpends(spends) * 100) / 100;
+      if (amount > 0) out.push({ id, item, amount, fromKey: from, spends: spends.slice().reverse() });
       continue;
     }
     if (cardBillMonth(item, from, ctx.cards) === pk) out.push({ id, item, amount: monthlyOf(item), fromKey: from });
@@ -416,7 +417,7 @@ export function cardBills(periods, pk, tabIds, ctx) {
     if (line.kind === 'carried') b.addedHere += line.amount;
   };
   for (const tabId of tabIds) {
-    for (const x of carriedIn(periods, pk, tabId, ctx)) add(x.item.card, { kind: 'carried', id: x.id, tabId, name: x.item.name, amount: x.amount, fromKey: x.fromKey });
+    for (const x of carriedIn(periods, pk, tabId, ctx)) add(x.item.card, { kind: 'carried', id: x.id, tabId, name: x.item.name, amount: x.amount, fromKey: x.fromKey, spends: x.spends || null, count: x.spends?.length });
     for (const [id, item] of Object.entries(period?.items?.[tabId] || {})) {
       if (!item || item.pool || isPaused(item, pk)) continue;
       if (item.budget) {
@@ -425,12 +426,13 @@ export function cardBills(periods, pk, tabIds, ctx) {
         for (const s of spendsIn(ctx.spending, id, pk, ctx.cards, item.card)) {
           const cid = s.card === 'cash' ? null : s.card || item.card;
           if (!cid || !ctx.cards[cid]) continue;
-          const g = groups.get(cid) || { amount: 0, count: 0 };
+          const g = groups.get(cid) || { amount: 0, count: 0, spends: [] };
           g.amount += Number(s.amount) || 0;
           g.count += 1;
+          g.spends.unshift(s);
           groups.set(cid, g);
         }
-        for (const [cid, g] of groups) add(cid, { kind: 'spends', id, tabId, name: item.name, amount: Math.round(g.amount * 100) / 100, count: g.count });
+        for (const [cid, g] of groups) add(cid, { kind: 'spends', id, tabId, name: item.name, amount: Math.round(g.amount * 100) / 100, count: g.count, spends: g.spends });
         // A fixed budget on a card is a bill of its own amount too (see below).
         if (spentMode(item)) continue;
       }
@@ -539,15 +541,23 @@ export function budgetStatus(item, itemId, spending, pk, ctx) {
   const cards = ctx?.cards;
   const spends = spendsIn(spending, itemId, pk, cards, item?.card);
   const spent = sumSpends(spends);
+  // What was keyed in this month by its own date (a card spend may count on a
+  // later bill), plus earlier card spends on this month's bill — for the list.
+  const keyed = spendsIn(spending, itemId, pk);
+  const seen = new Set(keyed.map((s) => s.id));
+  const logged = [...keyed, ...spends.filter((s) => !seen.has(s.id))].sort((a, b) => b.date.localeCompare(a.date) || (b.at || 0) - (a.at || 0));
+  const laterIds = new Set(spends.map((s) => s.id));
+  const onLaterBills = Math.round(sumSpends(keyed.filter((s) => !laterIds.has(s.id))) * 100) / 100;
+  const extra = { logged, onLaterBills };
   if (item?.pool && ctx?.period) {
     const { source, members } = poolOf(ctx.period, item.pool);
     const budget = source && !isPaused(source.parent || source.item, pk) ? monthlyOf(source.item) * (isYearKey(pk) ? 12 : 1) : 0;
     const poolSpent = members.reduce((s, m) => s + sumSpends(spendsIn(spending, m.id, pk, cards, m.item.card)), 0);
-    return { budget, spent: poolSpent, left: budget - poolSpent, spends, ownSpent: spent, pool: { name: source?.item?.name || 'the shared budget', tabId: source?.tabId, count: members.length } };
+    return { ...extra, budget, spent: poolSpent, left: budget - poolSpent, spends, ownSpent: spent, pool: { name: source?.item?.name || 'the shared budget', tabId: source?.tabId, count: members.length } };
   }
-  if (spentMode(item)) return { budget: spent, spent, left: 0, spends, noBudget: true };
+  if (spentMode(item)) return { ...extra, budget: spent, spent, left: 0, spends, noBudget: true };
   const budget = isPaused(item, pk) ? 0 : monthlyOf(item) * (isYearKey(pk) ? 12 : 1);
-  return { budget, spent, left: budget - spent, spends };
+  return { ...extra, budget, spent, left: budget - spent, spends };
 }
 
 // ── Categories on spends ────────────────────────────────────────────

@@ -669,6 +669,10 @@ export default function Ledger({ ledgerId, username, theme, onThemeChange, ledge
                 onGroup={pickGroup}
                 scrollTo={billsScroll}
                 onOpenItem={openItem}
+                onOpenInMonth={(k, tid, iid) => {
+                  selectPeriod(k);
+                  setSheet({ type: 'item', tabId: tid, itemId: iid });
+                }}
                 onAdd={addExpense}
                 onImport={() => setDialog('statement')}
                 onAddTab={() => {

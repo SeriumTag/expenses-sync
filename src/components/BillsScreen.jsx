@@ -20,7 +20,7 @@ export const sectionOf = (item) => (item.track ? 'savings' : item.budget ? 'expe
 
 export default function BillsScreen(props) {
   const { base, pk, period, tabs, prevPeriod, prevLabel, currency, username, view, ctx } = props;
-  const { group, onGroup, scrollTo, onViewChange, onOpenItem, onAdd, onImport, onAddTab, groupMenu } = props;
+  const { group, onGroup, scrollTo, onViewChange, onOpenItem, onOpenInMonth, onAdd, onImport, onAddTab, groupMenu } = props;
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState(false);
   const [picked, setPicked] = useState(() => new Set()); // "tabId:itemId"
@@ -301,8 +301,37 @@ export default function BillsScreen(props) {
                     </summary>
                     <div className="carried-rows">
                       {b.lines.map((l) => {
-                        const tag = l.kind === 'carried' ? `from ${MONTHS[Number(l.fromKey.slice(5, 7)) - 1]}` : l.kind === 'spends' ? `${l.count} spend${l.count === 1 ? '' : 's'}` : 'this month';
+                        const fromMonth = l.fromKey ? MONTHS[Number(l.fromKey.slice(5, 7)) - 1] : '';
+                        const tag = l.kind === 'carried' ? `from ${fromMonth}` : l.kind === 'spends' ? `${l.count} spend${l.count === 1 ? '' : 's'}` : 'this month';
                         const canOpen = l.kind !== 'carried';
+                        const open = () => (l.kind === 'carried' ? onOpenInMonth?.(l.fromKey, l.tabId, l.id) : onOpenItem(l.tabId, l.id));
+                        // A line made of spends: tap to see each one.
+                        if (l.spends?.length) {
+                          return (
+                            <details key={`${l.kind}:${l.tabId}:${l.id}`} className="cb-line">
+                              <summary className="carried-row tappable">
+                                <span>
+                                  <b>{l.name || 'Untitled'}</b>
+                                  <span className="muted small">{group === 'all' ? ` · ${tabName(l.tabId)}` : ''}</span>{' '}
+                                  <span className={`cb-tag ${l.kind}`}>{l.kind === 'carried' ? `from ${fromMonth} · ${l.spends.length} spend${l.spends.length === 1 ? '' : 's'}` : tag}</span>
+                                </span>
+                                <b>{formatMoney(l.amount, currency)}</b>
+                              </summary>
+                              <div className="cb-spends">
+                                {l.spends.map((s) => (
+                                  <div key={s.id} className="cb-spend">
+                                    <span className="muted small">{shortDay(s.date)}</span>
+                                    <span>{s.note || 'Spend'}</span>
+                                    <span>{formatMoney(s.amount, currency)}</span>
+                                  </div>
+                                ))}
+                                <button className="link-btn cb-open" onClick={open}>
+                                  {l.kind === 'carried' ? `Open in ${fromMonth} ›` : 'Open budget ›'}
+                                </button>
+                              </div>
+                            </details>
+                          );
+                        }
                         return (
                           <div
                             key={`${l.kind}:${l.tabId}:${l.id}`}
